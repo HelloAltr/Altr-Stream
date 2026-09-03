@@ -1,0 +1,19 @@
+{% if result.success %}
+<div class="alert alert-success">
+  <strong>✓ Connection Successful!</strong>
+  <p>{{ result.message }}</p>
+  {% if result.server_version %}
+  <p style="font-size: 0.8rem; margin-top: 0.25rem; opacity: 0.85;">
+    <strong>Server Version:</strong> {{ result.server_version }}
+  </p>
+  {% endif %}
+</div>
+{% else %}
+<div class="alert alert-error">
+  <strong>✗ Connection Failed</strong>
+  <p>{{ result.message }}</p>
+  {% if result.error_details %}
+  <pre style="margin-top: 0.5rem; font-size: 0.8rem; white-space: pre-wrap;" class="code-inline">{{ result.error_details }}</pre>
+  {% endif %}
+</div>
+{% endif %}

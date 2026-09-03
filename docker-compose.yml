@@ -1,0 +1,50 @@
+services:
+  altr-stream:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: altr-stream-app
+    ports:
+      - "8000:8000"
+    environment:
+      - ALTR_STREAM_DEBUG=true
+      - ALTR_STREAM_HOST=0.0.0.0
+      - ALTR_STREAM_PORT=8000
+      - ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:///app/data/altr_stream.db
+    volumes:
+      - altr_stream_data:/app/data
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    networks:
+      - altr-network
+
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: altr-postgres-test
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=altr_test_db
+      - POSTGRES_USER=altr_user
+      - POSTGRES_PASSWORD=altr_secure_pass
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U altr_user -d altr_test_db"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+    networks:
+      - altr-network
+
+volumes:
+  altr_stream_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+networks:
+  altr-network:
+    driver: bridge

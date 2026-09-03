@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Schema — {{ source.name }} — Altr Stream{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+      <h1 class="page-title">{{ source.name }} — Schema Viewer</h1>
+      <span class="badge badge-type">{{ source.type.value }}</span>
+    </div>
+    <p class="page-subtitle">
+      Standardized representation of introspected database catalog and structures
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <button 
+      type="button" 
+      class="btn btn-primary"
+      hx-post="/admin/sources/{{ source.id }}/discover"
+      hx-target="#discovery-feedback"
+      hx-indicator="#schema-spinner"
+    >
+      <span class="spinner htmx-indicator" id="schema-spinner"></span>
+      <span>🔄 Refresh / Discover Schema</span>
+    </button>
+    <a href="/admin/sources/{{ source.id }}" class="btn btn-secondary">&larr; Source Details</a>
+  </div>
+</div>
+
+<div id="discovery-feedback"></div>
+
+{% if schema %}
+<!-- Snapshot Summary Card -->
+<div class="card" style="padding: 1rem 1.5rem; background: rgba(30, 41, 59, 0.5);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <span style="color: var(--text-secondary); font-size: 0.85rem;">Snapshot Version:</span>
+      <strong class="code-inline">{{ schema.version }}</strong>
+      <span style="margin: 0 0.5rem; color: var(--border-color);">|</span>
+      <span style="color: var(--text-secondary); font-size: 0.85rem;">Discovered At:</span>
+      <strong>{{ schema.discovered_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</strong>
+    </div>
+    <div>
+      <span class="badge badge-active">{{ schema.entity_count }} Tables / Entities</span>
+      <span class="badge badge-type" style="margin-left: 0.5rem;">{{ schema.total_field_count }} Total Columns</span>
+    </div>
+  </div>
+</div>
+
+<!-- Entities / Tables List -->
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+  {% for entity in schema.entities %}
+  <div class="card" id="entity-{{ entity.name }}">
+    <div class="card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span style="font-size: 1.25rem;">📄</span>
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--accent-cyan); margin: 0;">
+            {{ entity.namespace }}.{{ entity.name }}
+          </h3>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">
+            Type: {{ entity.entity_type }} &bull; {{ entity.fields|length }} fields
+          </span>
+        </div>
+      </div>
+      <div>
+        {% if entity.primary_key %}
+        <span class="badge badge-pk">PK: {{ entity.primary_key|join(", ") }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Fields / Columns Table -->
+    <div class="table-responsive" style="margin-top: 0.5rem;">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 50px;">#</th>
+            <th>Field / Column Name</th>
+            <th>Standard Data Type</th>
+            <th>Native Database Type</th>
+            <th>Nullable</th>
+            <th>Attributes</th>
+            <th>Default</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for field in entity.fields %}
+          <tr>
+            <td style="color: var(--text-muted); font-size: 0.8rem;">{{ field.position }}</td>
+            <td>
+              <strong style="font-family: var(--font-mono); color: var(--text-primary);">
+                {{ field.name }}
+              </strong>
+            </td>
+            <td>
+              <span class="code-inline" style="color: var(--accent-cyan); font-weight: 600;">
+                {{ field.data_type.value }}
+              </span>
+            </td>
+            <td>
+              <span style="color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.85rem;">
+                {{ field.native_data_type }}
+              </span>
+            </td>
+            <td>
+              {% if field.nullable %}
+              <span style="color: var(--text-secondary); font-size: 0.8rem;">Nullable</span>
+              {% else %}
+              <span style="color: var(--error-text); font-weight: 600; font-size: 0.8rem;">NOT NULL</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if field.is_primary_key %}
+              <span class="badge badge-pk">PRIMARY KEY</span>
+              {% endif %}
+            </td>
+            <td style="color: var(--text-muted); font-size: 0.85rem; font-family: var(--font-mono);">
+              {{ field.default_value if field.default_value else '—' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Constraints Section (if any) -->
+    {% if entity.constraints %}
+    <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.05);">
+      <h4 style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem; letter-spacing: 0.05em;">
+        Constraints &amp; Foreign Keys
+      </h4>
+      <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+        {% for c in entity.constraints %}
+        <div style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span class="badge badge-type" style="font-size: 0.7rem;">{{ c.constraint_type.value }}</span>
+          <span class="code-inline">{{ c.name }}</span>
+          <span style="color: var(--text-secondary);">&rarr; ({{ c.fields|join(", ") }})</span>
+          {% if c.referenced_entity %}
+          <span style="color: var(--accent-cyan);">REFERENCES {{ c.referenced_entity }} ({{ c.referenced_fields|join(", ") }})</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="card" style="text-align: center; padding: 3rem 1rem;">
+  <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
+  <h3 style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem;">No Schema Discovered Yet</h3>
+  <p style="color: var(--text-secondary); max-width: 450px; margin: 0 auto 1.5rem auto;">
+    Click the button below to connect to <strong>{{ source.name }}</strong> ({{ source.host }}:{{ source.port }}/{{ source.database_name }}) and discover its schema.
+  </p>
+  <button 
+    type="button" 
+    class="btn btn-primary"
+    hx-post="/admin/sources/{{ source.id }}/discover"
+    hx-target="#discovery-feedback"
+    hx-indicator="#schema-spinner-empty"
+  >
+    <span class="spinner htmx-indicator" id="schema-spinner-empty"></span>
+    <span>⚡ Run Schema Discovery</span>
+  </button>
+</div>
+{% endif %}
+{% endblock %}

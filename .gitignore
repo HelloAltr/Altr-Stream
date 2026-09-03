@@ -427,3 +427,53 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# OS & Editor
+.DS_Store
+*.swp
+*.swo
+
+# Graphify
+.agents/
+graphify-out/
+
+# Local Altr Workspace Context
+.altr/
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+env/
+venv/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Local Data & SQLite
+data/
+*.sqlite
+*.sqlite3
+*.db
