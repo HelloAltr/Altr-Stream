@@ -10,7 +10,7 @@ services:
       - ALTR_STREAM_DEBUG=true
       - ALTR_STREAM_HOST=0.0.0.0
       - ALTR_STREAM_PORT=8000
-      - ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:///app/data/altr_stream.db
+      - ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:////app/data/altr_stream.db
     volumes:
       - altr_stream_data:/app/data
     depends_on:
@@ -26,13 +26,13 @@ services:
       - "5432:5432"
     environment:
       - POSTGRES_DB=altr_test_db
-      - POSTGRES_USER=altr_user
-      - POSTGRES_PASSWORD=altr_secure_pass
+      - POSTGRES_USER=altr_test_user
+      - POSTGRES_PASSWORD=altr_test_pass
     volumes:
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U altr_user -d altr_test_db"]
+      test: ["CMD-SHELL", "pg_isready -U altr_test_user -d altr_test_db"]
       interval: 3s
       timeout: 5s
       retries: 5
@@ -43,7 +43,7 @@ volumes:
   altr_stream_data:
     driver: local
   postgres_data:
-    driver: local
+    driver: local 
 
 networks:
   altr-network:

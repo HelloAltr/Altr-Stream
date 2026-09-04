@@ -26,7 +26,7 @@ RUN mkdir -p /app/data
 ENV PYTHONUNBUFFERED=1
 ENV ALTR_STREAM_HOST=0.0.0.0
 ENV ALTR_STREAM_PORT=8000
-ENV ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:///app/data/altr_stream.db
+ENV ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:////app/data/altr_stream.db
 
 EXPOSE 8000
 
