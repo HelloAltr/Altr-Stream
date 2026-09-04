@@ -19,6 +19,18 @@ services:
     networks:
       - altr-network
 
+  altr-stream-admin:
+    build:
+      context: ./frontend/altr_stream_admin
+      dockerfile: Dockerfile
+    container_name: altr-stream-admin
+    ports:
+      - "3000:80"
+    depends_on:
+      - altr-stream
+    networks:
+      - altr-network
+
   postgres-test:
     image: postgres:16-alpine
     container_name: altr-postgres-test

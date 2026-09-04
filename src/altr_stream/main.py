@@ -2,15 +2,13 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 from altr_stream.config import settings
 from altr_stream.infrastructure.database.session import init_db
 from altr_stream.presentation.api.router import api_v1_router
-from altr_stream.presentation.web.router import web_router
 
 
 @asynccontextmanager
@@ -31,7 +29,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Enable CORS for local mesh development
+    # Enable CORS for local mesh and Flutter Web development
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -40,16 +38,21 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Static assets for Admin UI
-    static_dir = Path(__file__).parent / "presentation" / "web" / "static"
-    static_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    # Root service metadata endpoint
+    @app.get("/", include_in_schema=False)
+    async def root_info() -> JSONResponse:
+        return JSONResponse(
+            {
+                "service": settings.app_name,
+                "version": settings.app_version,
+                "status": "healthy",
+                "docs_url": "/docs",
+                "api_v1_prefix": "/api/v1",
+            }
+        )
 
     # Master API v1 Router
     app.include_router(api_v1_router)
-
-    # Admin UI Web Router
-    app.include_router(web_router)
 
     return app
 
