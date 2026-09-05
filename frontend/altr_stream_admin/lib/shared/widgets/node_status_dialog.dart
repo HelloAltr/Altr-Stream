@@ -65,11 +65,16 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final successColor = isDark ? AppTheme.successDark : AppTheme.successLight;
+
     return Dialog(
-      backgroundColor: AppTheme.bgSecondary,
+      backgroundColor: colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppTheme.borderColor),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 480),
@@ -87,13 +92,13 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppTheme.successBg,
+                        color: AppTheme.successBg(context),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.bolt, color: AppTheme.success, size: 20),
+                      child: Icon(Icons.bolt, color: successColor, size: 20),
                     ),
                     const SizedBox(width: 12),
-                    const Column(
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -101,12 +106,12 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
+                            color: colorScheme.onSurface,
                           ),
                         ),
                         Text(
                           'Altr Stream Local Infrastructure Node',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -115,7 +120,7 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
                 IconButton(
                   icon: const Icon(Icons.close, size: 18),
                   onPressed: () => Navigator.of(context).pop(),
-                  color: AppTheme.textMuted,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ],
             ),
@@ -124,35 +129,38 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
             // Telemetry Rows
             Container(
               decoration: BoxDecoration(
-                color: AppTheme.bgPrimary,
+                color: colorScheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.borderColor),
+                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
               ),
               child: Column(
                 children: [
-                  _buildRow('Node Identifier', 'altr-stream-node-01', isMonospace: true),
-                  _buildDivider(),
+                  _buildRow(context, 'Node Identifier', 'altr-stream-node-01', isMonospace: true),
+                  _buildDivider(context),
                   _buildRow(
+                    context,
                     'Node Health',
                     _error != null ? 'Unreachable' : (_healthInfo?['status'] ?? 'Healthy').toString(),
                     customWidget: StatusBadge(
                       status: _error != null ? 'UNREACHABLE' : (_healthInfo?['status'] ?? 'ACTIVE').toString(),
                     ),
                   ),
-                  _buildDivider(),
-                  _buildRow('Service Name', _healthInfo?['service'] ?? 'Altr Stream Service'),
-                  _buildDivider(),
-                  _buildRow('Version', _healthInfo?['version'] ?? '0.1.0', isMonospace: true),
-                  _buildDivider(),
-                  _buildRow('API Base URL', AppConfig.apiBaseUrl, isMonospace: true),
-                  _buildDivider(),
+                  _buildDivider(context),
+                  _buildRow(context, 'Service Name', _healthInfo?['service'] ?? 'Altr Stream Service'),
+                  _buildDivider(context),
+                  _buildRow(context, 'Version', _healthInfo?['version'] ?? '0.1.0', isMonospace: true),
+                  _buildDivider(context),
+                  _buildRow(context, 'API Base URL', AppConfig.apiBaseUrl, isMonospace: true),
+                  _buildDivider(context),
                   _buildRow(
+                    context,
                     'Connected Sources',
                     '${widget.activeSourcesCount} Active / ${widget.connectedSourcesCount} Total',
                   ),
                   if (_latencyMs != null) ...[
-                    _buildDivider(),
+                    _buildDivider(context),
                     _buildRow(
+                      context,
                       'API Latency',
                       '${_latencyMs!.toStringAsFixed(1)} ms',
                       isMonospace: true,
@@ -170,10 +178,10 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
                 OutlinedButton.icon(
                   onPressed: _isChecking ? null : _checkHealth,
                   icon: _isChecking
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 12,
                           height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentCyan),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
                         )
                       : const Icon(Icons.refresh, size: 14),
                   label: Text(_isChecking ? 'Checking...' : 'Probe Node'),
@@ -190,7 +198,9 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
     );
   }
 
-  Widget _buildRow(String label, String value, {bool isMonospace = false, Widget? customWidget}) {
+  Widget _buildRow(BuildContext context, String label, String value, {bool isMonospace = false, Widget? customWidget}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
@@ -198,7 +208,7 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
           customWidget ??
               Text(
@@ -207,7 +217,7 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   fontFamily: isMonospace ? 'monospace' : null,
-                  color: AppTheme.textPrimary,
+                  color: colorScheme.onSurface,
                 ),
               ),
         ],
@@ -215,7 +225,11 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
     );
   }
 
-  Widget _buildDivider() {
-    return const Divider(height: 1, thickness: 1, color: AppTheme.borderColor);
+  Widget _buildDivider(BuildContext context) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+    );
   }
 }

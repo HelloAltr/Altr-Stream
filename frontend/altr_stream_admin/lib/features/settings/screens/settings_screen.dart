@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/config/app_config.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/page_header.dart';
 import '../../../shared/widgets/status_badge.dart';
 
@@ -9,12 +8,16 @@ class SettingsScreen extends StatefulWidget {
   final ApiClient apiClient;
   final VoidCallback onNodeStatusTap;
   final String nodeStatus;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   const SettingsScreen({
     super.key,
     required this.apiClient,
     required this.onNodeStatusTap,
     this.nodeStatus = 'ACTIVE',
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
   });
 
   @override
@@ -60,6 +63,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -72,10 +77,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           primaryAction: OutlinedButton.icon(
             onPressed: _isProbing ? null : _probeBackend,
             icon: _isProbing
-                ? const SizedBox(
+                ? SizedBox(
                     width: 12,
                     height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentCyan),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
                   )
                 : const Icon(Icons.refresh, size: 14),
             label: const Text('Probe Node Health'),
@@ -94,23 +99,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.info_outline, color: AppTheme.accentCyan, size: 18),
-                          SizedBox(width: 8),
-                          Text('Node Identity & Role', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+                          Icon(Icons.info_outline, color: colorScheme.primary, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Node Identity & Role', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildRow('Node Name', 'altr-stream-node-01', isMonospace: true),
-                      _buildDivider(),
-                      _buildRow('Service Role', 'Physical Source Abstraction & CDC Node'),
-                      _buildDivider(),
-                      _buildRow('Service Version', _healthInfo?['version'] ?? '0.1.0', isMonospace: true),
-                      _buildDivider(),
-                      _buildRow('Ecosystem', 'HelloAltr / Altr Mesh Federated Architecture'),
-                      _buildDivider(),
+                      _buildRow(context, 'Node Name', 'altr-stream-node-01', isMonospace: true),
+                      _buildDivider(context),
+                      _buildRow(context, 'Service Role', 'Physical Source Abstraction & CDC Node'),
+                      _buildDivider(context),
+                      _buildRow(context, 'Service Version', _healthInfo?['version'] ?? '0.1.0', isMonospace: true),
+                      _buildDivider(context),
+                      _buildRow(context, 'Ecosystem', 'HelloAltr / Altr Mesh Federated Architecture'),
+                      _buildDivider(context),
                       _buildRow(
+                        context,
                         'Operational State',
                         _healthInfo?['status'] ?? 'Healthy',
                         customWidget: StatusBadge(status: _healthInfo?['status'] ?? 'ACTIVE'),
@@ -128,24 +134,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.network_check, color: AppTheme.accentCyan, size: 18),
-                          SizedBox(width: 8),
-                          Text('Networking & Runtime', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+                          Icon(Icons.network_check, color: colorScheme.primary, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Networking & Runtime', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildRow('API Base URL', AppConfig.apiBaseUrl, isMonospace: true),
-                      _buildDivider(),
-                      _buildRow('API Protocol', 'REST / JSON (FastAPI v1)', isMonospace: true),
-                      _buildDivider(),
-                      _buildRow('Reverse Proxy', 'Nginx 1.27 Static Host & Proxy'),
-                      _buildDivider(),
-                      _buildRow('Backend Status', _healthInfo != null ? 'Connected' : 'Checking...'),
+                      _buildRow(context, 'API Base URL', AppConfig.apiBaseUrl, isMonospace: true),
+                      _buildDivider(context),
+                      _buildRow(context, 'API Protocol', 'REST / JSON (FastAPI v1)', isMonospace: true),
+                      _buildDivider(context),
+                      _buildRow(context, 'Reverse Proxy', 'Nginx 1.27 Static Host & Proxy'),
+                      _buildDivider(context),
+                      _buildRow(context, 'Backend Status', _healthInfo != null ? 'Connected' : 'Checking...'),
                       if (_probeLatencyMs != null) ...[
-                        _buildDivider(),
-                        _buildRow('Probe Latency', '${_probeLatencyMs!.toStringAsFixed(1)} ms', isMonospace: true),
+                        _buildDivider(context),
+                        _buildRow(context, 'Probe Latency', '${_probeLatencyMs!.toStringAsFixed(1)} ms', isMonospace: true),
                       ],
                     ],
                   ),
@@ -166,17 +172,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
             );
           },
         ),
+        const SizedBox(height: 16),
+
+        // Theme & Appearance Card
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.palette_outlined, color: colorScheme.primary, size: 18),
+                    const SizedBox(width: 8),
+                    Text('Theme & Appearance', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Color Theme Mode', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
+                        const SizedBox(height: 2),
+                        Text('Select system preference, light mode, or dark mode', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                      ],
+                    ),
+                    SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: ThemeMode.system,
+                          label: Text('System'),
+                          icon: Icon(Icons.brightness_auto, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.light,
+                          label: Text('Light'),
+                          icon: Icon(Icons.light_mode, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.dark,
+                          label: Text('Dark'),
+                          icon: Icon(Icons.dark_mode, size: 16),
+                        ),
+                      ],
+                      selected: {widget.themeMode},
+                      onSelectionChanged: (Set<ThemeMode> newSelection) {
+                        if (widget.onThemeModeChanged != null && newSelection.isNotEmpty) {
+                          widget.onThemeModeChanged!(newSelection.first);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildRow(String label, String value, {bool isMonospace = false, Widget? customWidget}) {
+  Widget _buildRow(BuildContext context, String label, String value, {bool isMonospace = false, Widget? customWidget}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+          Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
           const SizedBox(width: 12),
           customWidget ??
               Flexible(
@@ -187,7 +254,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     fontFamily: isMonospace ? 'monospace' : null,
-                    color: AppTheme.textPrimary,
+                    color: colorScheme.onSurface,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -197,7 +264,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildDivider() {
-    return const Divider(height: 1, thickness: 1, color: AppTheme.borderColor);
+  Widget _buildDivider(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5));
   }
 }

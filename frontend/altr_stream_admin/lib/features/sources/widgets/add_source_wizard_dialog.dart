@@ -1,8 +1,8 @@
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/status_badge.dart';
 
 class AddSourceWizardDialog extends StatefulWidget {
   final ApiClient apiClient;
@@ -123,11 +123,13 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Dialog(
-      backgroundColor: AppTheme.bgSecondary,
+      backgroundColor: colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppTheme.borderColor),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 680),
@@ -144,39 +146,39 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Add Data Source',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         _getStepSubtitle(),
-                        style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
                     onPressed: () => Navigator.of(context).pop(),
-                    color: AppTheme.textMuted,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ],
               ),
               const SizedBox(height: 16),
 
               // Step Progress Indicator
-              _buildStepIndicator(),
+              _buildStepIndicator(context),
               const SizedBox(height: 24),
 
               // Step Content
-              if (_currentStep == 0) _buildStep1ChooseType(),
-              if (_currentStep == 1) _buildStep2Configure(),
-              if (_currentStep == 2) _buildStep3Test(),
-              if (_currentStep == 3) _buildStep4Review(),
+              if (_currentStep == 0) _buildStep1ChooseType(context),
+              if (_currentStep == 1) _buildStep2Configure(context),
+              if (_currentStep == 2) _buildStep3Test(context),
+              if (_currentStep == 3) _buildStep4Review(context),
             ],
           ),
         ),
@@ -199,36 +201,38 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     }
   }
 
-  Widget _buildStepIndicator() {
+  Widget _buildStepIndicator(BuildContext context) {
     return Row(
       children: [
-        _buildStepPill(0, '1. Type'),
-        _buildStepLine(0),
-        _buildStepPill(1, '2. Configure'),
-        _buildStepLine(1),
-        _buildStepPill(2, '3. Test'),
-        _buildStepLine(2),
-        _buildStepPill(3, '4. Register'),
+        _buildStepPill(context, 0, '1. Type'),
+        _buildStepLine(context, 0),
+        _buildStepPill(context, 1, '2. Configure'),
+        _buildStepLine(context, 1),
+        _buildStepPill(context, 2, '3. Test'),
+        _buildStepLine(context, 2),
+        _buildStepPill(context, 3, '4. Register'),
       ],
     );
   }
 
-  Widget _buildStepPill(int stepIndex, String label) {
+  Widget _buildStepPill(BuildContext context, int stepIndex, String label) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final statusActiveColor = AppTheme.getStatusColor('ACTIVE', context);
     final isDone = _currentStep > stepIndex;
     final isCurrent = _currentStep == stepIndex;
 
-    Color bg = AppTheme.bgPrimary;
-    Color fg = AppTheme.textMuted;
-    BorderSide border = const BorderSide(color: AppTheme.borderColor);
+    Color bg = colorScheme.surfaceContainer;
+    Color fg = colorScheme.onSurfaceVariant;
+    BorderSide border = BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5));
 
     if (isCurrent) {
-      bg = AppTheme.accentCyanSubtle;
-      fg = AppTheme.accentCyan;
-      border = const BorderSide(color: AppTheme.accentCyan);
+      bg = colorScheme.primaryContainer;
+      fg = colorScheme.onPrimaryContainer;
+      border = BorderSide(color: colorScheme.primary);
     } else if (isDone) {
-      bg = AppTheme.successBg;
-      fg = AppTheme.success;
-      border = const BorderSide(color: AppTheme.success);
+      bg = statusActiveColor.withValues(alpha: 0.15);
+      fg = statusActiveColor;
+      border = BorderSide(color: statusActiveColor);
     }
 
     return Container(
@@ -249,27 +253,32 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     );
   }
 
-  Widget _buildStepLine(int afterStep) {
+  Widget _buildStepLine(BuildContext context, int afterStep) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final statusActiveColor = AppTheme.getStatusColor('ACTIVE', context);
     final isPast = _currentStep > afterStep;
     return Expanded(
       child: Container(
         height: 1,
-        color: isPast ? AppTheme.success : AppTheme.borderColor,
+        color: isPast ? statusActiveColor : colorScheme.outlineVariant.withValues(alpha: 0.5),
       ),
     );
   }
 
   // --- STEP 1: CHOOSE TYPE ---
-  Widget _buildStep1ChooseType() {
+  Widget _buildStep1ChooseType(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'What type of database would you like to connect?',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
         ),
         const SizedBox(height: 16),
         _buildConnectorOption(
+          context: context,
           type: 'POSTGRESQL',
           title: 'PostgreSQL',
           description: 'Supported connector with native introspection, SSL, and schema discovery.',
@@ -278,6 +287,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
         ),
         const SizedBox(height: 12),
         _buildConnectorOption(
+          context: context,
           type: 'MYSQL',
           title: 'MySQL',
           description: 'Planned milestone connector for relational tables.',
@@ -286,6 +296,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
         ),
         const SizedBox(height: 12),
         _buildConnectorOption(
+          context: context,
           type: 'MONGODB',
           title: 'MongoDB',
           description: 'Planned document connector for collection introspection.',
@@ -319,12 +330,14 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
   }
 
   Widget _buildConnectorOption({
+    required BuildContext context,
     required String type,
     required String title,
     required String description,
     required IconData icon,
     required bool isSupported,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     final isSelected = _selectedType == type;
 
     return InkWell(
@@ -333,10 +346,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.accentCyanSubtle : AppTheme.bgPrimary,
+          color: isSelected ? colorScheme.primaryContainer.withValues(alpha: 0.5) : colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? AppTheme.accentCyan : AppTheme.borderColor,
+            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant.withValues(alpha: 0.5),
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -344,7 +357,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           children: [
             Icon(
               icon,
-              color: isSupported ? (isSelected ? AppTheme.accentCyan : AppTheme.textPrimary) : AppTheme.textMuted,
+              color: isSupported ? (isSelected ? colorScheme.primary : colorScheme.onSurface) : colorScheme.onSurfaceVariant,
               size: 24,
             ),
             const SizedBox(width: 14),
@@ -359,7 +372,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: isSupported ? AppTheme.textPrimary : AppTheme.textMuted,
+                          color: isSupported ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -367,17 +380,20 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
-                            color: AppTheme.warningBg,
+                            color: AppTheme.getStatusColor('DISCOVERING', context).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Text('Future Milestone', style: TextStyle(fontSize: 10, color: AppTheme.warning)),
+                          child: Text(
+                            'Future Milestone',
+                            style: TextStyle(fontSize: 10, color: AppTheme.getStatusColor('DISCOVERING', context)),
+                          ),
                         ),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text(
                     description,
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -386,7 +402,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               Radio<String>(
                 value: type,
                 groupValue: _selectedType,
-                activeColor: AppTheme.accentCyan,
+                activeColor: colorScheme.primary,
                 onChanged: (val) {
                   if (val != null) setState(() => _selectedType = val);
                 },
@@ -398,7 +414,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
   }
 
   // --- STEP 2: CONFIGURE ---
-  Widget _buildStep2Configure() {
+  Widget _buildStep2Configure(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Form(
       key: _formKey,
       child: Column(
@@ -468,7 +486,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                       icon: Icon(
                         _obscurePassword ? Icons.visibility_off : Icons.visibility,
                         size: 16,
-                        color: AppTheme.textMuted,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                       onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
@@ -487,12 +505,12 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 Icon(
                   _showAdvanced ? Icons.expand_less : Icons.expand_more,
                   size: 16,
-                  color: AppTheme.accentCyan,
+                  color: colorScheme.primary,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   _showAdvanced ? 'Hide Advanced Configuration' : 'Show Advanced Configuration',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.accentCyan, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 12, color: colorScheme.primary, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -502,13 +520,13 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.bgPrimary,
+                color: colorScheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppTheme.borderColor),
+                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
               ),
-              child: const Text(
+              child: Text(
                 'SSL Mode: Prefer • Connection Pool: 5 • Connection Timeout: 10s\n(Defaults automatically managed by Altr Stream driver)',
-                style: TextStyle(fontSize: 11, color: AppTheme.textMuted, height: 1.4),
+                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, height: 1.4),
               ),
             ),
           ],
@@ -544,7 +562,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
   }
 
   // --- STEP 3: TEST ---
-  Widget _buildStep3Test() {
+  Widget _buildStep3Test(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final statusActiveColor = AppTheme.getStatusColor('ACTIVE', context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -552,18 +573,18 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 36),
-            child: const Column(
+            child: Column(
               children: [
-                CircularProgressIndicator(color: AppTheme.accentCyan),
-                SizedBox(height: 16),
+                CircularProgressIndicator(color: colorScheme.primary),
+                const SizedBox(height: 16),
                 Text(
                   'Validating physical connection...',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Pinging database host and verifying credentials',
-                  style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -573,10 +594,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _testResult!.success ? AppTheme.successBg : AppTheme.errorBg,
+              color: _testResult!.success ? statusActiveColor.withValues(alpha: 0.12) : colorScheme.errorContainer.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: _testResult!.success ? AppTheme.success : AppTheme.error,
+                color: _testResult!.success ? statusActiveColor : colorScheme.error,
               ),
             ),
             child: Column(
@@ -586,7 +607,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                   children: [
                     Icon(
                       _testResult!.success ? Icons.check_circle : Icons.error,
-                      color: _testResult!.success ? AppTheme.success : AppTheme.error,
+                      color: _testResult!.success ? statusActiveColor : colorScheme.error,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
@@ -595,7 +616,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: _testResult!.success ? AppTheme.success : AppTheme.error,
+                        color: _testResult!.success ? statusActiveColor : colorScheme.error,
                       ),
                     ),
                   ],
@@ -603,20 +624,20 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 const SizedBox(height: 8),
                 Text(
                   _testResult!.message,
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
                 ),
                 if (_testResult!.serverVersion != null) ...[
                   const SizedBox(height: 6),
                   Text(
                     'Server Version: ${_testResult!.serverVersion}',
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
                 if (_testResult!.latencyMs != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     'Latency: ${_testResult!.latencyMs!.toStringAsFixed(1)} ms',
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
                 if (_testResult!.errorDetails != null) ...[
@@ -625,15 +646,15 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppTheme.bgPrimary,
+                      color: colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       _testResult!.errorDetails!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 11,
-                        color: AppTheme.error,
+                        color: colorScheme.error,
                       ),
                     ),
                   ),
@@ -680,33 +701,35 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
   }
 
   // --- STEP 4: REVIEW & REGISTER ---
-  Widget _buildStep4Review() {
+  Widget _buildStep4Review(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Review Source Registration',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppTheme.bgPrimary,
+            color: colorScheme.surfaceContainer,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.borderColor),
+            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
           ),
           child: Column(
             children: [
-              _buildReviewRow('Source Name', _nameController.text.trim()),
-              const Divider(height: 16, color: AppTheme.borderColor),
-              _buildReviewRow('Database Type', _selectedType),
-              const Divider(height: 16, color: AppTheme.borderColor),
-              _buildReviewRow('Connection Endpoint', '${_hostController.text.trim()}:${_portController.text.trim()}'),
-              const Divider(height: 16, color: AppTheme.borderColor),
-              _buildReviewRow('Database Name', _databaseController.text.trim()),
-              const Divider(height: 16, color: AppTheme.borderColor),
-              _buildReviewRow('Username', _usernameController.text.trim()),
+              _buildReviewRow(context, 'Source Name', _nameController.text.trim()),
+              _buildReviewDivider(context),
+              _buildReviewRow(context, 'Database Type', _selectedType),
+              _buildReviewDivider(context),
+              _buildReviewRow(context, 'Connection Endpoint', '${_hostController.text.trim()}:${_portController.text.trim()}'),
+              _buildReviewDivider(context),
+              _buildReviewRow(context, 'Database Name', _databaseController.text.trim()),
+              _buildReviewDivider(context),
+              _buildReviewRow(context, 'Username', _usernameController.text.trim()),
             ],
           ),
         ),
@@ -715,13 +738,13 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.errorBg,
+              color: colorScheme.errorContainer.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppTheme.error),
+              border: Border.all(color: colorScheme.error),
             ),
             child: Text(
               'Registration Error: $_saveError',
-              style: const TextStyle(color: AppTheme.error, fontSize: 12),
+              style: TextStyle(color: colorScheme.error, fontSize: 12),
             ),
           ),
         ],
@@ -736,10 +759,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
             ElevatedButton.icon(
               onPressed: _isSaving ? null : _registerSource,
               icon: _isSaving
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary),
                     )
                   : const Icon(Icons.check, size: 16),
               label: Text(_isSaving ? 'Registering...' : 'Register Source'),
@@ -750,16 +773,23 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     );
   }
 
-  Widget _buildReviewRow(String label, String value) {
+  Widget _buildReviewRow(BuildContext context, String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+        Text(label, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
         Text(
           value,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
         ),
       ],
     );
+  }
+
+  Widget _buildReviewDivider(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Divider(height: 16, color: colorScheme.outlineVariant.withValues(alpha: 0.5));
   }
 }

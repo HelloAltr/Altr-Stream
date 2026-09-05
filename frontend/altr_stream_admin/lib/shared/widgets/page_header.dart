@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_theme.dart';
 import 'status_badge.dart';
 
 class PageHeader extends StatelessWidget {
@@ -22,6 +21,9 @@ class PageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -39,10 +41,10 @@ class PageHeader extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
+                        color: colorScheme.onSurface,
                         letterSpacing: -0.4,
                       ),
                     ),
@@ -63,9 +65,9 @@ class PageHeader extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AppTheme.textSecondary,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -75,14 +77,18 @@ class PageHeader extends StatelessWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                if (secondaryAction != null) secondaryAction!,
-                if (primaryAction != null) primaryAction!,
+                ?secondaryAction,
+                ?primaryAction,
               ],
             ),
           ],
         ),
         const SizedBox(height: 20),
-        const Divider(height: 1, thickness: 1, color: AppTheme.borderColor),
+        Divider(
+          height: 1,
+          thickness: 1,
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
         const SizedBox(height: 20),
       ],
     );

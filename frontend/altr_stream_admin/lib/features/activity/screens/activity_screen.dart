@@ -20,6 +20,8 @@ class ActivityScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -43,22 +45,22 @@ class ActivityScreen extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 48),
             decoration: BoxDecoration(
-              color: AppTheme.bgCard,
+              color: colorScheme.surfaceContainer,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppTheme.borderColor),
+              border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                Icon(Icons.history_toggle_off, size: 40, color: AppTheme.textMuted),
-                SizedBox(height: 16),
+                Icon(Icons.history_toggle_off, size: 40, color: colorScheme.onSurfaceVariant),
+                const SizedBox(height: 16),
                 Text(
                   'No Activity Recorded Yet',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
                   'Operational events like connection tests and schema discoveries will appear here.',
-                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -71,10 +73,10 @@ class ActivityScreen extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: activities.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 18),
+                separatorBuilder: (_, _) => const SizedBox(height: 18),
                 itemBuilder: (context, index) {
                   final act = activities[index];
-                  return _buildTimelineItem(act);
+                  return _buildTimelineItem(context, act);
                 },
               ),
             ),
@@ -83,8 +85,10 @@ class ActivityScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTimelineItem(ActivityLogModel act) {
+  Widget _buildTimelineItem(BuildContext context, ActivityLogModel act) {
     final dateFormat = DateFormat('yyyy-MM-dd • hh:mm a');
+    final colorScheme = Theme.of(context).colorScheme;
+    final statusActiveColor = AppTheme.getStatusColor('ACTIVE', context);
 
     IconData icon;
     Color iconColor;
@@ -92,31 +96,31 @@ class ActivityScreen extends StatelessWidget {
     switch (act.type) {
       case ActivityType.nodeStart:
         icon = Icons.bolt;
-        iconColor = AppTheme.accentCyan;
+        iconColor = colorScheme.primary;
         break;
       case ActivityType.sourceRegistered:
         icon = Icons.add_circle_outline;
-        iconColor = AppTheme.success;
+        iconColor = statusActiveColor;
         break;
       case ActivityType.sourceUpdated:
         icon = Icons.edit_outlined;
-        iconColor = AppTheme.accentBlue;
+        iconColor = colorScheme.tertiary;
         break;
       case ActivityType.sourceDeleted:
         icon = Icons.delete_outline;
-        iconColor = AppTheme.error;
+        iconColor = colorScheme.error;
         break;
       case ActivityType.connectionTested:
         icon = Icons.wifi_tethering;
-        iconColor = act.isSuccess ? AppTheme.success : AppTheme.error;
+        iconColor = act.isSuccess ? statusActiveColor : colorScheme.error;
         break;
       case ActivityType.schemaDiscovered:
         icon = Icons.search;
-        iconColor = AppTheme.accentCyan;
+        iconColor = colorScheme.primary;
         break;
       case ActivityType.healthCheck:
         icon = Icons.health_and_safety_outlined;
-        iconColor = act.isSuccess ? AppTheme.success : AppTheme.error;
+        iconColor = act.isSuccess ? statusActiveColor : colorScheme.error;
         break;
     }
 
@@ -126,7 +130,7 @@ class ActivityScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
+            color: iconColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: iconColor, size: 16),
@@ -141,34 +145,34 @@ class ActivityScreen extends StatelessWidget {
                 children: [
                   Text(
                     act.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   Text(
                     dateFormat.format(act.timestamp),
-                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
               const SizedBox(height: 3),
               Text(
                 act.description,
-                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.4),
+                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, height: 1.4),
               ),
               if (act.sourceName != null) ...[
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppTheme.bgPrimary,
+                    color: colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     'Source: ${act.sourceName}',
-                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: AppTheme.textMuted),
+                    style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: colorScheme.onSurfaceVariant),
                   ),
                 ),
               ],

@@ -89,10 +89,11 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
           _lastTestResult = result;
           _lastHealthCheckTime = DateTime.now();
         });
+        final colorScheme = Theme.of(context).colorScheme;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.message),
-            backgroundColor: result.success ? AppTheme.success : AppTheme.error,
+            backgroundColor: result.success ? AppTheme.getStatusColor('ACTIVE', context) : colorScheme.error,
           ),
         );
       }
@@ -129,16 +130,17 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Schema discovered: ${schema.entityCount} tables found!'),
-            backgroundColor: AppTheme.success,
+            backgroundColor: AppTheme.getStatusColor('ACTIVE', context),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final colorScheme = Theme.of(context).colorScheme;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Schema discovery failed: $e'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: colorScheme.error,
           ),
         );
       }
@@ -152,6 +154,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,14 +165,14 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
             InkWell(
               onTap: widget.onBack,
               borderRadius: BorderRadius.circular(6),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.arrow_back, size: 16, color: AppTheme.accentCyan),
-                    SizedBox(width: 4),
-                    Text('Data Sources', style: TextStyle(color: AppTheme.accentCyan, fontSize: 13)),
+                    Icon(Icons.arrow_back, size: 16, color: colorScheme.primary),
+                    const SizedBox(width: 4),
+                    Text('Data Sources', style: TextStyle(color: colorScheme.primary, fontSize: 13)),
                   ],
                 ),
               ),
@@ -193,10 +196,10 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                   children: [
                     Text(
                       widget.source.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
+                        color: colorScheme.onSurface,
                         letterSpacing: -0.4,
                       ),
                     ),
@@ -209,10 +212,10 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                 const SizedBox(height: 4),
                 Text(
                   '${widget.source.host}:${widget.source.port} • Database: ${widget.source.databaseName}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontFamily: 'monospace',
-                    color: AppTheme.textSecondary,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -224,10 +227,10 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                 OutlinedButton.icon(
                   onPressed: _isTesting ? null : _testConnection,
                   icon: _isTesting
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 12,
                           height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentCyan),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
                         )
                       : const Icon(Icons.bolt, size: 14),
                   label: Text(_isTesting ? 'Testing...' : 'Test Connection'),
@@ -235,10 +238,10 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                 ElevatedButton.icon(
                   onPressed: _isDiscovering ? null : _discoverSchema,
                   icon: _isDiscovering
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 12,
                           height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary),
                         )
                       : const Icon(Icons.search, size: 14),
                   label: Text(_isDiscovering ? 'Discovering...' : 'Discover Schema'),
@@ -251,16 +254,16 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
 
         // Tabs Bar
         Container(
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppTheme.borderColor)),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
           ),
           child: TabBar(
             controller: _tabController,
             isScrollable: true,
             tabAlignment: TabAlignment.start,
-            labelColor: AppTheme.accentCyan,
-            unselectedLabelColor: AppTheme.textSecondary,
-            indicatorColor: AppTheme.accentCyan,
+            labelColor: colorScheme.primary,
+            unselectedLabelColor: colorScheme.onSurfaceVariant,
+            indicatorColor: colorScheme.primary,
             indicatorSize: TabBarIndicatorSize.tab,
             tabs: const [
               Tab(text: 'Overview'),
@@ -274,10 +277,10 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
 
         // Tab Views
         if (_isLoading)
-          const Center(
+          Center(
             child: Padding(
-              padding: EdgeInsets.all(60),
-              child: CircularProgressIndicator(color: AppTheme.accentCyan),
+              padding: const EdgeInsets.all(60),
+              child: CircularProgressIndicator(color: colorScheme.primary),
             ),
           )
         else
@@ -285,11 +288,14 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
             height: 620,
             child: TabBarView(
               controller: _tabController,
+              physics: _isDesktopInteraction(context)
+                  ? const NeverScrollableScrollPhysics()
+                  : const PageScrollPhysics(),
               children: [
-                _buildOverviewTab(dateFormat),
-                _buildConnectionTab(dateFormat),
-                _buildSchemasTab(),
-                _buildHealthTab(dateFormat),
+                _buildOverviewTab(context, dateFormat),
+                _buildConnectionTab(context, dateFormat),
+                _buildSchemasTab(context),
+                _buildHealthTab(context, dateFormat),
               ],
             ),
           ),
@@ -297,8 +303,19 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
     );
   }
 
+  bool _isDesktopInteraction(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final platform = Theme.of(context).platform;
+    final isDesktopPlatform = platform == TargetPlatform.macOS ||
+        platform == TargetPlatform.windows ||
+        platform == TargetPlatform.linux;
+    return isDesktopPlatform || width >= 1024;
+  }
+
   // --- TAB 1: OVERVIEW ---
-  Widget _buildOverviewTab(DateFormat dateFormat) {
+  Widget _buildOverviewTab(BuildContext context, DateFormat dateFormat) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SingleChildScrollView(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -309,25 +326,26 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Source Summary',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                   ),
                   const SizedBox(height: 16),
-                  _buildInfoRow('Database Engine', widget.source.type),
-                  _buildDivider(),
-                  _buildInfoRow('Database Name', widget.source.databaseName, isMonospace: true),
-                  _buildDivider(),
-                  _buildInfoRow('Connection Status', widget.source.isActive ? 'Active & Reachable' : 'Unreachable'),
-                  _buildDivider(),
+                  _buildInfoRow(context, 'Database Engine', widget.source.type),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Database Name', widget.source.databaseName, isMonospace: true),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Connection Status', widget.source.isActive ? 'Active & Reachable' : 'Unreachable'),
+                  _buildDivider(context),
                   _buildInfoRow(
+                    context,
                     'Discovered Tables',
                     _schema != null ? '${_schema!.entityCount} tables (${_schema!.totalFieldCount} fields)' : 'No schema discovered yet',
                   ),
-                  _buildDivider(),
-                  _buildInfoRow('Registered Date', dateFormat.format(widget.source.createdAt)),
-                  _buildDivider(),
-                  _buildInfoRow('Last Updated', dateFormat.format(widget.source.updatedAt)),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Registered Date', dateFormat.format(widget.source.createdAt)),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Last Updated', dateFormat.format(widget.source.updatedAt)),
                 ],
               ),
             ),
@@ -341,14 +359,14 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Introspection Actions',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'Run introspection to discover tables, columns, data types, and primary keys from this database.',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.4),
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant, height: 1.4),
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
@@ -376,27 +394,27 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
 
               // Danger Zone Card
               Card(
-                color: AppTheme.errorBg.withValues(alpha: 0.2),
+                color: colorScheme.errorContainer.withValues(alpha: 0.2),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Danger Zone',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.error),
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.error),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
+                      Text(
                         'Deleting this data source removes all introspection snapshots and local connection configuration.',
-                        style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                        style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                       ),
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
                         onPressed: widget.onDelete,
-                        icon: const Icon(Icons.delete_outline, size: 14, color: AppTheme.error),
-                        label: const Text('Delete Data Source', style: TextStyle(color: AppTheme.error, fontSize: 12)),
-                        style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.error)),
+                        icon: Icon(Icons.delete_outline, size: 14, color: colorScheme.error),
+                        label: Text('Delete Data Source', style: TextStyle(color: colorScheme.error, fontSize: 12)),
+                        style: OutlinedButton.styleFrom(side: BorderSide(color: colorScheme.error)),
                       ),
                     ],
                   ),
@@ -429,7 +447,9 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
   }
 
   // --- TAB 2: CONNECTION PARAMETERS ---
-  Widget _buildConnectionTab(DateFormat dateFormat) {
+  Widget _buildConnectionTab(BuildContext context, DateFormat dateFormat) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SingleChildScrollView(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -440,22 +460,22 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Connection Parameters',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                   ),
                   const SizedBox(height: 16),
-                  _buildInfoRow('Host / IP Address', widget.source.host, isMonospace: true),
-                  _buildDivider(),
-                  _buildInfoRow('Listening Port', widget.source.port.toString(), isMonospace: true),
-                  _buildDivider(),
-                  _buildInfoRow('Database Name', widget.source.databaseName, isMonospace: true),
-                  _buildDivider(),
-                  _buildInfoRow('Database User', widget.source.username, isMonospace: true),
-                  _buildDivider(),
-                  _buildInfoRow('Password', '•••••••• (Securely Stored in Local Metadata)', isMonospace: true),
-                  _buildDivider(),
-                  _buildInfoRow('Source ID (UUID)', widget.source.id, isMonospace: true),
+                  _buildInfoRow(context, 'Host / IP Address', widget.source.host, isMonospace: true),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Listening Port', widget.source.port.toString(), isMonospace: true),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Database Name', widget.source.databaseName, isMonospace: true),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Database User', widget.source.username, isMonospace: true),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Password', '•••••••• (Securely Stored in Local Metadata)', isMonospace: true),
+                  _buildDivider(context),
+                  _buildInfoRow(context, 'Source ID (UUID)', widget.source.id, isMonospace: true),
                 ],
               ),
             ),
@@ -467,15 +487,15 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Connector Capabilities',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                   ),
                   const SizedBox(height: 14),
-                  _buildCapabilityItem('Schema Discovery', _capabilities?.schemaDiscovery ?? true),
-                  _buildCapabilityItem('Physical Query Reads', _capabilities?.read ?? true),
-                  _buildCapabilityItem('Native Writes', _capabilities?.write ?? true),
-                  _buildCapabilityItem('Change Data Capture (CDC)', _capabilities?.cdc ?? false, isRoadmap: true),
+                  _buildCapabilityItem(context, 'Schema Discovery', _capabilities?.schemaDiscovery ?? true),
+                  _buildCapabilityItem(context, 'Physical Query Reads', _capabilities?.read ?? true),
+                  _buildCapabilityItem(context, 'Native Writes', _capabilities?.write ?? true),
+                  _buildCapabilityItem(context, 'Change Data Capture (CDC)', _capabilities?.cdc ?? false, isRoadmap: true),
                 ],
               ),
             ),
@@ -505,22 +525,24 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
   }
 
   // --- TAB 3: DISCOVERED SCHEMAS ---
-  Widget _buildSchemasTab() {
+  Widget _buildSchemasTab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (_schema == null || _schema!.entities.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.schema_outlined, size: 48, color: AppTheme.textMuted),
+            Icon(Icons.schema_outlined, size: 48, color: colorScheme.onSurfaceVariant),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No Schema Snapshot Discovered Yet',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Run schema discovery to introspect tables and fields from this database.',
-              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
@@ -557,9 +579,9 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'SCHEMAS & TABLES',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textMuted, letterSpacing: 0.5),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant, letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 12),
                   Expanded(
@@ -570,11 +592,11 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Row(
                               children: [
-                                const Icon(Icons.folder_outlined, size: 16, color: AppTheme.accentCyan),
+                                Icon(Icons.folder_outlined, size: 16, color: colorScheme.primary),
                                 const SizedBox(width: 6),
                                 Text(
                                   ns,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colorScheme.onSurface),
                                 ),
                               ],
                             ),
@@ -593,13 +615,13 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                                 margin: const EdgeInsets.symmetric(vertical: 2),
                                 decoration: BoxDecoration(
                                   color: (_selectedTableName == table.name && _selectedSchemaNamespace == ns)
-                                      ? AppTheme.accentCyanSubtle
+                                      ? colorScheme.primaryContainer.withValues(alpha: 0.5)
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.table_chart_outlined, size: 14, color: AppTheme.textSecondary),
+                                    Icon(Icons.table_chart_outlined, size: 14, color: colorScheme.onSurfaceVariant),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
@@ -608,15 +630,15 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                                           fontSize: 12,
                                           fontFamily: 'monospace',
                                           color: (_selectedTableName == table.name && _selectedSchemaNamespace == ns)
-                                              ? AppTheme.accentCyan
-                                              : AppTheme.textPrimary,
+                                              ? colorScheme.primary
+                                              : colorScheme.onSurface,
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     Text(
                                       '${table.fieldCount}',
-                                      style: const TextStyle(fontSize: 10, color: AppTheme.textMuted),
+                                      style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
                                     ),
                                   ],
                                 ),
@@ -647,11 +669,11 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.table_rows, color: AppTheme.accentCyan, size: 18),
+                          Icon(Icons.table_rows, color: colorScheme.primary, size: 18),
                           const SizedBox(width: 8),
                           Text(
                             '${currentEntity.namespace}.${currentEntity.name}',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                           ),
                         ],
                       ),
@@ -666,7 +688,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                     child: SingleChildScrollView(
                       child: Container(
                         decoration: BoxDecoration(
-                          border: Border.all(color: AppTheme.borderColor),
+                          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Table(
@@ -679,46 +701,46 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                             5: FlexColumnWidth(1.2),
                           },
                           children: [
-                            const TableRow(
+                            TableRow(
                               decoration: BoxDecoration(
-                                color: AppTheme.bgPrimary,
-                                border: Border(bottom: BorderSide(color: AppTheme.borderColor)),
+                                color: colorScheme.surfaceContainerHigh,
+                                border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
                               ),
                               children: [
-                                Padding(padding: EdgeInsets.all(10), child: Text('#', style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.bold))),
-                                Padding(padding: EdgeInsets.all(10), child: Text('FIELD', style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.bold))),
-                                Padding(padding: EdgeInsets.all(10), child: Text('STANDARD TYPE', style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.bold))),
-                                Padding(padding: EdgeInsets.all(10), child: Text('NATIVE TYPE', style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.bold))),
-                                Padding(padding: EdgeInsets.all(10), child: Text('NULLABLE', style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.bold))),
-                                Padding(padding: EdgeInsets.all(10), child: Text('KEY', style: TextStyle(fontSize: 11, color: AppTheme.textMuted, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.all(10), child: Text('#', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.all(10), child: Text('FIELD', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.all(10), child: Text('STANDARD TYPE', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.all(10), child: Text('NATIVE TYPE', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.all(10), child: Text('NULLABLE', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold))),
+                                Padding(padding: const EdgeInsets.all(10), child: Text('KEY', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold))),
                               ],
                             ),
                             for (final field in currentEntity.fields)
                               TableRow(
-                                decoration: const BoxDecoration(
-                                  border: Border(bottom: BorderSide(color: AppTheme.borderColor)),
+                                decoration: BoxDecoration(
+                                  border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
                                 ),
                                 children: [
-                                  Padding(padding: const EdgeInsets.all(10), child: Text('${field.position}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted))),
+                                  Padding(padding: const EdgeInsets.all(10), child: Text('${field.position}', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant))),
                                   Padding(
                                     padding: const EdgeInsets.all(10),
                                     child: Text(
                                       field.name,
-                                      style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.textPrimary),
+                                      style: TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 12, color: colorScheme.onSurface),
                                     ),
                                   ),
                                   Padding(
                                     padding: const EdgeInsets.all(10),
                                     child: Text(
                                       field.dataType,
-                                      style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.w600, fontFamily: 'monospace', fontSize: 11),
+                                      style: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.w600, fontFamily: 'monospace', fontSize: 11),
                                     ),
                                   ),
                                   Padding(
                                     padding: const EdgeInsets.all(10),
                                     child: Text(
                                       field.nativeDataType,
-                                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppTheme.textSecondary),
+                                      style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: colorScheme.onSurfaceVariant),
                                     ),
                                   ),
                                   Padding(
@@ -728,7 +750,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: field.nullable ? FontWeight.normal : FontWeight.bold,
-                                        color: field.nullable ? AppTheme.textMuted : AppTheme.textPrimary,
+                                        color: field.nullable ? colorScheme.onSurfaceVariant : colorScheme.onSurface,
                                       ),
                                     ),
                                   ),
@@ -736,7 +758,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                                     padding: const EdgeInsets.all(10),
                                     child: field.isPrimaryKey
                                         ? const Align(alignment: Alignment.centerLeft, child: StatusBadge(status: 'PK', isPkBadge: true))
-                                        : const Text('—', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                                        : Text('—', style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 11)),
                                   ),
                                 ],
                               ),
@@ -755,7 +777,9 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
   }
 
   // --- TAB 4: HEALTH & DIAGNOSTICS ---
-  Widget _buildHealthTab(DateFormat dateFormat) {
+  Widget _buildHealthTab(BuildContext context, DateFormat dateFormat) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,9 +793,9 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Connection Health & Telemetry',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                       ),
                       OutlinedButton.icon(
                         onPressed: _isTesting ? null : _testConnection,
@@ -782,33 +806,37 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                   ),
                   const SizedBox(height: 16),
                   _buildInfoRow(
+                    context,
                     'Current Health State',
                     widget.source.isActive ? 'Healthy & Online' : 'Unreachable',
                     customWidget: StatusBadge(status: widget.source.status),
                   ),
-                  _buildDivider(),
+                  _buildDivider(context),
                   _buildInfoRow(
+                    context,
                     'Last Health Check',
                     _lastHealthCheckTime != null ? dateFormat.format(_lastHealthCheckTime!) : 'Checked upon page load',
                   ),
-                  _buildDivider(),
+                  _buildDivider(context),
                   if (_lastTestResult?.latencyMs != null) ...[
                     _buildInfoRow(
+                      context,
                       'Roundtrip Latency',
                       '${_lastTestResult!.latencyMs!.toStringAsFixed(1)} ms',
                       isMonospace: true,
                     ),
-                    _buildDivider(),
+                    _buildDivider(context),
                   ],
                   if (_lastTestResult?.serverVersion != null) ...[
                     _buildInfoRow(
+                      context,
                       'Remote Server Version',
                       _lastTestResult!.serverVersion!,
                       isMonospace: true,
                     ),
-                    _buildDivider(),
+                    _buildDivider(context),
                   ],
-                  _buildInfoRow('Connection Protocol', 'Direct TCP Socket / PostgreSQL wire'),
+                  _buildInfoRow(context, 'Connection Protocol', 'Direct TCP Socket / PostgreSQL wire'),
                 ],
               ),
             ),
@@ -816,24 +844,24 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
           if (_lastTestResult?.errorDetails != null) ...[
             const SizedBox(height: 20),
             Card(
-              color: AppTheme.errorBg.withValues(alpha: 0.3),
+              color: colorScheme.errorContainer.withValues(alpha: 0.3),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Diagnostic Error Trace', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.error)),
+                    Text('Diagnostic Error Trace', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.error)),
                     const SizedBox(height: 10),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppTheme.bgPrimary,
+                        color: colorScheme.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         _lastTestResult!.errorDetails!,
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppTheme.error),
+                        style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: colorScheme.error),
                       ),
                     ),
                   ],
@@ -846,13 +874,15 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
     );
   }
 
-  Widget _buildInfoRow(String label, String value, {bool isMonospace = false, Widget? customWidget}) {
+  Widget _buildInfoRow(BuildContext context, String label, String value, {bool isMonospace = false, Widget? customWidget}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+          Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
           const SizedBox(width: 12),
           customWidget ??
               Flexible(
@@ -863,7 +893,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     fontFamily: isMonospace ? 'monospace' : null,
-                    color: AppTheme.textPrimary,
+                    color: colorScheme.onSurface,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -873,39 +903,48 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
     );
   }
 
-  Widget _buildCapabilityItem(String label, bool isSupported, {bool isRoadmap = false}) {
+  Widget _buildCapabilityItem(BuildContext context, String label, bool isSupported, {bool isRoadmap = false}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
+          Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurface)),
           if (isRoadmap)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AppTheme.warningBg,
+                color: AppTheme.getStatusColor('DISCOVERING', context).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text('Future Milestone', style: TextStyle(fontSize: 10, color: AppTheme.warning)),
+              child: Text(
+                'Future Milestone',
+                style: TextStyle(fontSize: 10, color: AppTheme.getStatusColor('DISCOVERING', context)),
+              ),
             )
           else if (isSupported)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AppTheme.successBg,
+                color: AppTheme.getStatusColor('ACTIVE', context).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text('✓ Supported', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.success)),
+              child: Text(
+                '✓ Supported',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.getStatusColor('ACTIVE', context)),
+              ),
             )
           else
-            const Text('Not Supported', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+            Text('Not Supported', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
         ],
       ),
     );
   }
 
-  Widget _buildDivider() {
-    return const Divider(height: 1, thickness: 1, color: AppTheme.borderColor);
+  Widget _buildDivider(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5));
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/api/models.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/page_header.dart';
 import '../../../shared/widgets/status_badge.dart';
 
@@ -34,6 +33,8 @@ class _SourcesScreenState extends State<SourcesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     // Filter sources
     final filteredSources = widget.sources.where((s) {
       final matchesQuery = _searchQuery.isEmpty ||
@@ -77,7 +78,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
               child: TextField(
                 decoration: InputDecoration(
                   hintText: 'Search sources by name, host, or database...',
-                  prefixIcon: const Icon(Icons.search, size: 18, color: AppTheme.textMuted),
+                  prefixIcon: Icon(Icons.search, size: 18, color: colorScheme.onSurfaceVariant),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
@@ -93,15 +94,15 @@ class _SourcesScreenState extends State<SourcesScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: AppTheme.bgInput,
+                color: colorScheme.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.borderColor),
+                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _filterStatus,
-                  dropdownColor: AppTheme.bgSecondary,
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
+                  dropdownColor: colorScheme.surfaceContainerHigh,
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
                   items: const [
                     DropdownMenuItem(value: 'ALL', child: Text('All Statuses')),
                     DropdownMenuItem(value: 'ACTIVE', child: Text('Active Only')),
@@ -119,55 +120,57 @@ class _SourcesScreenState extends State<SourcesScreen> {
 
         // Sources List / States
         if (widget.isLoading)
-          const Center(
+          Center(
             child: Padding(
-              padding: EdgeInsets.all(60),
-              child: CircularProgressIndicator(color: AppTheme.accentCyan),
+              padding: const EdgeInsets.all(60),
+              child: CircularProgressIndicator(color: colorScheme.primary),
             ),
           )
         else if (widget.sources.isEmpty)
-          _buildEmptyState()
+          _buildEmptyState(context)
         else if (filteredSources.isEmpty)
-          _buildNoSearchResults()
+          _buildNoSearchResults(context)
         else
           _buildSourcesList(filteredSources),
       ],
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.borderColor),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.accentCyanSubtle,
+              color: colorScheme.primaryContainer.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.storage, color: AppTheme.accentCyan, size: 36),
+            child: Icon(Icons.storage, color: colorScheme.primary, size: 36),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No data sources registered',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Connect your physical database to begin schema discovery and data federation.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
@@ -180,27 +183,29 @@ class _SourcesScreenState extends State<SourcesScreen> {
     );
   }
 
-  Widget _buildNoSearchResults() {
+  Widget _buildNoSearchResults(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.borderColor),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
-          const Icon(Icons.search_off, size: 32, color: AppTheme.textMuted),
+          Icon(Icons.search_off, size: 32, color: colorScheme.onSurfaceVariant),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'No matching data sources',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Try adjusting your search terms or filter criteria.',
-            style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
           OutlinedButton(
@@ -220,21 +225,21 @@ class _SourcesScreenState extends State<SourcesScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: sources.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final source = sources[index];
-        return _buildSourceCard(source);
+        return _buildSourceCard(context, source);
       },
     );
   }
 
-  Widget _buildSourceCard(SourceModel source) {
+  Widget _buildSourceCard(BuildContext context, SourceModel source) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Card(
-      color: AppTheme.bgCard,
       child: InkWell(
         onTap: () => widget.onSelectSource(source),
         borderRadius: BorderRadius.circular(10),
-        hoverColor: AppTheme.bgCardHover,
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Row(
@@ -243,11 +248,11 @@ class _SourcesScreenState extends State<SourcesScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppTheme.bgPrimary,
+                  color: colorScheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.borderColor),
+                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                 ),
-                child: const Icon(Icons.storage_rounded, color: AppTheme.accentCyan, size: 22),
+                child: Icon(Icons.storage_rounded, color: colorScheme.primary, size: 22),
               ),
               const SizedBox(width: 16),
 
@@ -262,10 +267,10 @@ class _SourcesScreenState extends State<SourcesScreen> {
                         Flexible(
                           child: Text(
                             source.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: AppTheme.textPrimary,
+                              color: colorScheme.onSurface,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -277,10 +282,10 @@ class _SourcesScreenState extends State<SourcesScreen> {
                     const SizedBox(height: 4),
                     Text(
                       '${source.host}:${source.port} • ${source.databaseName}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontFamily: 'monospace',
-                        color: AppTheme.textSecondary,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -298,13 +303,13 @@ class _SourcesScreenState extends State<SourcesScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: source.isActive ? AppTheme.textPrimary : AppTheme.error,
+                        color: source.isActive ? colorScheme.onSurface : colorScheme.error,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
+                    Text(
                       'Introspected local store',
-                      style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                      style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -313,7 +318,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
               // Status Pill & Chevron (Right)
               StatusBadge(status: source.status),
               const SizedBox(width: 16),
-              const Icon(Icons.chevron_right, color: AppTheme.textMuted, size: 20),
+              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant, size: 20),
             ],
           ),
         ),

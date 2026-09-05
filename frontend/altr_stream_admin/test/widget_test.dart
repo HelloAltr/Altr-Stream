@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:altr_stream_admin/main.dart';
 import 'package:altr_stream_admin/core/api/api_client.dart';
 import 'package:altr_stream_admin/core/api/models.dart';
+import 'package:altr_stream_admin/core/theme/app_theme.dart';
 import 'package:altr_stream_admin/features/overview/screens/overview_screen.dart';
 import 'package:altr_stream_admin/features/sources/screens/sources_screen.dart';
 import 'package:altr_stream_admin/features/sources/screens/source_detail_screen.dart';
@@ -29,7 +30,7 @@ void main() {
     expect(find.byType(OverviewScreen), findsOneWidget);
   });
 
-  testWidgets('App navigation switches between pages', (WidgetTester tester) async {
+  testWidgets('App navigation switches between pages and supports theme mode changes', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -52,6 +53,42 @@ void main() {
     await tester.tap(find.text('Settings').first);
     await tester.pumpAndSettle();
     expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('Theme & Appearance'), findsOneWidget);
+    expect(find.text('Light'), findsOneWidget);
+    expect(find.text('Dark'), findsOneWidget);
+
+    // Change theme mode via Settings SegmentedButton
+    await tester.tap(find.text('Light'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Theme toggle button in header switches theme modes', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const AltrStreamAdminApp());
+    await tester.pump();
+
+    // Find theme toggle button (initially brightness_auto / System)
+    final toggleFinder = find.byIcon(Icons.brightness_auto);
+    expect(toggleFinder, findsOneWidget);
+
+    await tester.tap(toggleFinder);
+    await tester.pumpAndSettle();
+
+    // Switched to Light mode -> icon is light_mode
+    expect(find.byIcon(Icons.light_mode), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.light_mode));
+    await tester.pumpAndSettle();
+
+    // Switched to Dark mode -> icon is dark_mode
+    expect(find.byIcon(Icons.dark_mode), findsOneWidget);
   });
 
   testWidgets('Add Source Wizard opens properly', (WidgetTester tester) async {
@@ -72,7 +109,7 @@ void main() {
     expect(find.text('PostgreSQL'), findsOneWidget);
   });
 
-  testWidgets('SourceDetailScreen renders with canonical Discovered Schemas tab', (WidgetTester tester) async {
+  testWidgets('SourceDetailScreen renders in both Light and Dark themes', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -91,8 +128,10 @@ void main() {
       updatedAt: DateTime.now(),
     );
 
+    // Test Light Theme
     await tester.pumpWidget(
       MaterialApp(
+        theme: AppTheme.lightTheme,
         home: Scaffold(
           body: SourceDetailScreen(
             source: mockSource,
@@ -106,7 +145,6 @@ void main() {
     );
     await tester.pump();
 
-    // Verify TabBar with canonical Discovered Schemas tab
     expect(find.text('Overview'), findsOneWidget);
     expect(find.text('Connection Parameters'), findsOneWidget);
     expect(find.text('Discovered Schemas'), findsOneWidget);
@@ -141,4 +179,60 @@ void main() {
 
     expect(find.byType(AppBar), findsOneWidget);
   });
+
+  testWidgets('SourceDetailScreen tab navigation on Desktop disables horizontal drag gesture and uses tab clicks', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_test_drag',
+      name: 'Primary PostgreSQL',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'testdb',
+      username: 'postgres',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourceDetailScreen(
+            source: mockSource,
+            apiClient: ApiClient(),
+            onBack: () {},
+            onDelete: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Verify initial tab is Overview (contains 'Source Summary')
+    expect(find.text('Source Summary'), findsOneWidget);
+    expect(find.text('Host / IP Address'), findsNothing);
+
+    // Attempt horizontal drag on the TabBarView area (from right to left)
+    await tester.drag(find.text('Source Summary'), const Offset(-400, 0));
+    await tester.pumpAndSettle();
+
+    // Verify view has NOT changed via drag (still on Overview, not Connection Parameters)
+    expect(find.text('Source Summary'), findsOneWidget);
+    expect(find.text('Host / IP Address'), findsNothing);
+
+    // Click 'Connection Parameters' tab explicitly
+    await tester.tap(find.text('Connection Parameters'));
+    await tester.pumpAndSettle();
+
+    // Verify view successfully switched to Connection Parameters
+    expect(find.text('Host / IP Address'), findsOneWidget);
+  });
 }
+

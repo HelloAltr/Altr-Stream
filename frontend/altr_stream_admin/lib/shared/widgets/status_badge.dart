@@ -17,18 +17,23 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     if (isPkBadge) {
+      final pkColor = isDark ? AppTheme.warningDark : AppTheme.warningLight;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: AppTheme.warningBg,
+          color: pkColor.withValues(alpha: isDark ? 0.2 : 0.12),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppTheme.warning.withValues(alpha: 0.4)),
+          border: Border.all(color: pkColor.withValues(alpha: 0.4)),
         ),
-        child: const Text(
-          'PK',
+        child: Text(
+          status.startsWith('PK:') ? status : 'PK',
           style: TextStyle(
-            color: AppTheme.warning,
+            color: pkColor,
             fontSize: 10,
             fontWeight: FontWeight.bold,
             fontFamily: 'monospace',
@@ -41,14 +46,14 @@ class StatusBadge extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: AppTheme.accentCyanSubtle,
+          color: colorScheme.secondaryContainer.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.3)),
+          border: Border.all(color: colorScheme.secondary.withValues(alpha: 0.3)),
         ),
         child: Text(
           status.toUpperCase(),
-          style: const TextStyle(
-            color: AppTheme.accentCyan,
+          style: TextStyle(
+            color: colorScheme.onSecondaryContainer,
             fontSize: 11,
             fontFamily: 'monospace',
             fontWeight: FontWeight.w600,
@@ -66,34 +71,34 @@ class StatusBadge extends StatelessWidget {
     switch (status.toUpperCase()) {
       case 'ACTIVE':
       case 'HEALTHY':
-        dotColor = AppTheme.success;
-        bgColor = AppTheme.successBg;
-        textColor = AppTheme.success;
+        dotColor = isDark ? AppTheme.successDark : AppTheme.successLight;
+        bgColor = AppTheme.successBg(context);
+        textColor = dotColor;
         label = 'Active';
         break;
       case 'UNREACHABLE':
-        dotColor = AppTheme.error;
-        bgColor = AppTheme.errorBg;
-        textColor = AppTheme.error;
+        dotColor = isDark ? AppTheme.errorDark : AppTheme.errorLight;
+        bgColor = AppTheme.errorBg(context);
+        textColor = dotColor;
         label = 'Unreachable';
         break;
       case 'DEGRADED':
       case 'WARNING':
-        dotColor = AppTheme.warning;
-        bgColor = AppTheme.warningBg;
-        textColor = AppTheme.warning;
+        dotColor = isDark ? AppTheme.warningDark : AppTheme.warningLight;
+        bgColor = AppTheme.warningBg(context);
+        textColor = dotColor;
         label = 'Degraded';
         break;
       case 'ERROR':
-        dotColor = AppTheme.error;
-        bgColor = AppTheme.errorBg;
-        textColor = AppTheme.error;
+        dotColor = isDark ? AppTheme.errorDark : AppTheme.errorLight;
+        bgColor = AppTheme.errorBg(context);
+        textColor = dotColor;
         label = 'Error';
         break;
       default:
-        dotColor = AppTheme.textMuted;
-        bgColor = AppTheme.bgInput;
-        textColor = AppTheme.textSecondary;
+        dotColor = colorScheme.onSurfaceVariant;
+        bgColor = colorScheme.surfaceContainerHighest;
+        textColor = colorScheme.onSurfaceVariant;
         label = status;
     }
 

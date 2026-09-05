@@ -15,22 +15,47 @@ void main() {
   runApp(const AltrStreamAdminApp());
 }
 
-class AltrStreamAdminApp extends StatelessWidget {
+class AltrStreamAdminApp extends StatefulWidget {
   const AltrStreamAdminApp({super.key});
+
+  @override
+  State<AltrStreamAdminApp> createState() => _AltrStreamAdminAppState();
+}
+
+class _AltrStreamAdminAppState extends State<AltrStreamAdminApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  void _handleThemeModeChanged(ThemeMode mode) {
+    setState(() {
+      _themeMode = mode;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Altr Stream Admin',
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _themeMode,
       debugShowCheckedModeBanner: false,
-      home: const AdminHomeScreen(),
+      home: AdminHomeScreen(
+        themeMode: _themeMode,
+        onThemeModeChanged: _handleThemeModeChanged,
+      ),
     );
   }
 }
 
 class AdminHomeScreen extends StatefulWidget {
-  const AdminHomeScreen({super.key});
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
+
+  const AdminHomeScreen({
+    super.key,
+    required this.themeMode,
+    required this.onThemeModeChanged,
+  });
 
   @override
   State<AdminHomeScreen> createState() => _AdminHomeScreenState();
@@ -111,10 +136,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       });
     } catch (e) {
       if (mounted) {
+        final colorScheme = Theme.of(context).colorScheme;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load data sources: $e'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: colorScheme.error,
           ),
         );
       }
@@ -146,7 +172,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Data source "${newSource.name}" registered successfully!'),
-              backgroundColor: AppTheme.success,
+              backgroundColor: AppTheme.getStatusColor('ACTIVE', context),
             ),
           );
         },
@@ -167,22 +193,23 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   Future<void> _deleteSource(SourceModel source) async {
+    final colorScheme = Theme.of(context).colorScheme;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.bgSecondary,
+        backgroundColor: colorScheme.surfaceContainerHigh,
         title: const Text('Delete Data Source?'),
         content: Text(
           'Are you sure you want to delete "${source.name}" and all associated physical schema snapshots? This action cannot be undone.',
-          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error, foregroundColor: colorScheme.onError),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Delete Source'),
           ),
@@ -209,7 +236,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Source "${source.name}" deleted.'),
-              backgroundColor: AppTheme.success,
+              backgroundColor: AppTheme.getStatusColor('ACTIVE', context),
             ),
           );
         }
@@ -218,7 +245,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to delete source: $e'),
-              backgroundColor: AppTheme.error,
+              backgroundColor: colorScheme.error,
             ),
           );
         }
@@ -272,6 +299,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         apiClient: _apiClient,
         nodeStatus: _nodeStatus,
         onNodeStatusTap: _showNodeStatusDialog,
+        themeMode: widget.themeMode,
+        onThemeModeChanged: widget.onThemeModeChanged,
       );
     }
 
@@ -303,6 +332,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       activeRoute: _activeRoute,
       nodeStatus: _nodeStatus,
       onNodeStatusTap: _showNodeStatusDialog,
+      themeMode: widget.themeMode,
+      onThemeModeChanged: widget.onThemeModeChanged,
       onNavigate: (route) {
         setState(() {
           _activeRoute = route;

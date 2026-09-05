@@ -32,6 +32,7 @@ class OverviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activeCount = sources.where((s) => s.isActive).length;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,53 +56,55 @@ class OverviewScreen extends StatelessWidget {
         ),
 
         if (isLoading)
-          const Center(
+          Center(
             child: Padding(
-              padding: EdgeInsets.all(60),
-              child: CircularProgressIndicator(color: AppTheme.accentCyan),
+              padding: const EdgeInsets.all(60),
+              child: CircularProgressIndicator(color: colorScheme.primary),
             ),
           )
         else if (sources.isEmpty)
-          _buildEmptyState()
+          _buildEmptyState(context)
         else
           _buildOverviewContent(context, activeCount),
       ],
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.borderColor),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: AppTheme.accentCyanSubtle,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.dns_outlined, color: AppTheme.accentCyan, size: 36),
+            child: Icon(Icons.dns_outlined, color: colorScheme.primary, size: 36),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No data sources connected',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Connect your first database to begin discovering\nand exposing data through this Altr Stream node.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.5),
+            style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, height: 1.5),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -115,6 +118,9 @@ class OverviewScreen extends StatelessWidget {
   }
 
   Widget _buildOverviewContent(BuildContext context, int activeCount) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final statusActiveColor = AppTheme.getStatusColor('ACTIVE', context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -122,9 +128,9 @@ class OverviewScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
-            color: AppTheme.bgCard,
+            color: colorScheme.surfaceContainer,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppTheme.borderColor),
+            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
           ),
           child: Wrap(
             alignment: WrapAlignment.spaceBetween,
@@ -138,8 +144,8 @@ class OverviewScreen extends StatelessWidget {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: const BoxDecoration(
-                      color: AppTheme.success,
+                    decoration: BoxDecoration(
+                      color: statusActiveColor,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -149,16 +155,16 @@ class OverviewScreen extends StatelessWidget {
                     children: [
                       Text(
                         '${sources.length} ${sources.length == 1 ? "source" : "sources"} connected ($activeCount healthy)',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      const Text(
+                      Text(
                         'PostgreSQL connector active • Local physical introspection ready',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -166,7 +172,7 @@ class OverviewScreen extends StatelessWidget {
               ),
               TextButton(
                 onPressed: onViewAllSources,
-                child: const Text('View Data Sources →', style: TextStyle(color: AppTheme.accentCyan, fontSize: 13)),
+                child: Text('View Data Sources →', style: TextStyle(color: colorScheme.primary, fontSize: 13)),
               ),
             ],
           ),
@@ -183,17 +189,17 @@ class OverviewScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Connected Sources',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     TextButton(
                       onPressed: onViewAllSources,
-                      child: const Text('Manage Sources', style: TextStyle(color: AppTheme.accentCyan, fontSize: 12)),
+                      child: Text('Manage Sources', style: TextStyle(color: colorScheme.primary, fontSize: 12)),
                     ),
                   ],
                 ),
@@ -202,7 +208,7 @@ class OverviewScreen extends StatelessWidget {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: sources.length > 5 ? 5 : sources.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: AppTheme.borderColor),
+                  separatorBuilder: (_, _) => Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                   itemBuilder: (context, index) {
                     final source = sources[index];
                     return InkWell(
@@ -215,11 +221,11 @@ class OverviewScreen extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: AppTheme.bgPrimary,
+                                color: colorScheme.surfaceContainerHigh,
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: AppTheme.borderColor),
+                                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                               ),
-                              child: const Icon(Icons.storage, color: AppTheme.accentCyan, size: 16),
+                              child: Icon(Icons.storage, color: colorScheme.primary, size: 16),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -228,19 +234,19 @@ class OverviewScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     source.name,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: AppTheme.textPrimary,
+                                      color: colorScheme.onSurface,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     '${source.type} • ${source.host}:${source.port}/${source.databaseName}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       fontFamily: 'monospace',
-                                      color: AppTheme.textMuted,
+                                      color: colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                 ],
@@ -248,7 +254,7 @@ class OverviewScreen extends StatelessWidget {
                             ),
                             StatusBadge(status: source.status),
                             const SizedBox(width: 12),
-                            const Icon(Icons.chevron_right, color: AppTheme.textMuted, size: 18),
+                            Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant, size: 18),
                           ],
                         ),
                       ),
@@ -269,12 +275,12 @@ class OverviewScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Recent Node Activity',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -282,9 +288,10 @@ class OverviewScreen extends StatelessWidget {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: activities.length > 4 ? 4 : activities.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final act = activities[index];
+                      final dotColor = act.isSuccess ? colorScheme.primary : colorScheme.error;
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -293,7 +300,7 @@ class OverviewScreen extends StatelessWidget {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: act.isSuccess ? AppTheme.accentCyan : AppTheme.error,
+                              color: dotColor,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -304,23 +311,23 @@ class OverviewScreen extends StatelessWidget {
                               children: [
                                 Text(
                                   act.title,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppTheme.textPrimary,
+                                    color: colorScheme.onSurface,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   act.description,
-                                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                                 ),
                               ],
                             ),
                           ),
                           Text(
                             DateFormat('hh:mm a').format(act.timestamp),
-                            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                           ),
                         ],
                       );
