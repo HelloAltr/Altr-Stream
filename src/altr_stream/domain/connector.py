@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 from pydantic import BaseModel, Field
 
+from altr_stream.domain.query import QueryResult
 from altr_stream.domain.schema import SourceSchema
 from altr_stream.domain.source import ConnectionConfig
 
@@ -58,6 +59,11 @@ class BaseConnector(ABC):
     @abstractmethod
     def get_capabilities(self) -> SourceCapabilities:
         """Return the capabilities supported by this connector."""
+        ...
+
+    @abstractmethod
+    async def execute_query(self, query: str) -> QueryResult:
+        """Execute a native database query and return normalized results."""
         ...
 
     async def close(self) -> None:

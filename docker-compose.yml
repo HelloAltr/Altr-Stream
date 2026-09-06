@@ -20,6 +20,7 @@ services:
       - altr-network
 
   altr-stream-admin:
+    image: altr-stream-admin:latest
     build:
       context: ./frontend/altr_stream_admin
       dockerfile: Dockerfile

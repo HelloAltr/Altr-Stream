@@ -1,0 +1,21 @@
+# Docker Compose Development Override for Altr Stream
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  altr-stream-admin:
+    image: altr-stream-admin-dev:latest
+    build:
+      context: ./frontend/altr_stream_admin
+      dockerfile: Dockerfile.dev
+    container_name: altr-stream-admin-dev
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./frontend/altr_stream_admin:/app
+      - /app/.dart_tool
+      - /app/build
+    environment:
+      - FLUTTER_WEB_PORT=3001
+    stdin_open: true
+    tty: true
+    command: ["flutter", "run", "-d", "web-server", "--web-port=3001", "--web-hostname=0.0.0.0"]

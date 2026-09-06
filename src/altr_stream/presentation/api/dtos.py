@@ -1,6 +1,7 @@
 """Data Transfer Objects for the REST API."""
 
 from datetime import datetime, timezone
+from typing import Any
 from pydantic import BaseModel, Field
 
 from altr_stream.domain.source import Source, SourceStatus, SourceType
@@ -90,3 +91,27 @@ class HealthResponseDTO(BaseModel):
     version: str
     service: str = "Altr Stream"
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class QueryExecuteRequestDTO(BaseModel):
+    """Request payload for executing a native database query in the Query Playground."""
+
+    source_id: str = Field(..., min_length=1, description="Registered data source ID")
+    query: str = Field(..., min_length=1, description="Native SQL read query to execute")
+
+
+class QueryMetadataDTO(BaseModel):
+    """Execution metadata for a query result."""
+
+    row_count: int = Field(..., description="Number of rows returned")
+    execution_time_ms: float = Field(..., description="Execution duration in milliseconds")
+
+
+class QueryExecuteResponseDTO(BaseModel):
+    """Response payload for successful query execution."""
+
+    success: bool = True
+    columns: list[str] = Field(default_factory=list, description="Ordered list of column names")
+    rows: list[dict[str, Any]] = Field(default_factory=list, description="Normalized rows formatted as JSON dictionaries")
+    metadata: QueryMetadataDTO
+

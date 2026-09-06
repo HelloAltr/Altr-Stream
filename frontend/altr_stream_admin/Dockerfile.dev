@@ -1,0 +1,17 @@
+# Development Dockerfile for Flutter Web Admin with live code mounting
+FROM plugfox/flutter:3.47.2-web
+
+WORKDIR /app
+
+# Pre-cache dependencies
+COPY pubspec.yaml pubspec.lock* ./
+RUN flutter pub get
+
+# Copy remaining source files for initial build context
+COPY . .
+
+# Expose dedicated Flutter Web development server port
+EXPOSE 3001
+
+# Run Flutter Web development server listening on all network interfaces
+CMD ["flutter", "run", "-d", "web-server", "--web-port=3001", "--web-hostname=0.0.0.0"]

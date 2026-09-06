@@ -4,6 +4,7 @@ import 'core/api/models.dart';
 import 'core/theme/app_theme.dart';
 import 'features/activity/screens/activity_screen.dart';
 import 'features/overview/screens/overview_screen.dart';
+import 'features/query_playground/screens/query_playground_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
 import 'features/sources/screens/source_detail_screen.dart';
 import 'features/sources/screens/sources_screen.dart';
@@ -68,6 +69,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final List<ActivityLogModel> _activities = [];
   bool _isLoadingSources = true;
   String _activeRoute = '/';
+  String? _previousRoute;
   SourceModel? _selectedSource;
   String _nodeStatus = 'ACTIVE';
 
@@ -304,6 +306,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       );
     }
 
+    if (_activeRoute == '/playground') {
+      return QueryPlaygroundScreen(
+        sources: _sources,
+        apiClient: _apiClient,
+        nodeStatus: _nodeStatus,
+        onNodeStatusTap: _showNodeStatusDialog,
+        onBack: () => setState(() => _activeRoute = _previousRoute ?? '/'),
+      );
+    }
+
     // Default Overview Screen
     return OverviewScreen(
       sources: _sources,
@@ -336,7 +348,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       onThemeModeChanged: widget.onThemeModeChanged,
       onNavigate: (route) {
         setState(() {
-          _activeRoute = route;
+          if (route != _activeRoute) {
+            _previousRoute = _activeRoute;
+            _activeRoute = route;
+          }
         });
       },
       child: _buildCurrentScreen(),

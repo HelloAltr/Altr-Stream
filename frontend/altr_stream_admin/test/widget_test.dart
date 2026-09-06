@@ -8,6 +8,7 @@ import 'package:altr_stream_admin/features/overview/screens/overview_screen.dart
 import 'package:altr_stream_admin/features/sources/screens/sources_screen.dart';
 import 'package:altr_stream_admin/features/sources/screens/source_detail_screen.dart';
 import 'package:altr_stream_admin/features/activity/screens/activity_screen.dart';
+import 'package:altr_stream_admin/features/query_playground/screens/query_playground_screen.dart';
 import 'package:altr_stream_admin/features/settings/screens/settings_screen.dart';
 import 'package:altr_stream_admin/features/sources/widgets/add_source_wizard_dialog.dart';
 
@@ -341,7 +342,87 @@ void main() {
     expect(find.text('Primary PostgreSQL'), findsOneWidget);
     expect(find.text('Analytics Warehouse'), findsOneWidget);
   });
+
+  testWidgets('Console FAB is visible and opens Query Playground screen', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const AltrStreamAdminApp());
+    await tester.pump();
+
+    // Verify Console FAB is present on Overview screen
+    final fabFinder = find.text('Open Console');
+    expect(fabFinder, findsOneWidget);
+
+    // Tap Console FAB
+    await tester.tap(fabFinder);
+    await tester.pumpAndSettle();
+
+    // Verify Query Playground screen is rendered
+    expect(find.byType(QueryPlaygroundScreen), findsOneWidget);
+    expect(find.text('Query Playground'), findsOneWidget);
+    expect(find.textContaining('No data sources registered'), findsOneWidget);
+    expect(find.text('Run Query'), findsOneWidget);
+    expect(find.text('Ready to Execute Physical Queries'), findsOneWidget);
+
+    // Verify Console FAB is hidden while in Query Playground
+    expect(find.text('Open Console'), findsNothing);
+
+    // Tap Back to Dashboard
+    await tester.tap(find.text('Back to Dashboard'));
+    await tester.pumpAndSettle();
+
+    // Verify returned to Overview and FAB is visible again
+    expect(find.byType(OverviewScreen), findsOneWidget);
+    expect(find.text('Open Console'), findsOneWidget);
+  });
+
+  testWidgets('QueryPlaygroundScreen renders query results when executed', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Primary PostgreSQL',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'testdb',
+      username: 'postgres',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: QueryPlaygroundScreen(
+              sources: [mockSource],
+              apiClient: ApiClient(),
+              nodeStatus: 'ACTIVE',
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Query Playground'), findsOneWidget);
+    expect(find.text('Primary PostgreSQL'), findsOneWidget);
+    expect(find.text('SELECT * FROM users LIMIT 10;'), findsOneWidget);
+    expect(find.text('Run Query'), findsOneWidget);
+    expect(find.text('Clear'), findsOneWidget);
+  });
 }
+
 
 
 

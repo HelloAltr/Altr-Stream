@@ -264,3 +264,49 @@ class ActivityLogModel {
     this.sourceName,
   });
 }
+
+class QueryMetadataModel {
+  final int rowCount;
+  final double executionTimeMs;
+
+  QueryMetadataModel({
+    required this.rowCount,
+    required this.executionTimeMs,
+  });
+
+  factory QueryMetadataModel.fromJson(Map<String, dynamic> json) {
+    return QueryMetadataModel(
+      rowCount: (json['row_count'] as num?)?.toInt() ?? 0,
+      executionTimeMs: (json['execution_time_ms'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
+class QueryExecuteResponseModel {
+  final bool success;
+  final List<String> columns;
+  final List<Map<String, dynamic>> rows;
+  final QueryMetadataModel metadata;
+
+  QueryExecuteResponseModel({
+    required this.success,
+    required this.columns,
+    required this.rows,
+    required this.metadata,
+  });
+
+  factory QueryExecuteResponseModel.fromJson(Map<String, dynamic> json) {
+    final rawColumns = (json['columns'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+    final rawRows = (json['rows'] as List<dynamic>?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        [];
+    return QueryExecuteResponseModel(
+      success: json['success'] as bool? ?? true,
+      columns: rawColumns,
+      rows: rawRows,
+      metadata: QueryMetadataModel.fromJson(json['metadata'] as Map<String, dynamic>? ?? {}),
+    );
+  }
+}
+

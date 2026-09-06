@@ -47,3 +47,25 @@ class SchemaDiscoveryError(AltrStreamError):
     def __init__(self, message: str, details: str | None = None):
         super().__init__(message)
         self.details = details
+
+
+class ReadOnlyQueryRequiredError(AltrStreamError):
+    """Raised when a non-read or destructive query is submitted to the Query Playground."""
+
+    def __init__(self, message: str = "Query Playground is restricted to read-only queries (SELECT, WITH, EXPLAIN)."):
+        super().__init__(message)
+
+
+class QueryExecutionError(AltrStreamError):
+    """Raised when physical query execution fails in the database engine."""
+
+    def __init__(self, message: str, details: str | None = None):
+        super().__init__(message)
+        self.details = details
+
+
+class QueryExecutionNotSupportedError(AltrStreamError):
+    """Raised when a connector or source does not support query execution."""
+
+    def __init__(self, message: str):
+        super().__init__(message)

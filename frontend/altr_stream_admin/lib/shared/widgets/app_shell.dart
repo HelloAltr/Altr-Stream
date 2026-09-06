@@ -46,6 +46,7 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
+      floatingActionButton: activeRoute == '/playground' ? null : _buildDesktopFab(context),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -159,6 +160,7 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
+      floatingActionButton: activeRoute == '/playground' ? null : _buildCompactFab(context),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -224,6 +226,7 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
+      floatingActionButton: activeRoute == '/playground' ? null : _buildCompactFab(context),
       appBar: AppBar(
         backgroundColor: colorScheme.surfaceContainerLow,
         elevation: 0,
@@ -529,4 +532,32 @@ class AppShell extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildDesktopFab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return FloatingActionButton.extended(
+      onPressed: () => onNavigate('/playground'),
+      icon: const Icon(Icons.terminal, size: 18),
+      label: const Text(
+        'Open Console',
+        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+      ),
+      backgroundColor: colorScheme.primary,
+      foregroundColor: colorScheme.onPrimary,
+      elevation: 4,
+    );
+  }
+
+  Widget _buildCompactFab(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return FloatingActionButton(
+      onPressed: () => onNavigate('/playground'),
+      tooltip: 'Open Console',
+      backgroundColor: colorScheme.primary,
+      foregroundColor: colorScheme.onPrimary,
+      elevation: 4,
+      child: const Icon(Icons.terminal, size: 20),
+    );
+  }
 }
+

@@ -196,4 +196,23 @@ class ApiClient {
       rethrow;
     }
   }
+
+  /// Execute a native read-only query against a registered data source in the Query Playground
+  Future<QueryExecuteResponseModel> executeQuery({
+    required String sourceId,
+    required String query,
+  }) async {
+    final body = jsonEncode({
+      'source_id': sourceId,
+      'query': query,
+    });
+
+    final res = await _client.post(
+      _uri('/queries/execute'),
+      headers: _headers,
+      body: body,
+    );
+    return QueryExecuteResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+  }
 }
+

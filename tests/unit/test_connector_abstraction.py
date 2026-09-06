@@ -7,6 +7,7 @@ from altr_stream.domain.connector import (
     SourceCapabilities,
 )
 from altr_stream.domain.errors import ConnectorNotFoundError
+from altr_stream.domain.query import QueryResult
 from altr_stream.domain.schema import SourceSchema
 from altr_stream.domain.source import ConnectionConfig, SourceType
 from altr_stream.infrastructure.connectors.factory import ConnectorFactory
@@ -33,6 +34,9 @@ class DummyRelationalConnector(BaseConnector):
             supported_operations=["SELECT", "INSERT"],
         )
 
+    async def execute_query(self, query: str) -> QueryResult:
+        return QueryResult(columns=["col1"], rows=[{"col1": "val1"}], row_count=1, execution_time_ms=1.0)
+
     async def close(self) -> None:
         self.closed = True
 
@@ -52,6 +56,9 @@ class DummyDocumentConnector(BaseConnector):
             entity_types=["COLLECTION"],
             supported_operations=["FIND", "INSERT"],
         )
+
+    async def execute_query(self, query: str) -> QueryResult:
+        return QueryResult(columns=["_id"], rows=[{"_id": "doc1"}], row_count=1, execution_time_ms=2.0)
 
 
 def test_postgres_connector_registered_by_default():
