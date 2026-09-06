@@ -19,6 +19,7 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │        Flutter Web Application + Nginx Reverse Proxy        │
 │        - Persistent desktop sidebar & progressive UX        │
 │        - Overview, Data Sources, Activity, Settings         │
+│        - Schema Explorer & Native Query Playground          │
 │        - 4-step guided source onboarding wizard             │
 │        - Serves pre-compiled static Flutter Web bundle      │
 │        - Proxies /api/* to backend service                  │
@@ -127,7 +128,7 @@ Altr-Stream/
 │       │   ├── features/
 │       │   │   ├── overview/    # Node overview, summaries & quick links
 │       │   │   ├── sources/     # Sources list, details tabs & 4-step wizard
-│       │   │   ├── schemas/     # Physical schema explorer
+│       │   │   ├── query_playground/ # Schema Explorer & Native Query Playground
 │       │   │   ├── activity/    # Operational timeline
 │       │   │   └── settings/    # Node configuration & diagnostics
 │       │   ├── shared/          # Persistent AppShell, PageHeader, StatusBadges

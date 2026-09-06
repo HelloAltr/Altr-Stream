@@ -32,7 +32,7 @@ async def execute_query(
     dto: QueryExecuteRequestDTO,
     service: QueryService = Depends(get_query_service),
 ) -> QueryExecuteResponseDTO:
-    """Execute a native read-only query against a registered physical data source."""
+    """Execute a native query against a registered physical data source."""
     try:
         result = await service.execute_query(source_id=dto.source_id, query=dto.query)
         return QueryExecuteResponseDTO(
@@ -41,6 +41,8 @@ async def execute_query(
             rows=result.rows,
             metadata=QueryMetadataDTO(
                 row_count=result.row_count,
+                affected_rows=result.affected_rows,
+                message=result.message,
                 execution_time_ms=result.execution_time_ms,
             ),
         )

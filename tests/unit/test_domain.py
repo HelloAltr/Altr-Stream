@@ -103,7 +103,7 @@ def test_capabilities_defaults():
     assert caps.cdc is False  # Future milestone
     assert caps.batch_execution is True
     assert caps.streaming is False
-    assert caps.custom_query is True
+    assert caps.custom_query is False
     assert caps.entity_types == []
     assert caps.supported_operations == []
 

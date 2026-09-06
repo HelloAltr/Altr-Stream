@@ -77,6 +77,7 @@ class SourceCapabilitiesModel {
   final bool read;
   final bool write;
   final bool cdc;
+  final bool customQuery;
   final List<String> supportedOperations;
 
   SourceCapabilitiesModel({
@@ -84,6 +85,7 @@ class SourceCapabilitiesModel {
     required this.read,
     required this.write,
     required this.cdc,
+    this.customQuery = false,
     required this.supportedOperations,
   });
 
@@ -93,6 +95,7 @@ class SourceCapabilitiesModel {
       read: json['read'] as bool? ?? true,
       write: json['write'] as bool? ?? true,
       cdc: json['cdc'] as bool? ?? false,
+      customQuery: json['custom_query'] as bool? ?? false,
       supportedOperations: (json['supported_operations'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
@@ -267,16 +270,22 @@ class ActivityLogModel {
 
 class QueryMetadataModel {
   final int rowCount;
+  final int? affectedRows;
+  final String? message;
   final double executionTimeMs;
 
   QueryMetadataModel({
     required this.rowCount,
+    this.affectedRows,
+    this.message,
     required this.executionTimeMs,
   });
 
   factory QueryMetadataModel.fromJson(Map<String, dynamic> json) {
     return QueryMetadataModel(
       rowCount: (json['row_count'] as num?)?.toInt() ?? 0,
+      affectedRows: (json['affected_rows'] as num?)?.toInt(),
+      message: json['message'] as String?,
       executionTimeMs: (json['execution_time_ms'] as num?)?.toDouble() ?? 0.0,
     );
   }
@@ -308,5 +317,9 @@ class QueryExecuteResponseModel {
       metadata: QueryMetadataModel.fromJson(json['metadata'] as Map<String, dynamic>? ?? {}),
     );
   }
+
+  bool get isResultSet => columns.isNotEmpty;
+  bool get isCommandOutcome => columns.isEmpty;
 }
+
 

@@ -17,4 +17,7 @@ class QueryResult(BaseModel):
     columns: list[str] = Field(default_factory=list)
     rows: list[dict[str, Any]] = Field(default_factory=list)
     row_count: int = 0
+    affected_rows: int | None = None
+    message: str | None = None
     execution_time_ms: float = 0.0
+

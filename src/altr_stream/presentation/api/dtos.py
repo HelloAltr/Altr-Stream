@@ -97,14 +97,16 @@ class QueryExecuteRequestDTO(BaseModel):
     """Request payload for executing a native database query in the Query Playground."""
 
     source_id: str = Field(..., min_length=1, description="Registered data source ID")
-    query: str = Field(..., min_length=1, description="Native SQL read query to execute")
+    query: str = Field(..., min_length=1, description="Native query to execute")
 
 
 class QueryMetadataDTO(BaseModel):
     """Execution metadata for a query result."""
 
-    row_count: int = Field(..., description="Number of rows returned")
+    row_count: int = Field(default=0, description="Number of rows returned")
+    affected_rows: int | None = Field(default=None, description="Number of rows affected for command/mutation queries")
     execution_time_ms: float = Field(..., description="Execution duration in milliseconds")
+    message: str | None = Field(default=None, description="Command status or outcome message")
 
 
 class QueryExecuteResponseDTO(BaseModel):
@@ -114,4 +116,5 @@ class QueryExecuteResponseDTO(BaseModel):
     columns: list[str] = Field(default_factory=list, description="Ordered list of column names")
     rows: list[dict[str, Any]] = Field(default_factory=list, description="Normalized rows formatted as JSON dictionaries")
     metadata: QueryMetadataDTO
+
 

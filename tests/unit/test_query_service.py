@@ -21,9 +21,9 @@ from altr_stream.infrastructure.database.repository import SqliteSourceRepositor
 class MockQueryConnector(BaseConnector):
     """Mock connector implementing execute_query for tests."""
 
-    def __init__(self, config: ConnectionConfig, timeout_sec: float = 5.0, allow_read: bool = True):
+    def __init__(self, config: ConnectionConfig, timeout_sec: float = 5.0, allow_custom_query: bool = True):
         super().__init__(config, timeout_sec=timeout_sec)
-        self.allow_read = allow_read
+        self.allow_custom_query = allow_custom_query
 
     async def test_connection(self) -> ConnectionTestResult:
         return ConnectionTestResult(success=True, message="OK")
@@ -34,7 +34,7 @@ class MockQueryConnector(BaseConnector):
     def get_capabilities(self) -> SourceCapabilities:
         return SourceCapabilities(
             schema_discovery=True,
-            read=self.allow_read,
+            custom_query=self.allow_custom_query,
             entity_types=["TABLE"],
         )
 
@@ -48,7 +48,7 @@ class MockQueryConnector(BaseConnector):
 
 
 @pytest.mark.asyncio
-async def test_execute_query_success(test_session: AsyncSession):
+async def test_execute_query_success_result_set(test_session: AsyncSession):
     repo = SqliteSourceRepository(test_session)
     service = QueryService(repo)
 
@@ -74,7 +74,7 @@ async def test_execute_query_success(test_session: AsyncSession):
 
     with pytest.MonkeyPatch.context() as mp:
         mock_connector = MagicMock(spec=BaseConnector)
-        mock_connector.get_capabilities.return_value = SourceCapabilities(read=True)
+        mock_connector.get_capabilities.return_value = SourceCapabilities(custom_query=True)
         mock_connector.execute_query = AsyncMock(return_value=mock_result)
         mock_connector.__aenter__ = AsyncMock(return_value=mock_connector)
         mock_connector.__aexit__ = AsyncMock(return_value=None)
@@ -89,6 +89,48 @@ async def test_execute_query_success(test_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_execute_query_success_command_mutation(test_session: AsyncSession):
+    repo = SqliteSourceRepository(test_session)
+    service = QueryService(repo)
+
+    source = Source(
+        name="Production Postgres",
+        type=SourceType.POSTGRESQL,
+        host="localhost",
+        port=5432,
+        database_name="prod",
+        username="postgres",
+        password="password",
+        status=SourceStatus.ACTIVE,
+    )
+    saved = await repo.create(source)
+
+    mock_result = QueryResult(
+        columns=[],
+        rows=[],
+        row_count=0,
+        affected_rows=3,
+        message="UPDATE 3",
+        execution_time_ms=12.1,
+    )
+
+    with pytest.MonkeyPatch.context() as mp:
+        mock_connector = MagicMock(spec=BaseConnector)
+        mock_connector.get_capabilities.return_value = SourceCapabilities(custom_query=True)
+        mock_connector.execute_query = AsyncMock(return_value=mock_result)
+        mock_connector.__aenter__ = AsyncMock(return_value=mock_connector)
+        mock_connector.__aexit__ = AsyncMock(return_value=None)
+
+        mp.setattr(ConnectorFactory, "get_connector", lambda *args, **kwargs: mock_connector)
+
+        result = await service.execute_query(saved.id, "UPDATE users SET active = true;")
+        assert result.row_count == 0
+        assert result.affected_rows == 3
+        assert result.message == "UPDATE 3"
+        assert result.execution_time_ms == 12.1
+
+
+@pytest.mark.asyncio
 async def test_execute_query_source_not_found(test_session: AsyncSession):
     repo = SqliteSourceRepository(test_session)
     service = QueryService(repo)
@@ -98,7 +140,7 @@ async def test_execute_query_source_not_found(test_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_execute_query_read_only_rejection(test_session: AsyncSession):
+async def test_execute_query_multi_statement_rejection(test_session: AsyncSession):
     repo = SqliteSourceRepository(test_session)
     service = QueryService(repo)
 
@@ -114,7 +156,7 @@ async def test_execute_query_read_only_rejection(test_session: AsyncSession):
     saved = await repo.create(source)
 
     with pytest.raises(ReadOnlyQueryRequiredError):
-        await service.execute_query(saved.id, "DROP TABLE sensitive_data;")
+        await service.execute_query(saved.id, "SELECT 1; DROP TABLE sensitive_data;")
 
 
 @pytest.mark.asyncio
@@ -123,7 +165,7 @@ async def test_execute_query_capability_rejection(test_session: AsyncSession):
     service = QueryService(repo)
 
     source = Source(
-        name="No-Read Source",
+        name="No-Custom-Query Source",
         type=SourceType.POSTGRESQL,
         host="localhost",
         port=5432,
@@ -135,7 +177,7 @@ async def test_execute_query_capability_rejection(test_session: AsyncSession):
 
     with pytest.MonkeyPatch.context() as mp:
         mock_connector = MagicMock(spec=BaseConnector)
-        mock_connector.get_capabilities.return_value = SourceCapabilities(read=False)
+        mock_connector.get_capabilities.return_value = SourceCapabilities(custom_query=False)
         mock_connector.__aenter__ = AsyncMock(return_value=mock_connector)
         mock_connector.__aexit__ = AsyncMock(return_value=None)
 

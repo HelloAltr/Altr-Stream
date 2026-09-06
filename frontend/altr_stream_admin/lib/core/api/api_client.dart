@@ -197,7 +197,7 @@ class ApiClient {
     }
   }
 
-  /// Execute a native read-only query against a registered data source in the Query Playground
+  /// Execute a native query against a registered data source in the Query Playground
   Future<QueryExecuteResponseModel> executeQuery({
     required String sourceId,
     required String query,

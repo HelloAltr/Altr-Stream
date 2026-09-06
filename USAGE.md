@@ -97,7 +97,30 @@ docker compose up -d
 
 ---
 
-## 4. Testing & Static Analysis
+## 4. Query Playground & Schema Explorer Workflow
+
+The Query Playground provides an integrated database experimentation workspace across connected data sources.
+
+### Key Capabilities & Interactions
+1. **Source Selection & Schema Snapshot**:
+   - Selecting a source automatically loads its cached schema snapshot without redundant discovery calls.
+   - Click the **"Refresh / Discover Schema"** button (`↻`) in the Schema Explorer header to trigger on-demand catalog re-introspection.
+2. **Schema Tree Navigation**:
+   - Filter tables and columns with the real-time search field.
+   - Expand table rows to inspect column native data types, nullability indicators, and primary key badges (`🔑`).
+   - Click the code icon (`</>`) on any table to insert a `SELECT * FROM <table> LIMIT 100;` query template into the editor.
+   - Click any column to insert its name into the query editor at the cursor position.
+3. **Query Execution**:
+   - Write and edit arbitrary single-statement queries in the monospace editor.
+   - Press **`⌘ + Enter`** (macOS) or **`Ctrl + Enter`** (Windows/Linux) to execute.
+   - **Result-returning queries** (`SELECT`, `WITH`, `EXPLAIN`, `SHOW`) render interactive paginated data tables with column copy.
+   - **Command/mutation queries** (`INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `ALTER`, `TRUNCATE`) render a **Command Outcome Panel** displaying affected rows and latency.
+4. **UX Safety Guardrail**:
+   - Queries beginning with `DROP`, `TRUNCATE`, `DELETE`, or `ALTER` (even with leading comments) trigger a **Destructive Operation Confirmation** modal before execution.
+
+---
+
+## 5. Testing & Static Analysis
 
 ### Backend Tests (Pytest)
 ```bash
@@ -122,7 +145,7 @@ flutter analyze
 
 ---
 
-## 5. Full Clean Reset (Destructive)
+## 6. Full Clean Reset (Destructive)
 
 > [!WARNING]
 > This command completely stops all containers, deletes all persistent SQLite and PostgreSQL Docker volumes, and resets the database state to initial seed data.
@@ -138,7 +161,7 @@ docker builder prune -af
 
 ---
 
-## 6. Common Development Scenarios Cheat Sheet
+## 7. Common Development Scenarios Cheat Sheet
 
 | Scenario | Command |
 | :--- | :--- |

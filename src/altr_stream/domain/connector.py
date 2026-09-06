@@ -18,7 +18,7 @@ class SourceCapabilities(BaseModel):
     cdc: bool = False
     batch_execution: bool = True
     streaming: bool = False
-    custom_query: bool = True
+    custom_query: bool = False
     entity_types: list[str] = Field(
         default_factory=list,
         description="Types of entities exposed by this source (e.g. TABLE, VIEW, COLLECTION)",

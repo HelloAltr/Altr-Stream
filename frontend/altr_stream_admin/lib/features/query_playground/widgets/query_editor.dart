@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/api/models.dart';
 
 class QueryEditor extends StatelessWidget {
   final TextEditingController controller;
@@ -8,6 +9,7 @@ class QueryEditor extends StatelessWidget {
   final bool isExecuting;
   final bool canExecute;
   final FocusNode focusNode;
+  final SourceModel? selectedSource;
 
   const QueryEditor({
     super.key,
@@ -17,25 +19,14 @@ class QueryEditor extends StatelessWidget {
     required this.isExecuting,
     required this.canExecute,
     required this.focusNode,
+    this.selectedSource,
   });
-
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent) {
-      final isMetaOrControl = HardwareKeyboard.instance.isMetaPressed || HardwareKeyboard.instance.isControlPressed;
-      if (isMetaOrControl && event.logicalKey == LogicalKeyboardKey.enter) {
-        if (canExecute && !isExecuting) {
-          onExecute();
-          return KeyEventResult.handled;
-        }
-      }
-    }
-    return KeyEventResult.ignored;
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final sourceTypeName = selectedSource?.type.toUpperCase() ?? 'NATIVE';
 
     return Container(
       decoration: BoxDecoration(
@@ -61,7 +52,7 @@ class QueryEditor extends StatelessWidget {
                 Icon(Icons.terminal, size: 16, color: colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
-                  'SQL Query Editor',
+                  'Query Editor',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -76,7 +67,7 @@ class QueryEditor extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    'READ ONLY',
+                    '$sourceTypeName QUERY',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -98,15 +89,25 @@ class QueryEditor extends StatelessWidget {
             ),
           ),
 
-          // Text Field
-          Focus(
-            onKeyEvent: _handleKeyEvent,
+          // Text Field with CallbackShortcuts for ⌘+Enter / Ctrl+Enter
+          CallbackShortcuts(
+            bindings: <ShortcutActivator, VoidCallback>{
+              const SingleActivator(LogicalKeyboardKey.enter, meta: true): () {
+                if (canExecute && !isExecuting) {
+                  onExecute();
+                }
+              },
+              const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
+                if (canExecute && !isExecuting) {
+                  onExecute();
+                }
+              },
+            },
             child: TextField(
               controller: controller,
               focusNode: focusNode,
               maxLines: 8,
               minLines: 5,
-              enabled: !isExecuting,
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 13,
@@ -115,7 +116,7 @@ class QueryEditor extends StatelessWidget {
               ),
               cursorColor: colorScheme.primary,
               decoration: InputDecoration(
-                hintText: '-- Enter a native SQL read query\nSELECT * FROM users LIMIT 10;',
+                hintText: '-- Write a native physical query\nSELECT * FROM users LIMIT 10;',
                 hintStyle: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 13,

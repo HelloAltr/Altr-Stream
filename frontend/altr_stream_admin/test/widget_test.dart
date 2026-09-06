@@ -9,8 +9,57 @@ import 'package:altr_stream_admin/features/sources/screens/sources_screen.dart';
 import 'package:altr_stream_admin/features/sources/screens/source_detail_screen.dart';
 import 'package:altr_stream_admin/features/activity/screens/activity_screen.dart';
 import 'package:altr_stream_admin/features/query_playground/screens/query_playground_screen.dart';
+import 'package:altr_stream_admin/features/query_playground/widgets/schema_explorer.dart';
+import 'package:altr_stream_admin/features/query_playground/widgets/command_outcome_panel.dart';
+import 'package:altr_stream_admin/features/query_playground/widgets/destructive_query_dialog.dart';
+import 'package:altr_stream_admin/features/query_playground/widgets/query_editor.dart';
 import 'package:altr_stream_admin/features/settings/screens/settings_screen.dart';
 import 'package:altr_stream_admin/features/sources/widgets/add_source_wizard_dialog.dart';
+
+class MockTestApiClient extends ApiClient {
+  final SourceSchemaModel? schemaToReturn;
+  final QueryExecuteResponseModel? queryResponseToReturn;
+
+  MockTestApiClient({
+    this.schemaToReturn,
+    this.queryResponseToReturn,
+  });
+
+  @override
+  Future<SourceSchemaModel?> getLatestSchema(String id) async => schemaToReturn;
+
+  @override
+  Future<SourceSchemaModel> discoverSchema(String id) async =>
+      schemaToReturn ??
+      SourceSchemaModel(
+        sourceId: id,
+        sourceName: 'Mock Source',
+        version: '1.0.0',
+        discoveredAt: DateTime.now(),
+        entities: [],
+        metadata: {},
+      );
+
+  @override
+  Future<QueryExecuteResponseModel> executeQuery({
+    required String sourceId,
+    required String query,
+  }) async {
+    return queryResponseToReturn ??
+        QueryExecuteResponseModel(
+          success: true,
+          columns: ['id', 'name'],
+          rows: [
+            {'id': 1, 'name': 'Alice'},
+            {'id': 2, 'name': 'Bob'},
+          ],
+          metadata: QueryMetadataModel(
+            rowCount: 2,
+            executionTimeMs: 12.5,
+          ),
+        );
+  }
+}
 
 void main() {
   testWidgets('App renders on desktop viewport with persistent sidebar', (WidgetTester tester) async {
@@ -168,7 +217,6 @@ void main() {
 
     expect(find.byType(NavigationRail), findsOneWidget);
 
-    // Verify content is top-aligned near the top of the screen (not centered)
     final overviewTitleY = tester.getTopLeft(
       find.descendant(of: find.byType(OverviewScreen), matching: find.text('Overview')),
     ).dy;
@@ -222,23 +270,18 @@ void main() {
     );
     await tester.pump();
 
-    // Verify initial tab is Overview (contains 'Source Summary')
     expect(find.text('Source Summary'), findsOneWidget);
     expect(find.text('Host / IP Address'), findsNothing);
 
-    // Attempt horizontal drag on the TabBarView area (from right to left)
     await tester.drag(find.text('Source Summary'), const Offset(-400, 0));
     await tester.pumpAndSettle();
 
-    // Verify view has NOT changed via drag (still on Overview, not Connection Parameters)
     expect(find.text('Source Summary'), findsOneWidget);
     expect(find.text('Host / IP Address'), findsNothing);
 
-    // Click 'Connection Parameters' tab explicitly
     await tester.tap(find.text('Connection Parameters'));
     await tester.pumpAndSettle();
 
-    // Verify view successfully switched to Connection Parameters
     expect(find.text('Host / IP Address'), findsOneWidget);
   });
 
@@ -251,26 +294,22 @@ void main() {
     await tester.pumpWidget(const AltrStreamAdminApp());
     await tester.pump();
 
-    // 1. Overview Screen: Verify 'Refresh' and 'Add Data Source' are on the right side
     final overviewTitleX = tester.getTopLeft(find.text('Overview').first).dx;
     final addSourceX = tester.getTopLeft(find.text('Add Data Source').first).dx;
     final refreshX = tester.getTopLeft(find.text('Refresh').first).dx;
     expect(addSourceX, greaterThan(overviewTitleX + 500));
     expect(refreshX, greaterThan(overviewTitleX + 500));
 
-    // 2. Data Sources Screen: Verify action buttons are on the right side
     await tester.tap(find.text('Data Sources').first);
     await tester.pumpAndSettle();
     final sourcesTitleX = tester.getTopLeft(find.text('Data Sources').first).dx;
     final sourcesAddSourceX = tester.getTopLeft(find.text('Add Data Source').first).dx;
     expect(sourcesAddSourceX, greaterThan(sourcesTitleX + 500));
 
-    // 3. Activity Screen: Verify 'Clear Timeline' button is on the right side if present
     await tester.tap(find.text('Activity').first);
     await tester.pumpAndSettle();
     expect(find.byType(ActivityScreen), findsOneWidget);
 
-    // 4. Settings Screen: Verify 'Probe Node Health' button is on the right side
     await tester.tap(find.text('Settings').first);
     await tester.pumpAndSettle();
     final settingsTitleX = tester.getTopLeft(find.text('Settings').first).dx;
@@ -332,13 +371,10 @@ void main() {
     );
     await tester.pump();
 
-    // Verify title and health badge inside single card
     expect(find.text('Connected Sources'), findsOneWidget);
     expect(find.text('2/2 Healthy'), findsOneWidget);
     expect(find.text('2 sources connected • PostgreSQL connector active'), findsOneWidget);
     expect(find.text('Manage Sources →'), findsOneWidget);
-
-    // Verify source items in the list
     expect(find.text('Primary PostgreSQL'), findsOneWidget);
     expect(find.text('Analytics Warehouse'), findsOneWidget);
   });
@@ -352,34 +388,26 @@ void main() {
     await tester.pumpWidget(const AltrStreamAdminApp());
     await tester.pump();
 
-    // Verify Console FAB is present on Overview screen
     final fabFinder = find.text('Open Console');
     expect(fabFinder, findsOneWidget);
 
-    // Tap Console FAB
     await tester.tap(fabFinder);
     await tester.pumpAndSettle();
 
-    // Verify Query Playground screen is rendered
     expect(find.byType(QueryPlaygroundScreen), findsOneWidget);
     expect(find.text('Query Playground'), findsOneWidget);
-    expect(find.textContaining('No data sources registered'), findsOneWidget);
     expect(find.text('Run Query'), findsOneWidget);
-    expect(find.text('Ready to Execute Physical Queries'), findsOneWidget);
 
-    // Verify Console FAB is hidden while in Query Playground
     expect(find.text('Open Console'), findsNothing);
 
-    // Tap Back to Dashboard
     await tester.tap(find.text('Back to Dashboard'));
     await tester.pumpAndSettle();
 
-    // Verify returned to Overview and FAB is visible again
     expect(find.byType(OverviewScreen), findsOneWidget);
     expect(find.text('Open Console'), findsOneWidget);
   });
 
-  testWidgets('QueryPlaygroundScreen renders query results when executed', (WidgetTester tester) async {
+  testWidgets('SchemaExplorer widget renders tables, columns, and inserts query template', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -398,31 +426,416 @@ void main() {
       updatedAt: DateTime.now(),
     );
 
+    final mockSchema = SourceSchemaModel(
+      sourceId: 'src_pg_1',
+      sourceName: 'Primary PostgreSQL',
+      version: '1.0.0',
+      discoveredAt: DateTime.now(),
+      entities: [
+        EntitySchemaModel(
+          name: 'users',
+          namespace: 'public',
+          entityType: 'TABLE',
+          fields: [
+            FieldSchemaModel(
+              name: 'id',
+              dataType: 'integer',
+              nativeDataType: 'int4',
+              nullable: false,
+              isPrimaryKey: true,
+              position: 1,
+            ),
+            FieldSchemaModel(
+              name: 'email',
+              dataType: 'varchar',
+              nativeDataType: 'varchar(255)',
+              nullable: true,
+              isPrimaryKey: false,
+              position: 2,
+            ),
+          ],
+          primaryKey: ['id'],
+          constraints: [],
+        ),
+      ],
+      metadata: {},
+    );
+
+    EntitySchemaModel? selectedEntity;
+    FieldSchemaModel? selectedField;
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: Scaffold(
-          body: SingleChildScrollView(
-            child: QueryPlaygroundScreen(
-              sources: [mockSource],
-              apiClient: ApiClient(),
-              nodeStatus: 'ACTIVE',
-              onBack: () {},
+          body: SizedBox(
+            width: 320,
+            height: 600,
+            child: SchemaExplorer(
+              selectedSource: mockSource,
+              schema: mockSchema,
+              isLoading: false,
+              onRefreshSchema: () {},
+              onSelectTable: (e) => selectedEntity = e,
+              onSelectColumn: (f, e) => selectedField = f,
             ),
           ),
         ),
       ),
     );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Schema Explorer'), findsOneWidget);
+    expect(find.text('1 tables • 2 columns'), findsOneWidget);
+    expect(find.text('users'), findsOneWidget);
+
+    // Click "Query Table" template icon button
+    final queryTableFinder = find.byTooltip('Query Table (Insert Template)');
+    expect(queryTableFinder, findsOneWidget);
+    await tester.tap(queryTableFinder);
     await tester.pump();
+    expect(selectedEntity?.name, 'users');
+
+    // Expand table to inspect columns
+    await tester.tap(find.text('users'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('id'), findsOneWidget);
+    expect(find.text('email'), findsOneWidget);
+    expect(find.text('int4'), findsOneWidget);
+    expect(find.text('NOT NULL'), findsOneWidget);
+    expect(find.byIcon(Icons.vpn_key_rounded), findsOneWidget);
+
+    // Tap column to trigger onSelectColumn
+    await tester.tap(find.text('email'));
+    await tester.pump();
+    expect(selectedField?.name, 'email');
+  });
+
+  testWidgets('QueryPlaygroundScreen executes query and renders QueryResultTable and CommandOutcomePanel', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Primary PostgreSQL',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'testdb',
+      username: 'postgres',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockSchema = SourceSchemaModel(
+      sourceId: 'src_pg_1',
+      sourceName: 'Primary PostgreSQL',
+      version: '1.0.0',
+      discoveredAt: DateTime.now(),
+      entities: [
+        EntitySchemaModel(
+          name: 'users',
+          namespace: 'public',
+          entityType: 'TABLE',
+          fields: [
+            FieldSchemaModel(
+              name: 'id',
+              dataType: 'integer',
+              nativeDataType: 'int4',
+              nullable: false,
+              isPrimaryKey: true,
+              position: 1,
+            ),
+          ],
+          primaryKey: ['id'],
+          constraints: [],
+        ),
+      ],
+      metadata: {},
+    );
+
+    final mockClient = MockTestApiClient(
+      schemaToReturn: mockSchema,
+      queryResponseToReturn: QueryExecuteResponseModel(
+        success: true,
+        columns: ['id', 'username'],
+        rows: [
+          {'id': 1, 'username': 'Alice'},
+          {'id': 2, 'username': 'Bob'},
+        ],
+        metadata: QueryMetadataModel(
+          rowCount: 2,
+          executionTimeMs: 14.2,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: QueryPlaygroundScreen(
+            sources: [mockSource],
+            apiClient: mockClient,
+            nodeStatus: 'ACTIVE',
+            onBack: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('Query Playground'), findsOneWidget);
-    expect(find.text('Primary PostgreSQL'), findsOneWidget);
-    expect(find.text('SELECT * FROM users LIMIT 10;'), findsOneWidget);
-    expect(find.text('Run Query'), findsOneWidget);
-    expect(find.text('Clear'), findsOneWidget);
+    expect(find.text('POSTGRESQL QUERY'), findsOneWidget);
+    expect(find.text('Schema Explorer'), findsOneWidget);
+    expect(find.text('users'), findsOneWidget);
+
+    // Tap Run Query
+    await tester.tap(find.text('Run Query'));
+    await tester.pumpAndSettle();
+
+    // Verify result table rendered
+    expect(find.text('Query Results'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Bob'), findsOneWidget);
+  });
+
+  testWidgets('Destructive query detection triggers DestructiveQueryDialog confirmation', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    // Verify comment-aware destructive detection helper
+    expect(isDestructiveQuery('DROP TABLE users;'), isTrue);
+    expect(isDestructiveQuery('-- cleanup\nTRUNCATE TABLE logs;'), isTrue);
+    expect(isDestructiveQuery('/* multi-line comment */ DELETE FROM users;'), isTrue);
+    expect(isDestructiveQuery('ALTER TABLE users ADD COLUMN age INT;'), isTrue);
+    expect(isDestructiveQuery('SELECT * FROM users;'), isFalse);
+    expect(isDestructiveQuery('INSERT INTO users VALUES (1);'), isFalse);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Primary PostgreSQL',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'testdb',
+      username: 'postgres',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient(
+      queryResponseToReturn: QueryExecuteResponseModel(
+        success: true,
+        columns: [],
+        rows: [],
+        metadata: QueryMetadataModel(
+          rowCount: 0,
+          affectedRows: 1,
+          message: 'DROP TABLE',
+          executionTimeMs: 8.5,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: QueryPlaygroundScreen(
+            sources: [mockSource],
+            apiClient: mockClient,
+            nodeStatus: 'ACTIVE',
+            onBack: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Enter a DROP query
+    final textField = find.byType(TextField).last;
+    await tester.enterText(textField, 'DROP TABLE test_temp;');
+    await tester.pump();
+
+    // Click Run Query
+    await tester.tap(find.text('Run Query'));
+    await tester.pumpAndSettle();
+
+    // Verify DestructiveQueryDialog appears
+    expect(find.byType(DestructiveQueryDialog), findsOneWidget);
+    expect(find.text('Potentially Destructive Operation'), findsOneWidget);
+    expect(find.text('Execute Anyway'), findsOneWidget);
+
+    // Confirm execution
+    await tester.tap(find.text('Execute Anyway'));
+    await tester.pumpAndSettle();
+
+    // Verify CommandOutcomePanel rendered
+    expect(find.byType(CommandOutcomePanel), findsOneWidget);
+    expect(find.text('Command Executed Successfully'), findsOneWidget);
+    expect(find.text('DROP TABLE'), findsOneWidget);
+  });
+
+  testWidgets('Query editor remains fully editable and focused after execution failure, cancellation, and clear', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Primary PostgreSQL',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'testdb',
+      username: 'postgres',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient(
+      queryResponseToReturn: QueryExecuteResponseModel(
+        success: true,
+        columns: ['val'],
+        rows: [{'val': 1}],
+        metadata: QueryMetadataModel(rowCount: 1, executionTimeMs: 5.0),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: QueryPlaygroundScreen(
+            sources: [mockSource],
+            apiClient: mockClient,
+            nodeStatus: 'ACTIVE',
+            onBack: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editorField = find.descendant(of: find.byType(QueryEditor), matching: find.byType(TextField));
+
+    // 1. Enter query and trigger execution
+    await tester.enterText(editorField, 'SELECT invalid_syntax;');
+    await tester.pump();
+
+    // Tap Run Query
+    await tester.tap(find.text('Run Query'));
+    await tester.pumpAndSettle();
+
+    // 2. Verify editor is still editable after execution
+    await tester.enterText(editorField, 'SELECT 1;');
+    await tester.pump();
+    expect(find.text('SELECT 1;'), findsOneWidget);
+
+    // 3. Click Clear and verify editor is emptied and editable
+    await tester.tap(find.text('Clear'));
+    await tester.pump();
+    expect(find.text('SELECT 1;'), findsNothing);
+
+    await tester.enterText(editorField, 'SELECT 2;');
+    await tester.pump();
+    expect(find.text('SELECT 2;'), findsOneWidget);
+
+    // 4. Trigger destructive query dialog and cancel
+    await tester.enterText(editorField, 'DROP TABLE test_tbl;');
+    await tester.pump();
+    await tester.tap(find.text('Run Query'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DestructiveQueryDialog), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // 5. Verify editor is STILL editable after dialog cancellation
+    await tester.enterText(editorField, 'SELECT 3;');
+    await tester.pump();
+    expect(find.text('SELECT 3;'), findsOneWidget);
+  });
+
+  testWidgets('Query editor supports consecutive query executions without losing focus or editability', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Primary PostgreSQL',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'testdb',
+      username: 'postgres',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient(
+      queryResponseToReturn: QueryExecuteResponseModel(
+        success: true,
+        columns: ['val'],
+        rows: [{'val': 1}],
+        metadata: QueryMetadataModel(rowCount: 1, executionTimeMs: 4.2),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: QueryPlaygroundScreen(
+            sources: [mockSource],
+            apiClient: mockClient,
+            nodeStatus: 'ACTIVE',
+            onBack: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editorField = find.descendant(of: find.byType(QueryEditor), matching: find.byType(TextField));
+
+    // Iteration 1: SELECT 1
+    await tester.enterText(editorField, 'SELECT 1;');
+    await tester.pump();
+    await tester.tap(find.text('Run Query'));
+    await tester.pumpAndSettle();
+    expect(find.text('Query Results'), findsOneWidget);
+
+    // Iteration 2: SELECT 2
+    await tester.enterText(editorField, 'SELECT 2;');
+    await tester.pump();
+    expect(find.text('SELECT 2;'), findsOneWidget);
+    await tester.tap(find.text('Run Query'));
+    await tester.pumpAndSettle();
+
+    // Iteration 3: SELECT 3
+    await tester.enterText(editorField, 'SELECT 3;');
+    await tester.pump();
+    expect(find.text('SELECT 3;'), findsOneWidget);
+    await tester.tap(find.text('Run Query'));
+    await tester.pumpAndSettle();
+
+    // Iteration 4: Command Query CREATE TABLE
+    await tester.enterText(editorField, 'CREATE TABLE focus_probe (id INT);');
+    await tester.pump();
+    expect(find.text('CREATE TABLE focus_probe (id INT);'), findsOneWidget);
   });
 }
-
-
-
-

@@ -79,8 +79,13 @@ def test_postgres_connector_registered_by_default():
 
     caps = connector.get_capabilities()
     assert caps.schema_discovery is True
+    assert caps.custom_query is True
     assert caps.entity_types == ["TABLE", "VIEW"]
     assert "SELECT" in caps.supported_operations
+
+    # Verify default SourceCapabilities has custom_query=False
+    default_caps = SourceCapabilities()
+    assert default_caps.custom_query is False
 
 
 def test_connector_factory_decorator_registration():

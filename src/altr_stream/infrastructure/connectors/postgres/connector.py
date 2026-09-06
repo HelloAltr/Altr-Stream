@@ -3,6 +3,7 @@
 import asyncio
 from datetime import date, datetime, time
 from decimal import Decimal
+import re
 import time as time_module
 from typing import Any
 import uuid
@@ -50,6 +51,19 @@ def normalize_value(val: Any) -> Any:
     if isinstance(val, (list, tuple, set)):
         return [normalize_value(item) for item in val]
     return str(val)
+
+
+def _parse_affected_rows(status: str) -> int | None:
+    """Extract affected rows count from PostgreSQL command tag."""
+    if not status:
+        return None
+    m = re.match(r"^(?:UPDATE|DELETE|MOVE|FETCH)\s+(\d+)$", status.strip(), re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    m = re.match(r"^INSERT\s+\d+\s+(\d+)$", status.strip(), re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    return None
 
 
 @ConnectorFactory.register(SourceType.POSTGRESQL)
@@ -161,34 +175,44 @@ class PostgreSQLConnector(BaseConnector):
                     pass
 
     async def execute_query(self, query: str) -> QueryResult:
-        """Execute a native read query against PostgreSQL and return normalized QueryResult."""
+        """Execute a native query (result-returning or command) against PostgreSQL and return normalized QueryResult."""
         start_time = time_module.perf_counter()
         conn = None
         try:
             conn = await self._get_connection()
-            records = await conn.fetch(query)
-            execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+            stmt = await conn.prepare(query)
+            attributes = stmt.get_attributes()
 
-            if not records:
+            if attributes:
+                records = await stmt.fetch()
+                status_msg = stmt.get_statusmsg()
+                execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+                columns = [attr.name for attr in attributes]
+                rows = [
+                    {col: normalize_value(record[col]) for col in columns}
+                    for record in records
+                ]
+                return QueryResult(
+                    columns=columns,
+                    rows=rows,
+                    row_count=len(rows),
+                    affected_rows=None,
+                    message=status_msg,
+                    execution_time_ms=execution_time_ms,
+                )
+            else:
+                records = await stmt.fetch()
+                status_str = stmt.get_statusmsg() or ""
+                execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+                affected_rows = _parse_affected_rows(status_str)
                 return QueryResult(
                     columns=[],
                     rows=[],
                     row_count=0,
+                    affected_rows=affected_rows,
+                    message=status_str,
                     execution_time_ms=execution_time_ms,
                 )
-
-            columns = list(records[0].keys())
-            rows = [
-                {col: normalize_value(record[col]) for col in columns}
-                for record in records
-            ]
-
-            return QueryResult(
-                columns=columns,
-                rows=rows,
-                row_count=len(rows),
-                execution_time_ms=execution_time_ms,
-            )
         except (asyncpg.PostgresError, asyncio.TimeoutError, OSError) as e:
             sanitized = self._sanitize_error(e)
             raise QueryExecutionError(
