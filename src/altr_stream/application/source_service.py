@@ -42,7 +42,8 @@ class SourceService:
 
         if test_first:
             connector = ConnectorFactory.get_connector(source_type, config)
-            test_result = await connector.test_connection()
+            async with connector:
+                test_result = await connector.test_connection()
             status = SourceStatus.ACTIVE if test_result.success else SourceStatus.UNREACHABLE
 
         source = Source(
@@ -110,7 +111,8 @@ class SourceService:
         """Test physical connection for a registered source and update its status."""
         source = await self.get_source(source_id)
         connector = ConnectorFactory.get_connector(source.type, source.connection_config)
-        result = await connector.test_connection()
+        async with connector:
+            result = await connector.test_connection()
 
         new_status = SourceStatus.ACTIVE if result.success else SourceStatus.UNREACHABLE
         await self.repository.update_status(source_id, new_status)
@@ -123,7 +125,8 @@ class SourceService:
     ) -> ConnectionTestResult:
         """Test connection parameters without saving."""
         connector = ConnectorFactory.get_connector(source_type, config)
-        return await connector.test_connection()
+        async with connector:
+            return await connector.test_connection()
 
     def get_source_capabilities(self, source: Source) -> SourceCapabilities:
         """Get capabilities for the source's connector."""

@@ -20,7 +20,8 @@ class SchemaService:
             raise SourceNotFoundError(source_id)
 
         connector = ConnectorFactory.get_connector(source.type, source.connection_config)
-        schema = await connector.discover_schema(source_id=source.id, source_name=source.name)
+        async with connector:
+            schema = await connector.discover_schema(source_id=source.id, source_name=source.name)
 
         # Persist discovered schema snapshot
         await self.repository.save_schema_snapshot(source_id, schema)

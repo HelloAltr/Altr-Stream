@@ -101,6 +101,11 @@ def test_capabilities_defaults():
     assert caps.read is True
     assert caps.write is True
     assert caps.cdc is False  # Future milestone
+    assert caps.batch_execution is True
+    assert caps.streaming is False
+    assert caps.custom_query is True
+    assert caps.entity_types == []
+    assert caps.supported_operations == []
 
 
 def test_connection_test_result():

@@ -63,7 +63,7 @@ class EntitySchema(BaseModel):
     """Standardized representation of a table, view, or collection."""
 
     name: str
-    namespace: str = "public"
+    namespace: str = "default"
     entity_type: str = "TABLE"  # TABLE, VIEW, COLLECTION
     fields: list[FieldSchema] = Field(default_factory=list)
     primary_key: list[str] = Field(default_factory=list)

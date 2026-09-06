@@ -12,7 +12,8 @@ from altr_stream.domain.connector import (
 )
 from altr_stream.domain.errors import ConnectionFailedError, SchemaDiscoveryError
 from altr_stream.domain.schema import SourceSchema
-from altr_stream.domain.source import ConnectionConfig
+from altr_stream.domain.source import ConnectionConfig, SourceType
+from altr_stream.infrastructure.connectors.factory import ConnectorFactory
 from altr_stream.infrastructure.connectors.postgres.introspection import (
     COLUMNS_QUERY,
     FOREIGN_KEYS_QUERY,
@@ -22,12 +23,12 @@ from altr_stream.infrastructure.connectors.postgres.introspection import (
 from altr_stream.infrastructure.connectors.postgres.mapper import build_source_schema_from_pg
 
 
+@ConnectorFactory.register(SourceType.POSTGRESQL)
 class PostgreSQLConnector(BaseConnector):
     """PostgreSQL database connector implementation."""
 
     def __init__(self, config: ConnectionConfig, timeout_sec: float = 5.0):
-        super().__init__(config)
-        self.timeout_sec = timeout_sec
+        super().__init__(config, timeout_sec=timeout_sec)
 
     def _sanitize_error(self, err: Exception) -> str:
         """Sanitize error messages to prevent leaking internal password or raw URIs."""
@@ -140,5 +141,6 @@ class PostgreSQLConnector(BaseConnector):
             batch_execution=True,
             streaming=False,
             custom_query=True,
+            entity_types=["TABLE", "VIEW"],
             supported_operations=["SELECT", "INSERT", "UPDATE", "DELETE", "SCHEMA_DISCOVERY"],
         )
