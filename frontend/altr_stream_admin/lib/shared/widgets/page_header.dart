@@ -19,69 +19,106 @@ class PageHeader extends StatelessWidget {
     this.onNodeStatusTap,
   });
 
+  Widget _buildTitleSection(BuildContext context, ColorScheme colorScheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                  letterSpacing: -0.4,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 12),
+            if (onNodeStatusTap != null)
+              InkWell(
+                onTap: onNodeStatusTap,
+                borderRadius: BorderRadius.circular(12),
+                child: Tooltip(
+                  message: 'Click to inspect node status & telemetry',
+                  child: StatusBadge(status: nodeStatus),
+                ),
+              )
+            else
+              StatusBadge(status: nodeStatus),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: TextStyle(
+            fontSize: 13,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final hasActions = primaryAction != null || secondaryAction != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 16,
-          runSpacing: 12,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                        letterSpacing: -0.4,
-                      ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 640;
+            if (isNarrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTitleSection(context, colorScheme),
+                  if (hasActions) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ?secondaryAction,
+                        ?primaryAction,
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    if (onNodeStatusTap != null)
-                      InkWell(
-                        onTap: onNodeStatusTap,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Tooltip(
-                          message: 'Click to inspect node status & telemetry',
-                          child: StatusBadge(status: nodeStatus),
-                        ),
-                      )
-                    else
-                      StatusBadge(status: nodeStatus),
                   ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
+                ],
+              );
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                ?secondaryAction,
-                ?primaryAction,
+                Expanded(
+                  child: _buildTitleSection(context, colorScheme),
+                ),
+                if (hasActions) ...[
+                  const SizedBox(width: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      ?secondaryAction,
+                      ?primaryAction,
+                    ],
+                  ),
+                ],
               ],
-            ),
-          ],
+            );
+          },
         ),
         const SizedBox(height: 20),
         Divider(

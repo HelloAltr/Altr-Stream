@@ -182,25 +182,25 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
         const SizedBox(height: 12),
 
         // Source Title Bar
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 16,
-          runSpacing: 12,
-          children: [
-            Column(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 640;
+            final titleSection = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      widget.source.name,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                        letterSpacing: -0.4,
+                    Flexible(
+                      child: Text(
+                        widget.source.name,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                          letterSpacing: -0.4,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -219,8 +219,9 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                   ),
                 ),
               ],
-            ),
-            Wrap(
+            );
+
+            final actionsSection = Wrap(
               spacing: 10,
               runSpacing: 8,
               children: [
@@ -247,8 +248,29 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                   label: Text(_isDiscovering ? 'Discovering...' : 'Discover Schema'),
                 ),
               ],
-            ),
-          ],
+            );
+
+            if (isNarrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  titleSection,
+                  const SizedBox(height: 12),
+                  actionsSection,
+                ],
+              );
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: titleSection),
+                const SizedBox(width: 16),
+                actionsSection,
+              ],
+            );
+          },
         ),
         const SizedBox(height: 20),
 

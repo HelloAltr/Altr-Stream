@@ -160,6 +160,7 @@ class AppShell extends StatelessWidget {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           NavigationRail(
             backgroundColor: colorScheme.surfaceContainerLow,

@@ -156,7 +156,7 @@ void main() {
     expect(find.text('Discover Schema Now'), findsOneWidget);
   });
 
-  testWidgets('App renders on tablet viewport with NavigationRail', (WidgetTester tester) async {
+  testWidgets('App renders on tablet viewport with NavigationRail and top-aligned content', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(768, 1024);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -166,6 +166,12 @@ void main() {
     await tester.pump();
 
     expect(find.byType(NavigationRail), findsOneWidget);
+
+    // Verify content is top-aligned near the top of the screen (not centered)
+    final overviewTitleY = tester.getTopLeft(
+      find.descendant(of: find.byType(OverviewScreen), matching: find.text('Overview')),
+    ).dy;
+    expect(overviewTitleY, lessThan(60));
   });
 
   testWidgets('App renders on mobile viewport with Drawer and AppBar', (WidgetTester tester) async {
@@ -234,5 +240,108 @@ void main() {
     // Verify view successfully switched to Connection Parameters
     expect(find.text('Host / IP Address'), findsOneWidget);
   });
+
+  testWidgets('PageHeader action buttons are positioned on the right-hand side on desktop', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const AltrStreamAdminApp());
+    await tester.pump();
+
+    // 1. Overview Screen: Verify 'Refresh' and 'Add Data Source' are on the right side
+    final overviewTitleX = tester.getTopLeft(find.text('Overview').first).dx;
+    final addSourceX = tester.getTopLeft(find.text('Add Data Source').first).dx;
+    final refreshX = tester.getTopLeft(find.text('Refresh').first).dx;
+    expect(addSourceX, greaterThan(overviewTitleX + 500));
+    expect(refreshX, greaterThan(overviewTitleX + 500));
+
+    // 2. Data Sources Screen: Verify action buttons are on the right side
+    await tester.tap(find.text('Data Sources').first);
+    await tester.pumpAndSettle();
+    final sourcesTitleX = tester.getTopLeft(find.text('Data Sources').first).dx;
+    final sourcesAddSourceX = tester.getTopLeft(find.text('Add Data Source').first).dx;
+    expect(sourcesAddSourceX, greaterThan(sourcesTitleX + 500));
+
+    // 3. Activity Screen: Verify 'Clear Timeline' button is on the right side if present
+    await tester.tap(find.text('Activity').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(ActivityScreen), findsOneWidget);
+
+    // 4. Settings Screen: Verify 'Probe Node Health' button is on the right side
+    await tester.tap(find.text('Settings').first);
+    await tester.pumpAndSettle();
+    final settingsTitleX = tester.getTopLeft(find.text('Settings').first).dx;
+    final probeHealthX = tester.getTopLeft(find.text('Probe Node Health')).dx;
+    expect(probeHealthX, greaterThan(settingsTitleX + 500));
+  });
+
+  testWidgets('OverviewScreen renders merged Connected Sources & Health Status card', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_1',
+        name: 'Primary PostgreSQL',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'testdb',
+        username: 'postgres',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      SourceModel(
+        id: 'src_2',
+        name: 'Analytics Warehouse',
+        type: 'POSTGRESQL',
+        host: '10.0.0.5',
+        port: 5432,
+        databaseName: 'analytics',
+        username: 'postgres',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: OverviewScreen(
+              sources: mockSources,
+              activities: const [],
+              isLoading: false,
+              onRefresh: () {},
+              onAddSource: () {},
+              onSelectSource: (_) {},
+              onViewAllSources: () {},
+              onNodeStatusTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Verify title and health badge inside single card
+    expect(find.text('Connected Sources'), findsOneWidget);
+    expect(find.text('2/2 Healthy'), findsOneWidget);
+    expect(find.text('2 sources connected • PostgreSQL connector active'), findsOneWidget);
+    expect(find.text('Manage Sources →'), findsOneWidget);
+
+    // Verify source items in the list
+    expect(find.text('Primary PostgreSQL'), findsOneWidget);
+    expect(find.text('Analytics Warehouse'), findsOneWidget);
+  });
 }
+
+
 

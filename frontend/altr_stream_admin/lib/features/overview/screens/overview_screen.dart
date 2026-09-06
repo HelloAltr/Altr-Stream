@@ -124,91 +124,90 @@ class OverviewScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Node Status Banner
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-          ),
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 10,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: statusActiveColor,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${sources.length} ${sources.length == 1 ? "source" : "sources"} connected ($activeCount healthy)',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'PostgreSQL connector active • Local physical introspection ready',
-                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              TextButton(
-                onPressed: onViewAllSources,
-                child: Text('View Data Sources →', style: TextStyle(color: colorScheme.primary, fontSize: 13)),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // Connected Sources Card
+        // Merged Connected Sources & Health Status Card
         Card(
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header: Title, Health Count Badge & Manage Sources Action
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Connected Sources',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Connected Sources',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: statusActiveColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: statusActiveColor.withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: statusActiveColor,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '$activeCount/${sources.length} Healthy',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: statusActiveColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${sources.length} ${sources.length == 1 ? "source" : "sources"} connected • PostgreSQL connector active',
+                            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          ),
+                        ],
                       ),
                     ),
                     TextButton(
                       onPressed: onViewAllSources,
-                      child: Text('Manage Sources', style: TextStyle(color: colorScheme.primary, fontSize: 12)),
+                      child: Text('Manage Sources →', style: TextStyle(color: colorScheme.primary, fontSize: 13)),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                const SizedBox(height: 6),
+
+                // Sources List
                 ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: sources.length > 5 ? 5 : sources.length,
-                  separatorBuilder: (_, _) => Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  separatorBuilder: (_, _) => Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
                   itemBuilder: (context, index) {
                     final source = sources[index];
                     return InkWell(
