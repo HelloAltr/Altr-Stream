@@ -90,40 +90,42 @@ class QueryEditor extends StatelessWidget {
           ),
 
           // Text Field with CallbackShortcuts for ⌘+Enter / Ctrl+Enter
-          CallbackShortcuts(
-            bindings: <ShortcutActivator, VoidCallback>{
-              const SingleActivator(LogicalKeyboardKey.enter, meta: true): () {
-                if (canExecute && !isExecuting) {
-                  onExecute();
-                }
+          Expanded(
+            child: CallbackShortcuts(
+              bindings: <ShortcutActivator, VoidCallback>{
+                const SingleActivator(LogicalKeyboardKey.enter, meta: true): () {
+                  if (canExecute && !isExecuting) {
+                    onExecute();
+                  }
+                },
+                const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
+                  if (canExecute && !isExecuting) {
+                    onExecute();
+                  }
+                },
               },
-              const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
-                if (canExecute && !isExecuting) {
-                  onExecute();
-                }
-              },
-            },
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              maxLines: 8,
-              minLines: 5,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 13,
-                height: 1.5,
-                color: colorScheme.onSurface,
-              ),
-              cursorColor: colorScheme.primary,
-              decoration: InputDecoration(
-                hintText: '-- Write a native physical query\nSELECT * FROM users LIMIT 10;',
-                hintStyle: TextStyle(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                maxLines: null,
+                expands: true,
+                style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 13,
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  height: 1.5,
+                  color: colorScheme.onSurface,
                 ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(16),
+                cursorColor: colorScheme.primary,
+                decoration: InputDecoration(
+                  hintText: '-- Write a native physical query\nSELECT * FROM users LIMIT 10;',
+                  hintStyle: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.all(14),
+                ),
               ),
             ),
           ),

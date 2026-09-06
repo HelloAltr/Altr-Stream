@@ -46,7 +46,7 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      floatingActionButton: activeRoute == '/playground' ? null : _buildDesktopFab(context),
+      floatingActionButton: (activeRoute == '/altrql' || activeRoute == '/playground') ? null : _buildDesktopFab(context),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -160,7 +160,7 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      floatingActionButton: activeRoute == '/playground' ? null : _buildCompactFab(context),
+      floatingActionButton: (activeRoute == '/altrql' || activeRoute == '/playground') ? null : _buildCompactFab(context),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -226,7 +226,7 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      floatingActionButton: activeRoute == '/playground' ? null : _buildCompactFab(context),
+      floatingActionButton: (activeRoute == '/altrql' || activeRoute == '/playground') ? null : _buildCompactFab(context),
       appBar: AppBar(
         backgroundColor: colorScheme.surfaceContainerLow,
         elevation: 0,
@@ -536,10 +536,11 @@ class AppShell extends StatelessWidget {
   Widget _buildDesktopFab(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return FloatingActionButton.extended(
-      onPressed: () => onNavigate('/playground'),
+      onPressed: () => onNavigate('/altrql'),
       icon: const Icon(Icons.terminal, size: 18),
+      tooltip: 'Open AltrQL Playground',
       label: const Text(
-        'Open Console',
+        'AltrQL Console',
         style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
       ),
       backgroundColor: colorScheme.primary,
@@ -551,8 +552,8 @@ class AppShell extends StatelessWidget {
   Widget _buildCompactFab(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return FloatingActionButton(
-      onPressed: () => onNavigate('/playground'),
-      tooltip: 'Open Console',
+      onPressed: () => onNavigate('/altrql'),
+      tooltip: 'Open AltrQL Playground',
       backgroundColor: colorScheme.primary,
       foregroundColor: colorScheme.onPrimary,
       elevation: 4,

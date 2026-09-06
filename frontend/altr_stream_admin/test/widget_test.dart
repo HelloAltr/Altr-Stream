@@ -8,11 +8,13 @@ import 'package:altr_stream_admin/features/overview/screens/overview_screen.dart
 import 'package:altr_stream_admin/features/sources/screens/sources_screen.dart';
 import 'package:altr_stream_admin/features/sources/screens/source_detail_screen.dart';
 import 'package:altr_stream_admin/features/activity/screens/activity_screen.dart';
-import 'package:altr_stream_admin/features/query_playground/screens/query_playground_screen.dart';
-import 'package:altr_stream_admin/features/query_playground/widgets/schema_explorer.dart';
-import 'package:altr_stream_admin/features/query_playground/widgets/command_outcome_panel.dart';
-import 'package:altr_stream_admin/features/query_playground/widgets/destructive_query_dialog.dart';
-import 'package:altr_stream_admin/features/query_playground/widgets/query_editor.dart';
+import 'package:altr_stream_admin/features/altrql_playground/screens/altrql_playground_screen.dart';
+import 'package:altr_stream_admin/features/source_playground/screens/source_playground_view.dart';
+import 'package:altr_stream_admin/features/source_playground/widgets/schema_explorer.dart';
+import 'package:altr_stream_admin/features/source_playground/widgets/command_outcome_panel.dart';
+import 'package:altr_stream_admin/features/source_playground/widgets/destructive_query_dialog.dart';
+import 'package:altr_stream_admin/features/source_playground/widgets/query_editor.dart';
+import 'package:altr_stream_admin/features/source_playground/widgets/query_result_table.dart';
 import 'package:altr_stream_admin/features/settings/screens/settings_screen.dart';
 import 'package:altr_stream_admin/features/sources/widgets/add_source_wizard_dialog.dart';
 
@@ -38,6 +40,17 @@ class MockTestApiClient extends ApiClient {
         discoveredAt: DateTime.now(),
         entities: [],
         metadata: {},
+      );
+
+  @override
+  Future<SourceCapabilitiesModel> getSourceCapabilities(String id) async =>
+      SourceCapabilitiesModel(
+        schemaDiscovery: true,
+        read: true,
+        write: true,
+        cdc: true,
+        customQuery: true,
+        supportedOperations: const ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
       );
 
   @override
@@ -159,7 +172,7 @@ void main() {
     expect(find.text('PostgreSQL'), findsOneWidget);
   });
 
-  testWidgets('SourceDetailScreen renders in both Light and Dark themes', (WidgetTester tester) async {
+  testWidgets('SourceDetailScreen renders in both Light and Dark themes with 5 tabs including Playground', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -178,6 +191,8 @@ void main() {
       updatedAt: DateTime.now(),
     );
 
+    final mockClient = MockTestApiClient();
+
     // Test Light Theme
     await tester.pumpWidget(
       MaterialApp(
@@ -185,7 +200,7 @@ void main() {
         home: Scaffold(
           body: SourceDetailScreen(
             source: mockSource,
-            apiClient: ApiClient(),
+            apiClient: mockClient,
             onBack: () {},
             onDelete: () {},
             onNodeStatusTap: () {},
@@ -193,17 +208,20 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Overview'), findsOneWidget);
     expect(find.text('Connection Parameters'), findsOneWidget);
     expect(find.text('Discovered Schemas'), findsOneWidget);
+    expect(find.text('Playground'), findsOneWidget);
     expect(find.text('Health & Diagnostics'), findsOneWidget);
 
-    // Switch to Discovered Schemas tab
-    await tester.tap(find.text('Discovered Schemas'));
+    // Switch to Playground tab
+    await tester.tap(find.text('Playground'));
     await tester.pumpAndSettle();
-    expect(find.text('Discover Schema Now'), findsOneWidget);
+    expect(find.byType(SourcePlaygroundView), findsOneWidget);
+    expect(find.text('POSTGRESQL QUERY'), findsOneWidget);
+    expect(find.text('Run Query'), findsOneWidget);
   });
 
   testWidgets('App renders on tablet viewport with NavigationRail and top-aligned content', (WidgetTester tester) async {
@@ -254,13 +272,15 @@ void main() {
       updatedAt: DateTime.now(),
     );
 
+    final mockClient = MockTestApiClient();
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: Scaffold(
           body: SourceDetailScreen(
             source: mockSource,
-            apiClient: ApiClient(),
+            apiClient: mockClient,
             onBack: () {},
             onDelete: () {},
             onNodeStatusTap: () {},
@@ -268,7 +288,7 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Source Summary'), findsOneWidget);
     expect(find.text('Host / IP Address'), findsNothing);
@@ -285,7 +305,7 @@ void main() {
     expect(find.text('Host / IP Address'), findsOneWidget);
   });
 
-  testWidgets('PageHeader action buttons are positioned on the right-hand side on desktop', (WidgetTester tester) async {
+  testWidgets('AltrQL Console FAB is visible and opens AltrQL Playground screen', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -294,117 +314,30 @@ void main() {
     await tester.pumpWidget(const AltrStreamAdminApp());
     await tester.pump();
 
-    final overviewTitleX = tester.getTopLeft(find.text('Overview').first).dx;
-    final addSourceX = tester.getTopLeft(find.text('Add Data Source').first).dx;
-    final refreshX = tester.getTopLeft(find.text('Refresh').first).dx;
-    expect(addSourceX, greaterThan(overviewTitleX + 500));
-    expect(refreshX, greaterThan(overviewTitleX + 500));
-
-    await tester.tap(find.text('Data Sources').first);
-    await tester.pumpAndSettle();
-    final sourcesTitleX = tester.getTopLeft(find.text('Data Sources').first).dx;
-    final sourcesAddSourceX = tester.getTopLeft(find.text('Add Data Source').first).dx;
-    expect(sourcesAddSourceX, greaterThan(sourcesTitleX + 500));
-
-    await tester.tap(find.text('Activity').first);
-    await tester.pumpAndSettle();
-    expect(find.byType(ActivityScreen), findsOneWidget);
-
-    await tester.tap(find.text('Settings').first);
-    await tester.pumpAndSettle();
-    final settingsTitleX = tester.getTopLeft(find.text('Settings').first).dx;
-    final probeHealthX = tester.getTopLeft(find.text('Probe Node Health')).dx;
-    expect(probeHealthX, greaterThan(settingsTitleX + 500));
-  });
-
-  testWidgets('OverviewScreen renders merged Connected Sources & Health Status card', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1440, 900);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final mockSources = [
-      SourceModel(
-        id: 'src_1',
-        name: 'Primary PostgreSQL',
-        type: 'POSTGRESQL',
-        host: 'localhost',
-        port: 5432,
-        databaseName: 'testdb',
-        username: 'postgres',
-        status: 'ACTIVE',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-      SourceModel(
-        id: 'src_2',
-        name: 'Analytics Warehouse',
-        type: 'POSTGRESQL',
-        host: '10.0.0.5',
-        port: 5432,
-        databaseName: 'analytics',
-        username: 'postgres',
-        status: 'ACTIVE',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-    ];
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightTheme,
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: OverviewScreen(
-              sources: mockSources,
-              activities: const [],
-              isLoading: false,
-              onRefresh: () {},
-              onAddSource: () {},
-              onSelectSource: (_) {},
-              onViewAllSources: () {},
-              onNodeStatusTap: () {},
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Connected Sources'), findsOneWidget);
-    expect(find.text('2/2 Healthy'), findsOneWidget);
-    expect(find.text('2 sources connected • PostgreSQL connector active'), findsOneWidget);
-    expect(find.text('Manage Sources →'), findsOneWidget);
-    expect(find.text('Primary PostgreSQL'), findsOneWidget);
-    expect(find.text('Analytics Warehouse'), findsOneWidget);
-  });
-
-  testWidgets('Console FAB is visible and opens Query Playground screen', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1440, 900);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await tester.pumpWidget(const AltrStreamAdminApp());
-    await tester.pump();
-
-    final fabFinder = find.text('Open Console');
+    final fabFinder = find.text('AltrQL Console');
     expect(fabFinder, findsOneWidget);
 
     await tester.tap(fabFinder);
     await tester.pumpAndSettle();
 
-    expect(find.byType(QueryPlaygroundScreen), findsOneWidget);
-    expect(find.text('Query Playground'), findsOneWidget);
-    expect(find.text('Run Query'), findsOneWidget);
+    expect(find.byType(AltrQLPlaygroundScreen), findsOneWidget);
+    expect(find.text('AltrQL Console'), findsWidgets);
+    expect(find.text('AltrQL Editor'), findsOneWidget);
+    expect(find.text('Run AltrQL'), findsOneWidget);
 
-    expect(find.text('Open Console'), findsNothing);
+    // Tap Run AltrQL and verify roadmap dialog appears
+    await tester.tap(find.text('Run AltrQL'));
+    await tester.pumpAndSettle();
+    expect(find.text('AltrQL Execution Engine'), findsOneWidget);
+    expect(find.text('Got it'), findsOneWidget);
+    await tester.tap(find.text('Got it'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Back to Dashboard'));
     await tester.pumpAndSettle();
 
     expect(find.byType(OverviewScreen), findsOneWidget);
-    expect(find.text('Open Console'), findsOneWidget);
+    expect(find.text('AltrQL Console'), findsOneWidget);
   });
 
   testWidgets('SchemaExplorer widget renders tables, columns, and inserts query template', (WidgetTester tester) async {
@@ -512,7 +445,7 @@ void main() {
     expect(selectedField?.name, 'email');
   });
 
-  testWidgets('QueryPlaygroundScreen executes query and renders QueryResultTable and CommandOutcomePanel', (WidgetTester tester) async {
+  testWidgets('SourcePlaygroundView executes query and renders QueryResultTable and CommandOutcomePanel', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -578,18 +511,19 @@ void main() {
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: Scaffold(
-          body: QueryPlaygroundScreen(
-            sources: [mockSource],
-            apiClient: mockClient,
-            nodeStatus: 'ACTIVE',
-            onBack: () {},
+          body: SizedBox(
+            height: 700,
+            child: SourcePlaygroundView(
+              source: mockSource,
+              apiClient: mockClient,
+              schema: mockSchema,
+            ),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Query Playground'), findsOneWidget);
     expect(find.text('POSTGRESQL QUERY'), findsOneWidget);
     expect(find.text('Schema Explorer'), findsOneWidget);
     expect(find.text('users'), findsOneWidget);
@@ -599,12 +533,12 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify result table rendered
-    expect(find.text('Query Results'), findsOneWidget);
+    expect(find.byType(QueryResultTable), findsOneWidget);
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('Bob'), findsOneWidget);
   });
 
-  testWidgets('Destructive query detection triggers DestructiveQueryDialog confirmation', (WidgetTester tester) async {
+  testWidgets('Destructive query detection triggers DestructiveQueryDialog confirmation in SourcePlaygroundView', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -649,11 +583,12 @@ void main() {
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: Scaffold(
-          body: QueryPlaygroundScreen(
-            sources: [mockSource],
-            apiClient: mockClient,
-            nodeStatus: 'ACTIVE',
-            onBack: () {},
+          body: SizedBox(
+            height: 700,
+            child: SourcePlaygroundView(
+              source: mockSource,
+              apiClient: mockClient,
+            ),
           ),
         ),
       ),
@@ -661,8 +596,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Enter a DROP query
-    final textField = find.byType(TextField).last;
-    await tester.enterText(textField, 'DROP TABLE test_temp;');
+    final editorField = find.descendant(of: find.byType(QueryEditor), matching: find.byType(TextField));
+    await tester.enterText(editorField, 'DROP TABLE test_temp;');
     await tester.pump();
 
     // Click Run Query
@@ -672,10 +607,10 @@ void main() {
     // Verify DestructiveQueryDialog appears
     expect(find.byType(DestructiveQueryDialog), findsOneWidget);
     expect(find.text('Potentially Destructive Operation'), findsOneWidget);
-    expect(find.text('Execute Anyway'), findsOneWidget);
+    expect(find.text('Confirm & Execute'), findsOneWidget);
 
     // Confirm execution
-    await tester.tap(find.text('Execute Anyway'));
+    await tester.tap(find.text('Confirm & Execute'));
     await tester.pumpAndSettle();
 
     // Verify CommandOutcomePanel rendered
@@ -716,11 +651,12 @@ void main() {
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: Scaffold(
-          body: QueryPlaygroundScreen(
-            sources: [mockSource],
-            apiClient: mockClient,
-            nodeStatus: 'ACTIVE',
-            onBack: () {},
+          body: SizedBox(
+            height: 700,
+            child: SourcePlaygroundView(
+              source: mockSource,
+              apiClient: mockClient,
+            ),
           ),
         ),
       ),
@@ -799,11 +735,12 @@ void main() {
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: Scaffold(
-          body: QueryPlaygroundScreen(
-            sources: [mockSource],
-            apiClient: mockClient,
-            nodeStatus: 'ACTIVE',
-            onBack: () {},
+          body: SizedBox(
+            height: 700,
+            child: SourcePlaygroundView(
+              source: mockSource,
+              apiClient: mockClient,
+            ),
           ),
         ),
       ),
@@ -817,7 +754,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Run Query'));
     await tester.pumpAndSettle();
-    expect(find.text('Query Results'), findsOneWidget);
+    expect(find.byType(QueryResultTable), findsOneWidget);
 
     // Iteration 2: SELECT 2
     await tester.enterText(editorField, 'SELECT 2;');

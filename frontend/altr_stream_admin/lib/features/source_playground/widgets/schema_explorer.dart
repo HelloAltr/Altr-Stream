@@ -323,47 +323,47 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
             dense: true,
             tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
             childrenPadding: const EdgeInsets.only(bottom: 6),
-          leading: Icon(
-            entity.entityType.toUpperCase() == 'VIEW' ? Icons.visibility_outlined : Icons.table_chart_outlined,
-            size: 16,
-            color: colorScheme.primary,
-          ),
-          title: Text(
-            entity.name,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: colorScheme.onSurface,
+            leading: Icon(
+              entity.entityType.toUpperCase() == 'VIEW' ? Icons.visibility_outlined : Icons.table_chart_outlined,
+              size: 16,
+              color: colorScheme.primary,
             ),
-          ),
-          subtitle: Text(
-            '${entity.fields.length} columns',
-            style: TextStyle(
-              fontSize: 10,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.code_rounded, size: 15),
-                tooltip: 'Query Table (Insert Template)',
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                color: colorScheme.primary,
-                onPressed: () => widget.onSelectTable(entity),
+            title: Text(
+              entity.name,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
               ),
-              const Icon(Icons.expand_more, size: 16),
-            ],
+            ),
+            subtitle: Text(
+              '${entity.fields.length} columns',
+              style: TextStyle(
+                fontSize: 10,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.code_rounded, size: 15),
+                  tooltip: 'Query Table (Insert Template)',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                  color: colorScheme.primary,
+                  onPressed: () => widget.onSelectTable(entity),
+                ),
+                const Icon(Icons.expand_more, size: 16),
+              ],
+            ),
+            children: entity.fields.map((field) => _buildFieldRow(context, colorScheme, field, entity)).toList(),
           ),
-          children: entity.fields.map((field) => _buildFieldRow(context, colorScheme, field, entity)).toList(),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildFieldRow(
     BuildContext context,

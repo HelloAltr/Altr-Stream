@@ -4,6 +4,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../source_playground/screens/source_playground_view.dart';
 
 class SourceDetailScreen extends StatefulWidget {
   final SourceModel source;
@@ -42,7 +43,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadDetails();
   }
 
@@ -291,6 +292,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
               Tab(text: 'Overview'),
               Tab(text: 'Connection Parameters'),
               Tab(text: 'Discovered Schemas'),
+              Tab(text: 'Playground'),
               Tab(text: 'Health & Diagnostics'),
             ],
           ),
@@ -307,7 +309,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
           )
         else
           SizedBox(
-            height: 620,
+            height: 680,
             child: TabBarView(
               controller: _tabController,
               physics: _isDesktopInteraction(context)
@@ -317,6 +319,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                 _buildOverviewTab(context, dateFormat),
                 _buildConnectionTab(context, dateFormat),
                 _buildSchemasTab(context),
+                _buildPlaygroundTab(context),
                 _buildHealthTab(context, dateFormat),
               ],
             ),
@@ -962,6 +965,15 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
             Text('Not Supported', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
         ],
       ),
+    );
+  }
+
+  Widget _buildPlaygroundTab(BuildContext context) {
+    return SourcePlaygroundView(
+      source: widget.source,
+      apiClient: widget.apiClient,
+      schema: _schema,
+      onRefreshSchema: _discoverSchema,
     );
   }
 
