@@ -403,4 +403,75 @@ class AltrQLBindResponseModel {
   }
 }
 
+class PhysicalQueryModel {
+  final String dialect;
+  final String query;
+  final List<dynamic> parameters;
+  final String sourceId;
+  final String sourceName;
+
+  PhysicalQueryModel({
+    required this.dialect,
+    required this.query,
+    required this.parameters,
+    required this.sourceId,
+    required this.sourceName,
+  });
+
+  factory PhysicalQueryModel.fromJson(Map<String, dynamic> json) {
+    return PhysicalQueryModel(
+      dialect: json['dialect'] as String? ?? 'unknown',
+      query: json['query'] as String? ?? '',
+      parameters: (json['parameters'] as List<dynamic>?) ?? [],
+      sourceId: json['source_id'] as String? ?? '',
+      sourceName: json['source_name'] as String? ?? '',
+    );
+  }
+}
+
+class AltrQLExecuteResponseModel {
+  final bool success;
+  final Map<String, dynamic>? ir;
+  final Map<String, dynamic>? boundIr;
+  final PhysicalQueryModel? physicalQuery;
+  final List<String> columns;
+  final List<Map<String, dynamic>> rows;
+  final QueryMetadataModel? metadata;
+  final AltrQLErrorDetailModel? error;
+
+  AltrQLExecuteResponseModel({
+    required this.success,
+    this.ir,
+    this.boundIr,
+    this.physicalQuery,
+    required this.columns,
+    required this.rows,
+    this.metadata,
+    this.error,
+  });
+
+  factory AltrQLExecuteResponseModel.fromJson(Map<String, dynamic> json) {
+    return AltrQLExecuteResponseModel(
+      success: json['success'] as bool? ?? false,
+      ir: json['ir'] as Map<String, dynamic>?,
+      boundIr: json['bound_ir'] as Map<String, dynamic>?,
+      physicalQuery: json['physical_query'] != null
+          ? PhysicalQueryModel.fromJson(json['physical_query'] as Map<String, dynamic>)
+          : null,
+      columns: (json['columns'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      rows: (json['rows'] as List<dynamic>?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [],
+      metadata: json['metadata'] != null
+          ? QueryMetadataModel.fromJson(json['metadata'] as Map<String, dynamic>)
+          : null,
+      error: json['error'] != null
+          ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+
 

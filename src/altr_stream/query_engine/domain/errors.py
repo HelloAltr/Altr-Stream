@@ -106,3 +106,40 @@ class TypeCompatibilityError(AltrQuerySchemaError):
     ) -> None:
         super().__init__(message=message, line=line, column=column)
 
+
+class AltrQueryExecutionError(AltrQueryError):
+    """Base error for physical lowering and execution phase failures."""
+
+    def __init__(
+        self,
+        message: str,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        super().__init__(message=message, line=line, column=column)
+
+
+class UnsupportedDialectError(AltrQueryExecutionError):
+    """Raised when a target source dialect has no registered physical lowerer."""
+
+    def __init__(
+        self,
+        message: str,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        super().__init__(message=message, line=line, column=column)
+
+
+class QueryLoweringError(AltrQueryExecutionError):
+    """Raised when an AST construct cannot be lowered into the target physical dialect."""
+
+    def __init__(
+        self,
+        message: str,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        super().__init__(message=message, line=line, column=column)
+
+

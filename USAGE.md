@@ -101,26 +101,31 @@ docker compose up -d
 
 Altr Stream provides a clean separation between **Native Database Playgrounds** (source-scoped) and the **AltrQL Console** (global logical language tool).
 
-### 4.1 AltrQL Console & Interactive AST Inspector (`/altrql`)
+### 4.1 AltrQL Console & Interactive Multi-View Execution Inspector (`/altrql`)
 Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or navigation header:
-1. **Interactive Language Parsing**:
+1. **Interactive Language Parsing & Validation**:
    - Write declarative AltrQL queries in the editor (e.g. `GET users WHERE { status = "ACTIVE" };`).
-   - Click **"Parse Query"** or press **`⌘ + Enter`** / **`Ctrl + Enter`**.
-   - Inspect the resulting strongly typed `AltrQueryIR` AST in formatted monospace JSON.
-   - Click **"Copy IR"** to copy the complete AST JSON to the clipboard.
+   - Click **"Parse Query"** (`POST /api/v1/altrql/parse`) to validate syntax and inspect normalized `AltrQueryIR`.
 2. **Schema Binding & Type Validation**:
    - Select any registered data source from the target source dropdown.
    - Click **"Bind Against Source"** (`POST /api/v1/altrql/bind`).
    - Inspect the strongly-typed `BoundAltrQueryIR` annotated with resolved entity metadata, column data types, and logical type categories (`NUMERIC`, `STRING`, `BOOLEAN`, `TEMPORAL`).
-   - Switch seamlessly between **Bound IR** and **Canonical IR** result views.
-3. **Temporal Literals**:
-   - AltrQL v0.1 supports both temporal keywords (`TODAY`, `NOW`) and explicit ISO date literals (`@YYYY-MM-DD`, e.g. `@2026-01-01`).
-   - Quoted date strings (`"2026-01-01"`) are treated strictly as strings and rejected for `TEMPORAL` fields without implicit coercion.
-4. **Structured Error Diagnostics**:
-   - Syntax violations, semantic errors, or schema mismatches (e.g. `UnknownEntityError`, `UnknownFieldError`, `TypeCompatibilityError`) render diagnostic callouts with `Line N · Column M` indicators.
-   - Click **"Copy Error"** to copy diagnostic information.
-5. **Template Selector**:
-   - One-click template insertion conforming to AltrQL v0.1 (`Simple Read`, `Range & Sets`, `Logical Conditions`, `Ranking & Pagination`).
+3. **Controlled Query Execution & Physical Lowering**:
+   - Click **"Execute Query"** or press **`⌘ + Enter`** / **`Ctrl + Enter`** (`POST /api/v1/altrql/execute`).
+   - Compiles the query deterministically through `Parse -> Bind -> Lower -> Execute`.
+   - **Multi-View Result Switcher**:
+     - **Results:** Renders interactive tabular data with execution latency (`X ms`) and row count (`Y rows`) badges.
+     - **Physical Query:** Inspects dialect-specific SQL (e.g. PostgreSQL `FROM "public"."users"`) and 100% parameterized value chips (`$1 = ...`).
+     - **Bound IR:** Monospace JSON view of the schema-bound AST.
+     - **Canonical IR:** Monospace JSON view of the normalized language AST.
+4. **Temporal & Pattern Features**:
+   - AltrQL v0.1 supports temporal keywords (`TODAY`, `NOW`) and explicit ISO date literals (`@YYYY-MM-DD`, e.g. `@2026-01-01`).
+   - Supports pattern matching (`STARTS`, `ENDS`, `HAS`, `NOT HAS`), discrete sets (`{1, 2, 6..10}`), ranges (`{>=18 & <=50}`), and ranking (`TOP 10 BY age OFFSET 20;`).
+5. **Structured Error Diagnostics**:
+   - Syntax violations, semantic errors, schema mismatches, lowering errors, or execution failures render diagnostic callouts with `Line N · Column M` indicators and dedicated **"Copy Error"** buttons.
+   - Failed database executions preserve pipeline artifacts (`ir`, `bound_ir`, `physical_query`) for rapid debugging.
+6. **Template Selector**:
+   - One-click template insertion conforming to AltrQL v0.1 (`Simple Read`, `Range & Sets`, `String Patterns`, `Ranking & Pagination`).
 
 ### 4.2 Source-Scoped Native Database Playground
 Accessible inside any Data Source detail page (`Data Sources → Select Source → Playground` tab):

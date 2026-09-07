@@ -35,57 +35,63 @@ class _AltrQLPlaygroundScreenState extends State<AltrQLPlaygroundScreen> {
 
   bool _isParsing = false;
   bool _isBinding = false;
+  bool _isExecuting = false;
+
   Map<String, dynamic>? _ir;
   Map<String, dynamic>? _boundIr;
+  PhysicalQueryModel? _physicalQuery;
+  List<String> _columns = [];
+  List<Map<String, dynamic>> _rows = [];
+  QueryMetadataModel? _metadata;
   AltrQLErrorDetailModel? _error;
-  int _activeResultTab = 0; // 0: Bound IR, 1: Canonical IR
+
+  int _activeResultTab = 0; // 0: Results, 1: Physical Query, 2: Bound IR, 3: Canonical IR
 
   static const String _defaultAltrQL = '''// AltrQL Query Definition
 GET users (
     id,
-    name,
+    username,
     email,
-    created_at
+    age
 ) WHERE {
-    status = "ACTIVE"
+    age >= 18
+} SORT {
+    age DESC
 };''';
 
   static const Map<String, String> _templates = {
     'Simple Read': '''// Logical read with field projection & filter
 GET users (
     id,
-    name,
+    username,
     email
 ) WHERE {
-    status = "ACTIVE"
+    age >= 18
 };''',
     'Range & Sets': '''// Filter with range and value set expressions
 GET users (
     id,
-    name,
+    username,
     age
 ) WHERE {
     id = {1, 2, 6..10},
     age = {>=18 & <=50}
 };''',
-    'Logical Conditions': '''// Filter with logical OR and implicit AND
+    'String Patterns': '''// String matchers (STARTS, ENDS, HAS, NOT HAS)
 GET users (
     id,
-    name,
-    role,
-    status
+    username,
+    email
 ) WHERE {
-    age = {>18} OR role = "ADMIN",
-    status = "ACTIVE"
+    username STARTS "San",
+    email ENDS "@test.com"
 };''',
     'Ranking & Pagination': '''// Ranking TOP n BY field with OFFSET
 GET users (
     id,
-    name,
+    username,
     age
-) WHERE {
-    status = "ACTIVE"
-} TOP 10 BY age OFFSET 20;''',
+) TOP 10 BY age OFFSET 20;''',
   };
 
   @override
@@ -106,9 +112,11 @@ GET users (
     super.dispose();
   }
 
+  bool get _isBusy => _isParsing || _isBinding || _isExecuting;
+
   Future<void> _handleParse() async {
     final queryText = _queryController.text.trim();
-    if (queryText.isEmpty || _isParsing || _isBinding) return;
+    if (queryText.isEmpty || _isBusy) return;
 
     setState(() {
       _isParsing = true;
@@ -124,15 +132,23 @@ GET users (
         if (response.success) {
           _ir = response.ir;
           _boundIr = null;
+          _physicalQuery = null;
+          _columns = [];
+          _rows = [];
+          _metadata = null;
           _error = null;
-          _activeResultTab = 0;
+          _activeResultTab = 3; // Canonical IR tab
         } else {
           _ir = null;
           _boundIr = null;
+          _physicalQuery = null;
+          _columns = [];
+          _rows = [];
+          _metadata = null;
           _error = response.error ??
               AltrQLErrorDetailModel(
                 type: 'AltrQueryParseError',
-                message: 'Failed to parse query.',
+                message: 'Failed to parse query',
               );
         }
       });
@@ -142,8 +158,12 @@ GET users (
         _isParsing = false;
         _ir = null;
         _boundIr = null;
+        _physicalQuery = null;
+        _columns = [];
+        _rows = [];
+        _metadata = null;
         _error = AltrQLErrorDetailModel(
-          type: 'RequestError',
+          type: 'AltrQueryParseError',
           message: e.toString(),
         );
       });
@@ -152,17 +172,7 @@ GET users (
 
   Future<void> _handleBind() async {
     final queryText = _queryController.text.trim();
-    if (queryText.isEmpty || _isParsing || _isBinding) return;
-
-    if (_selectedSource == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a target data source to bind against.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
+    if (queryText.isEmpty || _isBusy || _selectedSource == null) return;
 
     setState(() {
       _isBinding = true;
@@ -181,15 +191,23 @@ GET users (
         if (response.success) {
           _ir = response.ir;
           _boundIr = response.boundIr;
+          _physicalQuery = null;
+          _columns = [];
+          _rows = [];
+          _metadata = null;
           _error = null;
-          _activeResultTab = 0;
+          _activeResultTab = 2; // Bound IR tab
         } else {
           _ir = response.ir;
           _boundIr = null;
+          _physicalQuery = null;
+          _columns = [];
+          _rows = [];
+          _metadata = null;
           _error = response.error ??
               AltrQLErrorDetailModel(
                 type: 'AltrQuerySchemaError',
-                message: 'Failed to bind query to schema.',
+                message: 'Failed to bind query against schema',
               );
         }
       });
@@ -198,8 +216,70 @@ GET users (
       setState(() {
         _isBinding = false;
         _boundIr = null;
+        _physicalQuery = null;
+        _columns = [];
+        _rows = [];
+        _metadata = null;
         _error = AltrQLErrorDetailModel(
-          type: 'RequestError',
+          type: 'AltrQuerySchemaError',
+          message: e.toString(),
+        );
+      });
+    }
+  }
+
+  Future<void> _handleExecute() async {
+    final queryText = _queryController.text.trim();
+    if (queryText.isEmpty || _isBusy || _selectedSource == null) return;
+
+    setState(() {
+      _isExecuting = true;
+      _error = null;
+    });
+
+    try {
+      final response = await _apiClient.executeAltrQL(
+        query: queryText,
+        sourceId: _selectedSource!.id,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _isExecuting = false;
+        _ir = response.ir;
+        _boundIr = response.boundIr;
+        _physicalQuery = response.physicalQuery;
+
+        if (response.success) {
+          _columns = response.columns;
+          _rows = response.rows;
+          _metadata = response.metadata;
+          _error = null;
+          _activeResultTab = 0; // Results tab
+        } else {
+          _columns = [];
+          _rows = [];
+          _metadata = null;
+          _error = response.error ??
+              AltrQLErrorDetailModel(
+                type: 'AltrQueryExecutionError',
+                message: 'Query execution failed',
+              );
+          // If we have a physical query even on error, default to physical query tab
+          if (_physicalQuery != null) {
+            _activeResultTab = 1;
+          }
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isExecuting = false;
+        _columns = [];
+        _rows = [];
+        _metadata = null;
+        _error = AltrQLErrorDetailModel(
+          type: 'AltrQueryExecutionError',
           message: e.toString(),
         );
       });
@@ -245,7 +325,7 @@ GET users (
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'AltrQL provides a unified, vendor-neutral query interface across multiple backend engines.',
+                'AltrQL provides a unified, vendor-neutral query interface with pure compilation and controlled database execution.',
                 style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
               ),
               const SizedBox(height: 16),
@@ -268,13 +348,13 @@ GET users (
                     _buildRoadmapItem('Phase B.5', 'Interactive Parser Playground', true),
                     _buildRoadmapItem('Phase C', 'Semantic Validation & Normalization IR', true),
                     _buildRoadmapItem('Phase D', 'Schema Binding & Type Validation', true),
-                    _buildRoadmapItem('Phase E', 'SQL Lowering & Live Execution Engine', false),
+                    _buildRoadmapItem('Phase E', 'Physical Query Lowering & Controlled Execution', true),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
               Text(
-                'To execute native SQL queries against connected databases, visit the Playground tab inside any Data Source detail page.',
+                'AltrQL compiles queries deterministically into parameterized SQL, executing them securely against connected data sources.',
                 style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),
             ],
@@ -288,7 +368,7 @@ GET users (
                 widget.onNavigateToSource!(_selectedSource!);
               },
               icon: const Icon(Icons.arrow_forward, size: 14),
-              label: Text('Open ${_selectedSource!.name} Playground'),
+              label: Text('Open ${_selectedSource!.name} Detail'),
             ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -343,15 +423,15 @@ GET users (
 
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.enter, meta: true): _handleBind,
-        const SingleActivator(LogicalKeyboardKey.enter, control: true): _handleBind,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): _handleExecute,
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): _handleExecute,
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageHeader(
             title: 'AltrQL Console',
-            description: 'Unified, readable, vendor-neutral query interface for logical entity retrieval, schema binding, and filtering.',
+            description: 'Unified, vendor-neutral query interface for logical entity retrieval, schema binding, and controlled execution.',
             nodeStatus: widget.nodeStatus,
             onNodeStatusTap: widget.onNodeStatusTap,
             primaryAction: OutlinedButton.icon(
@@ -376,7 +456,7 @@ GET users (
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'AltrQL provides a human-readable, vendor-neutral query language. Click "Bind Against Source" (⌘+Enter) to validate schema entities, column paths, and type compatibility against a connected data source.',
+                    'AltrQL provides a human-readable, vendor-neutral query language. Click "Execute Query" (⌘+Enter) to compile and run against the target source.',
                     style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
                   ),
                 ),
@@ -558,17 +638,23 @@ GET users (
                       top: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 8,
                     children: [
                       Text(
-                        'Shortcuts: ⌘/Ctrl + Enter to Bind',
+                        'Shortcuts: ⌘/Ctrl + Enter to Execute',
                         style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                       ),
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           OutlinedButton.icon(
-                            onPressed: (_isParsing || _isBinding) ? null : _handleParse,
+                            onPressed: _isBusy ? null : _handleParse,
                             icon: _isParsing
                                 ? const SizedBox(
                                     width: 12,
@@ -581,18 +667,31 @@ GET users (
                               style: const TextStyle(fontSize: 12),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          FilledButton.icon(
-                            onPressed: (_isParsing || _isBinding) ? null : _handleBind,
+                          OutlinedButton.icon(
+                            onPressed: (_isBusy || _selectedSource == null) ? null : _handleBind,
                             icon: _isBinding
+                                ? const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.fact_check_outlined, size: 14),
+                            label: Text(
+                              _isBinding ? 'Binding...' : 'Bind Against Source',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          FilledButton.icon(
+                            onPressed: (_isBusy || _selectedSource == null) ? null : _handleExecute,
+                            icon: _isExecuting
                                 ? const SizedBox(
                                     width: 14,
                                     height: 14,
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
-                                : const Icon(Icons.fact_check_outlined, size: 16),
+                                : const Icon(Icons.play_arrow_rounded, size: 16),
                             label: Text(
-                              _isBinding ? 'Binding...' : 'Bind Against Source',
+                              _isExecuting ? 'Executing...' : 'Execute Query',
                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -606,7 +705,7 @@ GET users (
           ),
           const SizedBox(height: 16),
 
-          // Output Panel: Success (Bound IR / Canonical IR) OR Error (Diagnostics) OR Initial Placeholder
+          // Output Panel: Multi-view switcher [Results, Physical Query, Bound IR, Canonical IR]
           _buildOutputPanel(context),
           const SizedBox(height: 16),
 
@@ -629,7 +728,7 @@ GET users (
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'AltrQL provides a strongly-typed, schema-bound query representation (BoundAltrQueryIR) that validates logical entities, projection paths, and comparison constraints against in-memory source schema snapshots before physical query execution.',
+                    'AltrQL provides a strongly-typed compiler pipeline: Lexer -> Parser (AltrQueryIR) -> Semantic Validator -> Schema Binder (BoundAltrQueryIR) -> Physical Lowerer (PhysicalQuery) -> Controlled Database Execution.',
                     style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant, height: 1.4),
                   ),
                   const SizedBox(height: 12),
@@ -655,67 +754,103 @@ GET users (
   Widget _buildOutputPanel(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (_boundIr != null || _ir != null) {
-      final isBound = _boundIr != null;
-      final currentMap = (_activeResultTab == 0 && isBound) ? _boundIr : _ir;
-      final prettyJson = const JsonEncoder.withIndent('  ').convert(currentMap);
+    final hasResults = _columns.isNotEmpty || _rows.isNotEmpty || _metadata != null;
+    final hasPhysicalQuery = _physicalQuery != null;
+    final hasBoundIr = _boundIr != null;
+    final hasCanonicalIr = _ir != null;
+
+    if (hasResults || hasPhysicalQuery || hasBoundIr || hasCanonicalIr || _error != null) {
+      final isSuccess = _error == null;
+
+      // Available tabs
+      final availableSegments = <ButtonSegment<int>>[];
+      if (hasResults) {
+        availableSegments.add(const ButtonSegment(value: 0, label: Text('Results', style: TextStyle(fontSize: 11))));
+      }
+      if (hasPhysicalQuery) {
+        availableSegments.add(const ButtonSegment(value: 1, label: Text('Physical Query', style: TextStyle(fontSize: 11))));
+      }
+      if (hasBoundIr) {
+        availableSegments.add(const ButtonSegment(value: 2, label: Text('Bound IR', style: TextStyle(fontSize: 11))));
+      }
+      if (hasCanonicalIr) {
+        availableSegments.add(const ButtonSegment(value: 3, label: Text('Canonical IR', style: TextStyle(fontSize: 11))));
+      }
+
+      // Ensure active tab is valid
+      if (availableSegments.isNotEmpty && !availableSegments.any((s) => s.value == _activeResultTab)) {
+        _activeResultTab = availableSegments.first.value;
+      }
 
       return Container(
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
+          border: Border.all(
+            color: isSuccess ? Colors.green.withValues(alpha: 0.4) : colorScheme.error.withValues(alpha: 0.5),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Success Header
+            // Status Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
+                color: isSuccess ? Colors.green.withValues(alpha: 0.1) : colorScheme.errorContainer.withValues(alpha: 0.3),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
                 border: Border(
-                  bottom: BorderSide(color: Colors.green.withValues(alpha: 0.2)),
+                  bottom: BorderSide(
+                    color: isSuccess ? Colors.green.withValues(alpha: 0.2) : colorScheme.error.withValues(alpha: 0.2),
+                  ),
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline, color: Colors.green, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    isBound
-                        ? 'Query Bound & Type Validated'
-                        : 'Query Parsed & Semantically Valid',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
+                  Icon(
+                    isSuccess ? Icons.check_circle_outline : Icons.error_outline,
+                    color: isSuccess ? Colors.green : colorScheme.error,
+                    size: 18,
                   ),
-                  if (isBound) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        _boundIr!['source_name']?.toString() ?? 'Schema Snapshot',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green),
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
-                  if (isBound) ...[
-                    SegmentedButton<int>(
-                      segments: const [
-                        ButtonSegment(
-                          value: 0,
-                          label: Text('Bound IR', style: TextStyle(fontSize: 11)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            isSuccess
+                                ? (hasResults ? 'Query Executed Successfully' : (hasBoundIr ? 'Query Bound & Type Validated' : 'Query Parsed & Semantically Valid'))
+                                : _getErrorTitle(_error?.type),
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isSuccess ? Colors.green : colorScheme.error,
+                            ),
+                          ),
                         ),
-                        ButtonSegment(
-                          value: 1,
-                          label: Text('Canonical IR', style: TextStyle(fontSize: 11)),
-                        ),
+                        if (_metadata != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${_metadata!.executionTimeMs} ms · ${_metadata!.rowCount} rows',
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green),
+                            ),
+                          ),
+                        ],
                       ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (availableSegments.length > 1) ...[
+                    SegmentedButton<int>(
+                      segments: availableSegments,
                       selected: {_activeResultTab},
                       onSelectionChanged: (set) {
                         setState(() => _activeResultTab = set.first);
@@ -727,189 +862,87 @@ GET users (
                     ),
                     const SizedBox(width: 8),
                   ],
-                  OutlinedButton.icon(
-                    onPressed: () => _copyToClipboard(
-                      prettyJson,
-                      (_activeResultTab == 0 && isBound) ? 'BoundAltrQueryIR JSON' : 'AltrQueryIR JSON',
-                    ),
-                    icon: const Icon(Icons.copy, size: 13),
-                    label: const Text('Copy IR', style: TextStyle(fontSize: 11)),
-                    style: OutlinedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ),
+                  if (isSuccess) _buildCopyButton(),
                 ],
               ),
             ),
 
-            // IR Title & Monospace Viewer
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    (_activeResultTab == 0 && isBound)
-                        ? 'BoundAltrQueryIR (Schema-Annotated & Type-Validated AST):'
-                        : 'AltrQueryIR (Typed Abstract Syntax Tree):',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+            // Error Diagnostics Banner if present
+            if (_error != null) ...[
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.errorContainer.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.4)),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(maxHeight: 280),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
-                    ),
-                    child: SingleChildScrollView(
-                      child: SelectableText(
-                        prettyJson,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: colorScheme.error,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _error!.type,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onError,
+                              ),
+                            ),
+                          ),
+                          if (_error!.locationDescription.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              _error!.locationDescription,
+                              style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                          const Spacer(),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              final errText = _error!.locationDescription.isNotEmpty
+                                  ? '${_error!.type} at ${_error!.locationDescription}: ${_error!.message}'
+                                  : '${_error!.type}: ${_error!.message}';
+                              _copyToClipboard(errText, 'Error Diagnostics');
+                            },
+                            icon: const Icon(Icons.copy, size: 12),
+                            label: const Text('Copy Error', style: TextStyle(fontSize: 11)),
+                            style: OutlinedButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        _error!.message,
                         style: TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 12,
-                          color: colorScheme.onSurface,
+                          color: colorScheme.error,
                           height: 1.4,
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_error != null) {
-      final errorText = '${_error!.type}: ${_error!.message}\n${_error!.locationDescription}'.trim();
-      String errorHeaderTitle = 'AltrQL Error';
-      if (_error!.type == 'AltrQuerySemanticError') {
-        errorHeaderTitle = 'AltrQL Semantic Error';
-      } else if (_error!.type == 'AltrQueryLexError') {
-        errorHeaderTitle = 'AltrQL Lexer Error';
-      } else if (_error!.type == 'UnknownEntityError' ||
-          _error!.type == 'UnknownFieldError' ||
-          _error!.type == 'TypeCompatibilityError' ||
-          _error!.type == 'AltrQuerySchemaError') {
-        errorHeaderTitle = 'AltrQL Schema Error';
-      } else if (_error!.type == 'AltrQueryParseError') {
-        errorHeaderTitle = 'AltrQL Parse Error';
-      }
-
-      return Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Error Header
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: colorScheme.errorContainer.withValues(alpha: 0.3),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-                border: Border(
-                  bottom: BorderSide(color: colorScheme.error.withValues(alpha: 0.2)),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline, color: colorScheme.error, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    errorHeaderTitle,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.error),
-                  ),
-                  const Spacer(),
-                  OutlinedButton.icon(
-                    onPressed: () => _copyToClipboard(errorText, 'Error Diagnostics'),
-                    icon: const Icon(Icons.copy, size: 13),
-                    label: const Text('Copy Error', style: TextStyle(fontSize: 11)),
-                    style: OutlinedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Error Diagnostics Content
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          _error!.type,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onErrorContainer,
-                          ),
-                        ),
-                      ),
-                      if (_error!.locationDescription.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            _error!.locationDescription,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
-                    ),
-                    child: SelectableText(
-                      _error!.message,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        color: colorScheme.error,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
+            ],
+
+            // Active Tab Content View
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: _buildActiveTabContent(context),
             ),
           ],
         ),
@@ -932,7 +965,7 @@ GET users (
               color: colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.data_object, size: 22, color: colorScheme.primary),
+            child: Icon(Icons.play_circle_outline, size: 22, color: colorScheme.primary),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -945,7 +978,7 @@ GET users (
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Click "Bind Against Source" or press ⌘+Enter to validate entities and types against discovered schema snapshots.',
+                  'Click "Execute Query" or press ⌘+Enter to compile and run queries with tabular results and physical SQL inspection.',
                   style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                 ),
               ],
@@ -954,5 +987,271 @@ GET users (
         ],
       ),
     );
+  }
+
+  String _getErrorTitle(String? errorType) {
+    if (errorType == null) return 'AltrQL Error';
+    if (errorType == 'AltrQueryLexError') return 'AltrQL Lexer Error';
+    if (errorType == 'AltrQueryParseError') return 'AltrQL Parse Error';
+    if (errorType == 'AltrQuerySemanticError') return 'AltrQL Semantic Error';
+    if (errorType == 'UnknownEntityError' ||
+        errorType == 'UnknownFieldError' ||
+        errorType == 'TypeCompatibilityError' ||
+        errorType == 'AltrQuerySchemaError') {
+      return 'AltrQL Schema Error';
+    }
+    if (errorType == 'UnsupportedDialectError' || errorType == 'QueryLoweringError') {
+      return 'AltrQL Lowering Error';
+    }
+    return 'AltrQL Execution Error';
+  }
+
+  Widget _buildCopyButton() {
+    String label = 'Copy';
+    if (_activeResultTab == 0) {
+      label = 'Copy Results';
+    } else if (_activeResultTab == 1) {
+      label = 'Copy SQL';
+    } else if (_activeResultTab == 2) {
+      label = 'Copy Bound IR';
+    } else if (_activeResultTab == 3) {
+      label = 'Copy IR';
+    }
+
+    return OutlinedButton.icon(
+      onPressed: () {
+        if (_activeResultTab == 0 && _rows.isNotEmpty) {
+          final jsonString = const JsonEncoder.withIndent('  ').convert(_rows);
+          _copyToClipboard(jsonString, 'Query Results JSON');
+        } else if (_activeResultTab == 1 && _physicalQuery != null) {
+          _copyToClipboard(_physicalQuery!.query, 'Physical SQL Query');
+        } else if (_activeResultTab == 2 && _boundIr != null) {
+          final jsonString = const JsonEncoder.withIndent('  ').convert(_boundIr);
+          _copyToClipboard(jsonString, 'BoundAltrQueryIR JSON');
+        } else if (_activeResultTab == 3 && _ir != null) {
+          final jsonString = const JsonEncoder.withIndent('  ').convert(_ir);
+          _copyToClipboard(jsonString, 'AltrQueryIR JSON');
+        }
+      },
+      icon: const Icon(Icons.copy, size: 13),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      style: OutlinedButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
+    );
+  }
+
+  Widget _buildActiveTabContent(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // 0: Results
+    if (_activeResultTab == 0) {
+      if (_columns.isEmpty && _rows.isEmpty) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          alignment: Alignment.center,
+          child: Text('No rows returned.', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+        );
+      }
+
+      return Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxHeight: 320),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowColor: WidgetStateProperty.all(colorScheme.surfaceContainerHighest.withValues(alpha: 0.6)),
+              dataRowColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.hovered)) {
+                  return colorScheme.surfaceContainerHighest.withValues(alpha: 0.3);
+                }
+                return null;
+              }),
+              columns: _columns.map((col) {
+                return DataColumn(
+                  label: Text(
+                    col,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                );
+              }).toList(),
+              rows: _rows.map((row) {
+                return DataRow(
+                  cells: _columns.map((col) {
+                    final val = row[col];
+                    return DataCell(
+                      Text(
+                        val == null ? 'NULL' : val.toString(),
+                        style: TextStyle(
+                          fontFamily: val == null ? 'sans-serif' : 'monospace',
+                          fontSize: 12,
+                          color: val == null ? colorScheme.outline : colorScheme.onSurface,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 1: Physical Query
+    if (_activeResultTab == 1 && _physicalQuery != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${_physicalQuery!.dialect.toUpperCase()} Dialect',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.primary),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Source: ${_physicalQuery!.sourceName}',
+                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+            ),
+            child: SelectableText(
+              _physicalQuery!.query,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: colorScheme.onSurface,
+                height: 1.4,
+              ),
+            ),
+          ),
+          if (_physicalQuery!.parameters.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Query Parameters:',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: List.generate(_physicalQuery!.parameters.length, (idx) {
+                final param = _physicalQuery!.parameters[idx];
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    '\$${idx + 1} = ${jsonEncode(param)}',
+                    style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: colorScheme.primary),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // 2: Bound IR
+    if (_activeResultTab == 2 && _boundIr != null) {
+      final prettyJson = const JsonEncoder.withIndent('  ').convert(_boundIr);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'BoundAltrQueryIR (Schema-Resolved & Type-Validated AST):',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxHeight: 280),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                prettyJson,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: colorScheme.onSurface,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 3: Canonical IR
+    if (_activeResultTab == 3 && _ir != null) {
+      final prettyJson = const JsonEncoder.withIndent('  ').convert(_ir);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'AltrQueryIR (Typed Abstract Syntax Tree):',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxHeight: 280),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                prettyJson,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: colorScheme.onSurface,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 }

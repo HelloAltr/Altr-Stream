@@ -2,18 +2,29 @@
 
 from fastapi import APIRouter, Depends, status
 
+from altr_stream.application.query_service import QueryService
 from altr_stream.application.schema_service import SchemaService
+from altr_stream.application.source_service import SourceService
 from altr_stream.domain.errors import SourceNotFoundError
-from altr_stream.presentation.api.dependencies import get_schema_service
+from altr_stream.presentation.api.dependencies import (
+    get_query_service,
+    get_schema_service,
+    get_source_service,
+)
 from altr_stream.presentation.api.dtos import (
     AltrQLBindRequestDTO,
     AltrQLBindResponseDTO,
     AltrQLErrorDetailDTO,
+    AltrQLExecuteRequestDTO,
+    AltrQLExecuteResponseDTO,
     AltrQLParseRequestDTO,
     AltrQLParseResponseDTO,
+    PhysicalQueryDTO,
+    QueryMetadataDTO,
 )
 from altr_stream.query_engine.binding import bind_altrql
 from altr_stream.query_engine.domain.errors import AltrQueryError
+from altr_stream.query_engine.lowering import get_lowerer
 from altr_stream.query_engine.parser import parse_altrql
 
 router = APIRouter(prefix="/altrql", tags=["AltrQL"])
@@ -118,5 +129,146 @@ async def bind_altrql_query(
                 message=e.message,
                 line=e.line,
                 column=e.column,
+            ),
+        )
+
+
+@router.post("/execute", response_model=AltrQLExecuteResponseDTO, status_code=status.HTTP_200_OK)
+async def execute_altrql_query(
+    dto: AltrQLExecuteRequestDTO,
+    source_service: SourceService = Depends(get_source_service),
+    schema_service: SchemaService = Depends(get_schema_service),
+    query_service: QueryService = Depends(get_query_service),
+) -> AltrQLExecuteResponseDTO:
+    """Execute an AltrQL query against a registered data source.
+
+    Orchestrates the complete verified pipeline:
+    Parse -> Bind -> Lower -> Execute -> Normalize Result.
+    Preserves intermediate compiler artifacts on downstream failures.
+    """
+    # 1. Parse and semantically validate canonical IR
+    try:
+        ir = parse_altrql(dto.query)
+    except AltrQueryError as e:
+        return AltrQLExecuteResponseDTO(
+            success=False,
+            ir=None,
+            bound_ir=None,
+            physical_query=None,
+            error=AltrQLErrorDetailDTO(
+                type=e.__class__.__name__,
+                message=e.message,
+                line=e.line,
+                column=e.column,
+            ),
+        )
+
+    # 2. Retrieve source
+    try:
+        source = await source_service.get_source(dto.source_id)
+    except SourceNotFoundError:
+        return AltrQLExecuteResponseDTO(
+            success=False,
+            ir=ir.to_dict(),
+            bound_ir=None,
+            physical_query=None,
+            error=AltrQLErrorDetailDTO(
+                type="SourceNotFoundError",
+                message=f"Source with id '{dto.source_id}' was not found.",
+            ),
+        )
+
+    # 3. Retrieve schema snapshot
+    schema = await schema_service.get_latest_schema(dto.source_id)
+    if not schema:
+        return AltrQLExecuteResponseDTO(
+            success=False,
+            ir=ir.to_dict(),
+            bound_ir=None,
+            physical_query=None,
+            error=AltrQLErrorDetailDTO(
+                type="SchemaNotFoundError",
+                message=f"No schema snapshot discovered yet for source '{dto.source_id}'. Run schema discovery first.",
+            ),
+        )
+
+    # 4. Pure schema binding & type validation
+    try:
+        bound_ir = bind_altrql(ir, schema)
+    except AltrQueryError as e:
+        return AltrQLExecuteResponseDTO(
+            success=False,
+            ir=ir.to_dict(),
+            bound_ir=None,
+            physical_query=None,
+            error=AltrQLErrorDetailDTO(
+                type=e.__class__.__name__,
+                message=e.message,
+                line=e.line,
+                column=e.column,
+            ),
+        )
+
+    # 5. Pure dialect lowering
+    try:
+        lowerer = get_lowerer(source.type)
+        physical_query = lowerer.lower(bound_ir)
+    except AltrQueryError as e:
+        return AltrQLExecuteResponseDTO(
+            success=False,
+            ir=ir.to_dict(),
+            bound_ir=bound_ir.to_dict(),
+            physical_query=None,
+            error=AltrQLErrorDetailDTO(
+                type=e.__class__.__name__,
+                message=e.message,
+                line=e.line,
+                column=e.column,
+            ),
+        )
+
+    physical_query_dto = PhysicalQueryDTO(
+        dialect=physical_query.dialect,
+        query=physical_query.query,
+        parameters=physical_query.parameters,
+        source_id=physical_query.source_id,
+        source_name=physical_query.source_name,
+    )
+
+    # 6. Physical database execution via QueryService
+    try:
+        result = await query_service.execute_query(
+            source_id=dto.source_id,
+            query=physical_query.query,
+            parameters=physical_query.parameters,
+        )
+        return AltrQLExecuteResponseDTO(
+            success=True,
+            ir=ir.to_dict(),
+            bound_ir=bound_ir.to_dict(),
+            physical_query=physical_query_dto,
+            columns=result.columns,
+            rows=result.rows,
+            metadata=QueryMetadataDTO(
+                row_count=result.row_count,
+                affected_rows=result.affected_rows,
+                execution_time_ms=result.execution_time_ms,
+                message=result.message,
+            ),
+            error=None,
+        )
+    except Exception as e:
+        # Preserve pipeline context on execution failures
+        return AltrQLExecuteResponseDTO(
+            success=False,
+            ir=ir.to_dict(),
+            bound_ir=bound_ir.to_dict(),
+            physical_query=physical_query_dto,
+            columns=[],
+            rows=[],
+            metadata=None,
+            error=AltrQLErrorDetailDTO(
+                type=e.__class__.__name__,
+                message=str(e),
             ),
         )

@@ -174,17 +174,18 @@ class PostgreSQLConnector(BaseConnector):
                 except Exception:
                     pass
 
-    async def execute_query(self, query: str) -> QueryResult:
+    async def execute_query(self, query: str, parameters: list[Any] | None = None) -> QueryResult:
         """Execute a native query (result-returning or command) against PostgreSQL and return normalized QueryResult."""
         start_time = time_module.perf_counter()
         conn = None
+        params = parameters or []
         try:
             conn = await self._get_connection()
             stmt = await conn.prepare(query)
             attributes = stmt.get_attributes()
 
             if attributes:
-                records = await stmt.fetch()
+                records = await stmt.fetch(*params)
                 status_msg = stmt.get_statusmsg()
                 execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
                 columns = [attr.name for attr in attributes]
@@ -201,7 +202,7 @@ class PostgreSQLConnector(BaseConnector):
                     execution_time_ms=execution_time_ms,
                 )
             else:
-                records = await stmt.fetch()
+                records = await stmt.fetch(*params)
                 status_str = stmt.get_statusmsg() or ""
                 execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
                 affected_rows = _parse_affected_rows(status_str)

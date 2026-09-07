@@ -10,6 +10,7 @@ from altr_stream.query_engine.binding import (
 from altr_stream.query_engine.domain import (
     ASTNode,
     AltrQueryError,
+    AltrQueryExecutionError,
     AltrQueryIR,
     AltrQueryLexError,
     AltrQueryParseError,
@@ -38,6 +39,8 @@ from altr_stream.query_engine.domain import (
     LogicalExpression,
     LogicalTypeCategory,
     NullLiteral,
+    PhysicalQuery,
+    QueryLoweringError,
     Range,
     RankingClause,
     RankingDirection,
@@ -50,8 +53,15 @@ from altr_stream.query_engine.domain import (
     TypeCompatibilityError,
     UnknownEntityError,
     UnknownFieldError,
+    UnsupportedDialectError,
     ValueSet,
     ValueSetElement,
+)
+from altr_stream.query_engine.lowering import (
+    LowererRegistry,
+    PostgreSQLLowerer,
+    QueryLowerer,
+    get_lowerer,
 )
 from altr_stream.query_engine.parser import Lexer, Parser, Token, TokenType, parse_altrql
 from altr_stream.query_engine.semantic import normalize_ir, validate_ir
@@ -59,6 +69,7 @@ from altr_stream.query_engine.semantic import normalize_ir, validate_ir
 __all__ = [
     "ASTNode",
     "AltrQueryError",
+    "AltrQueryExecutionError",
     "AltrQueryIR",
     "AltrQueryLexError",
     "AltrQueryParseError",
@@ -89,6 +100,11 @@ __all__ = [
     "LogicalTypeCategory",
     "NullLiteral",
     "Parser",
+    "PhysicalQuery",
+    "QueryLoweringError",
+    "QueryLowerer",
+    "PostgreSQLLowerer",
+    "LowererRegistry",
     "Range",
     "RankingClause",
     "RankingDirection",
@@ -103,9 +119,11 @@ __all__ = [
     "TypeCompatibilityError",
     "UnknownEntityError",
     "UnknownFieldError",
+    "UnsupportedDialectError",
     "ValueSet",
     "ValueSetElement",
     "bind_altrql",
+    "get_lowerer",
     "normalize_ir",
     "parse_altrql",
     "resolve_entity",
@@ -114,3 +132,4 @@ __all__ = [
     "validate_field_operator_and_operand",
     "validate_ir",
 ]
+

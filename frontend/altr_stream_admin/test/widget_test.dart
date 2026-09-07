@@ -23,12 +23,14 @@ class MockTestApiClient extends ApiClient {
   final QueryExecuteResponseModel? queryResponseToReturn;
   final AltrQLParseResponseModel? altrqlParseResponseToReturn;
   final AltrQLBindResponseModel? altrqlBindResponseToReturn;
+  final AltrQLExecuteResponseModel? altrqlExecuteResponseToReturn;
 
   MockTestApiClient({
     this.schemaToReturn,
     this.queryResponseToReturn,
     this.altrqlParseResponseToReturn,
     this.altrqlBindResponseToReturn,
+    this.altrqlExecuteResponseToReturn,
   });
 
   @override
@@ -75,6 +77,52 @@ class MockTestApiClient extends ApiClient {
           },
         );
   }
+
+  @override
+  Future<AltrQLExecuteResponseModel> executeAltrQL({
+    required String query,
+    required String sourceId,
+  }) async {
+    return altrqlExecuteResponseToReturn ??
+        AltrQLExecuteResponseModel(
+          success: true,
+          ir: {
+            'entity': 'users',
+            'projection': [],
+            'where': null,
+            'sort': [],
+            'ranking': null,
+            'offset': null,
+          },
+          boundIr: {
+            'source_id': sourceId,
+            'source_name': 'Mock Source',
+            'entity': {'name': 'users', 'namespace': 'public', 'entity_type': 'TABLE'},
+            'projection': [],
+            'where': null,
+            'sort': [],
+            'ranking': null,
+            'offset': null,
+          },
+          physicalQuery: PhysicalQueryModel(
+            dialect: 'postgresql',
+            query: 'SELECT * FROM "public"."users";',
+            parameters: [],
+            sourceId: sourceId,
+            sourceName: 'Mock Source',
+          ),
+          columns: ['id', 'username'],
+          rows: [
+            {'id': 1, 'username': 'Alice'},
+            {'id': 2, 'username': 'Bob'},
+          ],
+          metadata: QueryMetadataModel(
+            rowCount: 2,
+            executionTimeMs: 4.5,
+          ),
+        );
+  }
+
 
   @override
   Future<SourceSchemaModel?> getLatestSchema(String id) async => schemaToReturn;
@@ -1228,5 +1276,188 @@ void main() {
     expect(find.text('Query Bound & Type Validated'), findsOneWidget);
     expect(find.textContaining('"value": "2026-01-01"'), findsOneWidget);
   });
+
+  testWidgets('AltrQLPlaygroundScreen executes query, shows results table and metadata', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_exec_1',
+        name: 'PostgreSQL DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'db',
+        username: 'user',
+        status: 'ACTIVE',
+        passwordMasked: '••••',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockClient = MockTestApiClient(
+      altrqlExecuteResponseToReturn: AltrQLExecuteResponseModel(
+        success: true,
+        ir: {'entity': 'users', 'projection': []},
+        boundIr: {
+          'source_id': 'src_exec_1',
+          'source_name': 'PostgreSQL DB',
+          'entity': {'name': 'users', 'namespace': 'public', 'entity_type': 'TABLE'},
+          'projection': [],
+        },
+        physicalQuery: PhysicalQueryModel(
+          dialect: 'postgresql',
+          query: 'SELECT "id", "username" FROM "public"."users";',
+          parameters: [],
+          sourceId: 'src_exec_1',
+          sourceName: 'PostgreSQL DB',
+        ),
+        columns: ['id', 'username'],
+        rows: [
+          {'id': 1, 'username': 'Alice'},
+          {'id': 2, 'username': 'Bob'},
+        ],
+        metadata: QueryMetadataModel(
+          rowCount: 2,
+          executionTimeMs: 3.25,
+          message: 'SELECT 2',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: mockSources,
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify Execute Query button is present
+    final executeBtn = find.text('Execute Query');
+    expect(executeBtn, findsOneWidget);
+
+    // Tap Execute Query
+    await tester.tap(executeBtn);
+    await tester.pumpAndSettle();
+
+    // Verify Success Header and Metrics
+    expect(find.text('Query Executed Successfully'), findsOneWidget);
+    expect(find.text('3.25 ms · 2 rows'), findsOneWidget);
+
+    // Verify DataTable rows
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Bob'), findsOneWidget);
+
+    // Switch to Physical Query tab
+    await tester.tap(find.text('Physical Query'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('POSTGRESQL Dialect'), findsOneWidget);
+    expect(find.text('SELECT "id", "username" FROM "public"."users";'), findsOneWidget);
+
+    // Switch to Bound IR tab
+    await tester.tap(find.text('Bound IR'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('"source_name": "PostgreSQL DB"'), findsOneWidget);
+
+    // Switch to Canonical IR tab
+    await tester.tap(find.text('Canonical IR'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('"entity": "users"'), findsOneWidget);
+  });
+
+  testWidgets('AltrQLPlaygroundScreen displays execution error diagnostic banner while preserving physical query', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_err_1',
+        name: 'PostgreSQL DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'db',
+        username: 'user',
+        status: 'ACTIVE',
+        passwordMasked: '••••',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockClient = MockTestApiClient(
+      altrqlExecuteResponseToReturn: AltrQLExecuteResponseModel(
+        success: false,
+        ir: {'entity': 'users', 'projection': []},
+        boundIr: {
+          'source_id': 'src_err_1',
+          'source_name': 'PostgreSQL DB',
+          'entity': {'name': 'users', 'namespace': 'public', 'entity_type': 'TABLE'},
+          'projection': [],
+        },
+        physicalQuery: PhysicalQueryModel(
+          dialect: 'postgresql',
+          query: 'SELECT * FROM "public"."users" WHERE "age" >= \$1;',
+          parameters: [18],
+          sourceId: 'src_err_1',
+          sourceName: 'PostgreSQL DB',
+        ),
+        columns: [],
+        rows: [],
+        error: AltrQLErrorDetailModel(
+          type: 'QueryExecutionError',
+          message: 'Connection closed by remote host unexpectedly.',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: mockSources,
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap Execute Query
+    await tester.tap(find.text('Execute Query'));
+    await tester.pumpAndSettle();
+
+    // Verify Error Header & Diagnostics
+    expect(find.text('AltrQL Execution Error'), findsOneWidget);
+    expect(find.text('Connection closed by remote host unexpectedly.'), findsOneWidget);
+
+    // Verify Physical Query is preserved and viewable
+    expect(find.text('POSTGRESQL Dialect'), findsOneWidget);
+    expect(find.text('SELECT * FROM "public"."users" WHERE "age" >= \$1;'), findsOneWidget);
+    expect(find.text('\$1 = 18'), findsOneWidget);
+  });
 }
+
 

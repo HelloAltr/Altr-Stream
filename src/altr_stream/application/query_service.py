@@ -1,5 +1,7 @@
 """Query execution application service."""
 
+from typing import Any
+
 from altr_stream.domain.errors import (
     QueryExecutionNotSupportedError,
     SourceNotFoundError,
@@ -16,7 +18,9 @@ class QueryService:
     def __init__(self, repository: SqliteSourceRepository):
         self.repository = repository
 
-    async def execute_query(self, source_id: str, query: str) -> QueryResult:
+    async def execute_query(
+        self, source_id: str, query: str, parameters: list[Any] | None = None
+    ) -> QueryResult:
         """Validate, orchestrate, and execute a native query against a registered source."""
         # 1. Validate query format and ensure single-statement execution
         cleaned_query = validate_query(query)
@@ -38,5 +42,6 @@ class QueryService:
 
         # 5. Execute within connector context
         async with connector:
-            return await connector.execute_query(cleaned_query)
+            return await connector.execute_query(cleaned_query, parameters=parameters)
+
 

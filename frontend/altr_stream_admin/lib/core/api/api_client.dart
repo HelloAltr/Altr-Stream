@@ -246,5 +246,24 @@ class ApiClient {
     );
     return AltrQLBindResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
   }
+
+  /// Execute an AltrQL query against a registered data source through the complete compiler and execution pipeline
+  Future<AltrQLExecuteResponseModel> executeAltrQL({
+    required String query,
+    required String sourceId,
+  }) async {
+    final body = jsonEncode({
+      'query': query,
+      'source_id': sourceId,
+    });
+
+    final res = await _client.post(
+      _uri('/altrql/execute'),
+      headers: _headers,
+      body: body,
+    );
+    return AltrQLExecuteResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+  }
 }
+
 

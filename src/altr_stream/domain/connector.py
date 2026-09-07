@@ -62,7 +62,7 @@ class BaseConnector(ABC):
         ...
 
     @abstractmethod
-    async def execute_query(self, query: str) -> QueryResult:
+    async def execute_query(self, query: str, parameters: list[Any] | None = None) -> QueryResult:
         """Execute a native database query and return normalized results."""
         ...
 

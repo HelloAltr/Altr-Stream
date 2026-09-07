@@ -342,3 +342,135 @@ async def test_bind_altrql_api_temporal_vs_string_and_cross_type_errors(client: 
     data3 = res3.json()
     assert data3["success"] is False
     assert data3["error"]["type"] == "AltrQueryLexError"
+
+
+# ---------------------------------------------------------------------------
+# AltrQL Execute Integration Tests (Phase E)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_execute_altrql_api_success(client: AsyncClient):
+    source_id = await _setup_test_source_and_schema(client)
+
+    from altr_stream.domain.query import QueryResult
+
+    mock_result = QueryResult(
+        columns=["id", "username", "age"],
+        rows=[{"id": 1, "username": "alice", "age": 25}],
+        row_count=1,
+        execution_time_ms=1.23,
+        message="SELECT 1",
+    )
+
+    with patch(
+        "altr_stream.infrastructure.connectors.postgres.connector.PostgreSQLConnector.execute_query",
+        new=AsyncMock(return_value=mock_result),
+    ):
+        query = 'GET users (id, username, age) WHERE { age >= 18 } SORT { age DESC };'
+        res = await client.post("/api/v1/altrql/execute", json={"query": query, "source_id": source_id})
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is True
+        assert data["error"] is None
+        assert data["ir"] is not None
+        assert data["bound_ir"] is not None
+        assert data["physical_query"] is not None
+        assert data["physical_query"]["dialect"] == "postgresql"
+        assert data["physical_query"]["query"] == 'SELECT "id", "username", "age" FROM "public"."users" WHERE "age" >= $1 ORDER BY "age" DESC;'
+        assert data["physical_query"]["parameters"] == [18]
+        assert data["columns"] == ["id", "username", "age"]
+        assert data["rows"] == [{"id": 1, "username": "alice", "age": 25}]
+        assert data["metadata"]["row_count"] == 1
+        assert data["metadata"]["execution_time_ms"] == 1.23
+
+
+@pytest.mark.asyncio
+async def test_execute_altrql_api_where_parameters(client: AsyncClient):
+    source_id = await _setup_test_source_and_schema(client)
+
+    from altr_stream.domain.query import QueryResult
+
+    mock_result = QueryResult(
+        columns=["id", "username"],
+        rows=[],
+        row_count=0,
+        execution_time_ms=0.5,
+    )
+
+    with patch(
+        "altr_stream.infrastructure.connectors.postgres.connector.PostgreSQLConnector.execute_query",
+        new=AsyncMock(return_value=mock_result),
+    ):
+        query = 'GET users WHERE { age >= 18, username STARTS "A" };'
+        res = await client.post("/api/v1/altrql/execute", json={"query": query, "source_id": source_id})
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is True
+        assert data["physical_query"]["parameters"] == [18, "A%"]
+
+
+@pytest.mark.asyncio
+async def test_execute_altrql_api_execution_failure_preserves_pipeline_context(client: AsyncClient):
+    source_id = await _setup_test_source_and_schema(client)
+
+    with patch(
+        "altr_stream.infrastructure.connectors.postgres.connector.PostgreSQLConnector.execute_query",
+        side_effect=Exception("Database connection terminated abruptly"),
+    ):
+        query = 'GET users WHERE { age >= 18 };'
+        res = await client.post("/api/v1/altrql/execute", json={"query": query, "source_id": source_id})
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is False
+        assert data["ir"] is not None
+        assert data["bound_ir"] is not None
+        assert data["physical_query"] is not None
+        assert data["physical_query"]["dialect"] == "postgresql"
+        assert data["error"] is not None
+        assert "Database connection terminated abruptly" in data["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_execute_altrql_api_source_not_found(client: AsyncClient):
+    res = await client.post("/api/v1/altrql/execute", json={"query": "GET users;", "source_id": "non_existent_id"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert data["error"]["type"] == "SourceNotFoundError"
+
+
+@pytest.mark.asyncio
+async def test_execute_altrql_api_schema_not_found(client: AsyncClient):
+    source_payload = {
+        "name": "Undiscovered Source 2",
+        "type": "POSTGRESQL",
+        "host": "localhost",
+        "port": 5432,
+        "database_name": "db",
+        "username": "user",
+        "password": "password",
+        "test_connection_first": False,
+    }
+    create_res = await client.post("/api/v1/sources", json=source_payload)
+    source_id = create_res.json()["id"]
+
+    res = await client.post("/api/v1/altrql/execute", json={"query": "GET users;", "source_id": source_id})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert data["error"]["type"] == "SchemaNotFoundError"
+
+
+@pytest.mark.asyncio
+async def test_execute_altrql_api_parse_error(client: AsyncClient):
+    source_id = await _setup_test_source_and_schema(client)
+    res = await client.post("/api/v1/altrql/execute", json={"query": "get users;", "source_id": source_id})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert data["error"]["type"] == "AltrQueryParseError"
+

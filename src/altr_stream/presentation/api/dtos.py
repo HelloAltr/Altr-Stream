@@ -161,3 +161,34 @@ class AltrQLBindResponseDTO(BaseModel):
     error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
 
 
+class PhysicalQueryDTO(BaseModel):
+    """Physical query representation returned in AltrQL execution responses."""
+
+    dialect: str = Field(..., description="Target database dialect name")
+    query: str = Field(..., description="Executable physical SQL query string")
+    parameters: list[Any] = Field(default_factory=list, description="Ordered literal values for parameters")
+    source_id: str = Field(..., description="Target source ID")
+    source_name: str = Field(..., description="Target source name")
+
+
+class AltrQLExecuteRequestDTO(BaseModel):
+    """Request payload for executing an AltrQL query against a registered data source."""
+
+    query: str = Field(..., min_length=1, description="AltrQL query string to execute")
+    source_id: str = Field(..., min_length=1, description="Registered data source ID to execute against")
+
+
+class AltrQLExecuteResponseDTO(BaseModel):
+    """Response payload for AltrQL execution requests."""
+
+    success: bool = Field(..., description="Whether query compilation and physical execution succeeded")
+    ir: dict[str, Any] | None = Field(default=None, description="Canonical AltrQueryIR AST")
+    bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST")
+    physical_query: PhysicalQueryDTO | None = Field(default=None, description="Lowered PhysicalQuery representation")
+    columns: list[str] = Field(default_factory=list, description="Ordered list of column names")
+    rows: list[dict[str, Any]] = Field(default_factory=list, description="Normalized rows formatted as JSON dictionaries")
+    metadata: QueryMetadataDTO | None = Field(default=None, description="Query execution performance metadata")
+    error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
+
+
+

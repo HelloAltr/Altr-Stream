@@ -37,13 +37,16 @@ from altr_stream.query_engine.domain.bound_ast import (
 )
 from altr_stream.query_engine.domain.errors import (
     AltrQueryError,
+    AltrQueryExecutionError,
     AltrQueryLexError,
     AltrQueryParseError,
     AltrQuerySchemaError,
     AltrQuerySemanticError,
+    QueryLoweringError,
     TypeCompatibilityError,
     UnknownEntityError,
     UnknownFieldError,
+    UnsupportedDialectError,
 )
 from altr_stream.query_engine.domain.operators import (
     ComparisonOperator,
@@ -52,6 +55,7 @@ from altr_stream.query_engine.domain.operators import (
     StringOperator,
     TemporalKeyword,
 )
+from altr_stream.query_engine.domain.physical_query import PhysicalQuery
 
 __all__ = [
     "ASTNode",
@@ -85,17 +89,22 @@ __all__ = [
     "BoundRankingClause",
     "BoundSortClause",
     "LogicalTypeCategory",
+    "PhysicalQuery",
     "AltrQueryError",
+    "AltrQueryExecutionError",
     "AltrQueryLexError",
     "AltrQueryParseError",
     "AltrQuerySchemaError",
     "AltrQuerySemanticError",
+    "QueryLoweringError",
     "TypeCompatibilityError",
     "UnknownEntityError",
     "UnknownFieldError",
+    "UnsupportedDialectError",
     "ComparisonOperator",
     "RankingDirection",
     "SortDirection",
     "StringOperator",
     "TemporalKeyword",
 ]
+
