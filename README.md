@@ -128,7 +128,8 @@ Altr-Stream/
 │       │   ├── features/
 │       │   │   ├── overview/    # Node overview, summaries & quick links
 │       │   │   ├── sources/     # Sources list, details tabs & 4-step wizard
-│       │   │   ├── query_playground/ # Schema Explorer & Native Query Playground
+│       │   │   ├── altrql_playground/ # Global AltrQL Console & AST Viewer
+│       │   │   ├── source_playground/ # Source-scoped Schema Explorer & Native SQL Playground
 │       │   │   ├── activity/    # Operational timeline
 │       │   │   └── settings/    # Node configuration & diagnostics
 │       │   ├── shared/          # Persistent AppShell, PageHeader, StatusBadges
@@ -140,14 +141,16 @@ Altr-Stream/
 ├── src/
 │   └── altr_stream/             # FastAPI Backend Service
 │       ├── domain/              # Source, Schema, Connector Contracts
+│       ├── query_engine/        # AltrQL v0.1 Parser, Lexer, AST & Operators
 │       ├── infrastructure/      # SQLite Metadata Store & PostgreSQL Connector
-│       ├── application/         # SourceService & SchemaService
-│       ├── presentation/api/    # REST API Routes (/api/v1/sources, /health)
+│       ├── application/         # SourceService, SchemaService, QueryService
+│       ├── presentation/api/    # REST API Routes (/api/v1/sources, /altrql, /queries)
 │       └── main.py              # FastAPI Application Entry
-├── tests/                       # Backend Pytest Test Suite
+├── tests/                       # Backend Pytest Test Suite (Unit & Integration)
 ├── docker/
 │   └── postgres/init.sql        # Seed database schemas & sample tables
-├── docker-compose.yml           # Multi-container orchestration
+├── docker-compose.yml           # Multi-container production orchestration
+├── docker-compose.dev.yml       # Development hot-reload override
 ├── Dockerfile                   # Python backend container
 └── pyproject.toml               # Python packaging & dependencies
 ```

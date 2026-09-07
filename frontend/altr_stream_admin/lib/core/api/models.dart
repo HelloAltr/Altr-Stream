@@ -322,4 +322,58 @@ class QueryExecuteResponseModel {
   bool get isCommandOutcome => columns.isEmpty;
 }
 
+class AltrQLParseErrorModel {
+  final String type;
+  final String message;
+  final int? line;
+  final int? column;
+
+  AltrQLParseErrorModel({
+    required this.type,
+    required this.message,
+    this.line,
+    this.column,
+  });
+
+  factory AltrQLParseErrorModel.fromJson(Map<String, dynamic> json) {
+    return AltrQLParseErrorModel(
+      type: json['type'] as String? ?? 'AltrQueryParseError',
+      message: json['message'] as String? ?? 'Unknown parse error',
+      line: (json['line'] as num?)?.toInt(),
+      column: (json['column'] as num?)?.toInt(),
+    );
+  }
+
+  String get locationDescription {
+    if (line != null && column != null) {
+      return 'Line $line · Column $column';
+    } else if (line != null) {
+      return 'Line $line';
+    }
+    return '';
+  }
+}
+
+class AltrQLParseResponseModel {
+  final bool success;
+  final Map<String, dynamic>? ir;
+  final AltrQLParseErrorModel? error;
+
+  AltrQLParseResponseModel({
+    required this.success,
+    this.ir,
+    this.error,
+  });
+
+  factory AltrQLParseResponseModel.fromJson(Map<String, dynamic> json) {
+    return AltrQLParseResponseModel(
+      success: json['success'] as bool? ?? false,
+      ir: json['ir'] as Map<String, dynamic>?,
+      error: json['error'] != null
+          ? AltrQLParseErrorModel.fromJson(json['error'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
 

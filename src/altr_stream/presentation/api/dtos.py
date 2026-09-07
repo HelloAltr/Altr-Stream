@@ -118,3 +118,26 @@ class QueryExecuteResponseDTO(BaseModel):
     metadata: QueryMetadataDTO
 
 
+class AltrQLParseRequestDTO(BaseModel):
+    """Request payload for parsing an AltrQL query."""
+
+    query: str = Field(..., min_length=1, description="AltrQL query string to parse")
+
+
+class AltrQLParseErrorDetailDTO(BaseModel):
+    """Structured diagnostic information for an AltrQL parsing/lexing error."""
+
+    type: str = Field(..., description="Exception class name")
+    message: str = Field(..., description="Human-readable error description")
+    line: int | None = Field(default=None, description="1-indexed line number of the error")
+    column: int | None = Field(default=None, description="1-indexed column number of the error")
+
+
+class AltrQLParseResponseDTO(BaseModel):
+    """Response payload for AltrQL parse requests."""
+
+    success: bool = Field(..., description="Whether parsing succeeded")
+    ir: dict[str, Any] | None = Field(default=None, description="Serialized AltrQueryIR AST if successful")
+    error: AltrQLParseErrorDetailDTO | None = Field(default=None, description="Parse error details if failed")
+
+

@@ -214,5 +214,19 @@ class ApiClient {
     );
     return QueryExecuteResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
   }
+
+  /// Parse an AltrQL query text into a typed Abstract Syntax Tree (AltrQueryIR)
+  Future<AltrQLParseResponseModel> parseAltrQL(String query) async {
+    final body = jsonEncode({
+      'query': query,
+    });
+
+    final res = await _client.post(
+      _uri('/altrql/parse'),
+      headers: _headers,
+      body: body,
+    );
+    return AltrQLParseResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+  }
 }
 

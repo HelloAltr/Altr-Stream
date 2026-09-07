@@ -97,11 +97,25 @@ docker compose up -d
 
 ---
 
-## 4. Query Playground & Schema Explorer Workflow
+## 4. Query Playgrounds Architecture & Usage
 
-The Query Playground provides an integrated database experimentation workspace across connected data sources.
+Altr Stream provides a clean separation between **Native Database Playgrounds** (source-scoped) and the **AltrQL Console** (global logical language tool).
 
-### Key Capabilities & Interactions
+### 4.1 AltrQL Console & Interactive AST Inspector (`/altrql`)
+Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or navigation header:
+1. **Interactive Language Parsing**:
+   - Write declarative AltrQL queries in the editor (e.g. `GET users WHERE { status = "ACTIVE" };`).
+   - Click **"Parse Query"** or press **`⌘ + Enter`** / **`Ctrl + Enter`**.
+   - Inspect the resulting strongly typed `AltrQueryIR` AST in formatted monospace JSON.
+   - Click **"Copy IR"** to copy the complete AST JSON to the clipboard.
+2. **Structured Error Diagnostics**:
+   - Syntax violations or case errors (e.g. `get users;`) render diagnostic callouts with `Line N · Column M` indicators.
+   - Click **"Copy Error"** to copy diagnostic information.
+3. **Template Selector**:
+   - One-click template insertion conforming to AltrQL v0.1 (`Simple Read`, `Range & Sets`, `Logical Conditions`, `Ranking & Pagination`).
+
+### 4.2 Source-Scoped Native Database Playground
+Accessible inside any Data Source detail page (`Data Sources → Select Source → Playground` tab):
 1. **Source Selection & Schema Snapshot**:
    - Selecting a source automatically loads its cached schema snapshot without redundant discovery calls.
    - Click the **"Refresh / Discover Schema"** button (`↻`) in the Schema Explorer header to trigger on-demand catalog re-introspection.

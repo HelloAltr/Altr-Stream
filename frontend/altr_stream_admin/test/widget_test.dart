@@ -21,11 +21,29 @@ import 'package:altr_stream_admin/features/sources/widgets/add_source_wizard_dia
 class MockTestApiClient extends ApiClient {
   final SourceSchemaModel? schemaToReturn;
   final QueryExecuteResponseModel? queryResponseToReturn;
+  final AltrQLParseResponseModel? altrqlParseResponseToReturn;
 
   MockTestApiClient({
     this.schemaToReturn,
     this.queryResponseToReturn,
+    this.altrqlParseResponseToReturn,
   });
+
+  @override
+  Future<AltrQLParseResponseModel> parseAltrQL(String query) async {
+    return altrqlParseResponseToReturn ??
+        AltrQLParseResponseModel(
+          success: true,
+          ir: {
+            'entity': 'users',
+            'projection': [],
+            'where': null,
+            'sort': [],
+            'ranking': null,
+            'offset': null,
+          },
+        );
+  }
 
   @override
   Future<SourceSchemaModel?> getLatestSchema(String id) async => schemaToReturn;
@@ -323,10 +341,10 @@ void main() {
     expect(find.byType(AltrQLPlaygroundScreen), findsOneWidget);
     expect(find.text('AltrQL Console'), findsWidgets);
     expect(find.text('AltrQL Editor'), findsOneWidget);
-    expect(find.text('Run AltrQL'), findsOneWidget);
+    expect(find.text('Parse Query'), findsOneWidget);
 
-    // Tap Run AltrQL and verify roadmap dialog appears
-    await tester.tap(find.text('Run AltrQL'));
+    // Tap View Roadmap and verify roadmap dialog appears
+    await tester.tap(find.text('View Roadmap').first);
     await tester.pumpAndSettle();
     expect(find.text('AltrQL Execution Engine'), findsOneWidget);
     expect(find.text('Got it'), findsOneWidget);
@@ -774,5 +792,157 @@ void main() {
     await tester.enterText(editorField, 'CREATE TABLE focus_probe (id INT);');
     await tester.pump();
     expect(find.text('CREATE TABLE focus_probe (id INT);'), findsOneWidget);
+  });
+
+  testWidgets('AltrQLPlaygroundScreen parses valid query and displays formatted IR with Copy IR action', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient(
+      altrqlParseResponseToReturn: AltrQLParseResponseModel(
+        success: true,
+        ir: {
+          'entity': 'users',
+          'projection': [
+            {'path': {'segments': ['id']}, 'alias': null},
+            {'path': {'segments': ['name']}, 'alias': 'username'}
+          ],
+          'where': {
+            'kind': 'field_expression',
+            'field': {'segments': ['status']},
+            'operator': '=',
+            'operand': {'kind': 'string', 'value': 'ACTIVE'},
+          },
+          'sort': [],
+          'ranking': null,
+          'offset': null,
+        },
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: const [],
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify initial AST placeholder
+    expect(find.text('Interactive AST / IR Inspector'), findsOneWidget);
+    expect(find.text('Parse Query'), findsOneWidget);
+
+    // Tap Parse Query
+    await tester.tap(find.text('Parse Query'));
+    await tester.pumpAndSettle();
+
+    // Verify Success Banner and IR Viewer
+    expect(find.text('Query Parsed Successfully'), findsOneWidget);
+    expect(find.text('AltrQueryIR (Typed Abstract Syntax Tree):'), findsOneWidget);
+    expect(find.text('Copy IR'), findsOneWidget);
+    expect(find.textContaining('"entity": "users"'), findsOneWidget);
+    expect(find.textContaining('"alias": "username"'), findsOneWidget);
+
+    // Tap Copy IR and verify feedback
+    await tester.tap(find.text('Copy IR'));
+    await tester.pumpAndSettle();
+    expect(find.text('AltrQueryIR JSON copied to clipboard'), findsOneWidget);
+  });
+
+  testWidgets('AltrQLPlaygroundScreen displays structured diagnostics on parse error with Copy Error action', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient(
+      altrqlParseResponseToReturn: AltrQLParseResponseModel(
+        success: false,
+        error: AltrQLParseErrorModel(
+          type: 'AltrQueryParseError',
+          message: "Unexpected identifier 'get' (keywords must be strictly uppercase: 'GET')",
+          line: 1,
+          column: 1,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: const [],
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap Parse Query
+    await tester.tap(find.text('Parse Query'));
+    await tester.pumpAndSettle();
+
+    // Verify Error Panel
+    expect(find.text('AltrQL Parse Error'), findsOneWidget);
+    expect(find.text('Line 1 · Column 1'), findsOneWidget);
+    expect(find.text("Unexpected identifier 'get' (keywords must be strictly uppercase: 'GET')"), findsOneWidget);
+    expect(find.text('Copy Error'), findsOneWidget);
+
+    // Tap Copy Error and verify feedback
+    await tester.tap(find.text('Copy Error'));
+    await tester.pumpAndSettle();
+    expect(find.text('Error Diagnostics copied to clipboard'), findsOneWidget);
+  });
+
+  testWidgets('AltrQLPlaygroundScreen template chips update query text correctly', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: const [],
+              nodeStatus: 'ONLINE',
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap 'Range & Sets' template chip
+    await tester.tap(find.text('Range & Sets'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('id = {1, 2, 6..10}'), findsOneWidget);
+
+    // Tap 'Ranking & Pagination' template chip
+    await tester.tap(find.text('Ranking & Pagination'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('TOP 10 BY age OFFSET 20;'), findsOneWidget);
   });
 }

@@ -309,6 +309,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (_activeRoute == '/altrql' || _activeRoute == '/playground') {
       return AltrQLPlaygroundScreen(
         sources: _sources,
+        apiClient: _apiClient,
         nodeStatus: _nodeStatus,
         onNodeStatusTap: _showNodeStatusDialog,
         onBack: () => setState(() => _activeRoute = _previousRoute ?? '/'),
