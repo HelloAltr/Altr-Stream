@@ -124,13 +124,17 @@ class AltrQLParseRequestDTO(BaseModel):
     query: str = Field(..., min_length=1, description="AltrQL query string to parse")
 
 
-class AltrQLParseErrorDetailDTO(BaseModel):
-    """Structured diagnostic information for an AltrQL parsing/lexing error."""
+class AltrQLErrorDetailDTO(BaseModel):
+    """Generic structured diagnostic information for AltrQL lexing, parsing, semantic, and schema errors."""
 
     type: str = Field(..., description="Exception class name")
     message: str = Field(..., description="Human-readable error description")
-    line: int | None = Field(default=None, description="1-indexed line number of the error")
-    column: int | None = Field(default=None, description="1-indexed column number of the error")
+    line: int | None = Field(default=None, description="1-indexed line number if available")
+    column: int | None = Field(default=None, description="1-indexed column number if available")
+
+
+# Alias for backward compatibility
+AltrQLParseErrorDetailDTO = AltrQLErrorDetailDTO
 
 
 class AltrQLParseResponseDTO(BaseModel):
@@ -138,6 +142,22 @@ class AltrQLParseResponseDTO(BaseModel):
 
     success: bool = Field(..., description="Whether parsing succeeded")
     ir: dict[str, Any] | None = Field(default=None, description="Serialized AltrQueryIR AST if successful")
-    error: AltrQLParseErrorDetailDTO | None = Field(default=None, description="Parse error details if failed")
+    error: AltrQLErrorDetailDTO | None = Field(default=None, description="Parse error details if failed")
+
+
+class AltrQLBindRequestDTO(BaseModel):
+    """Request payload for binding an AltrQL query against a registered data source schema."""
+
+    query: str = Field(..., min_length=1, description="AltrQL query string to bind")
+    source_id: str = Field(..., min_length=1, description="Registered data source ID to bind against")
+
+
+class AltrQLBindResponseDTO(BaseModel):
+    """Response payload for AltrQL bind requests."""
+
+    success: bool = Field(..., description="Whether schema binding and type validation succeeded")
+    ir: dict[str, Any] | None = Field(default=None, description="Canonical AltrQueryIR AST")
+    bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST if successful")
+    error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
 
 

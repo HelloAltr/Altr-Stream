@@ -34,8 +34,11 @@ class _AltrQLPlaygroundScreenState extends State<AltrQLPlaygroundScreen> {
   late final ApiClient _apiClient;
 
   bool _isParsing = false;
+  bool _isBinding = false;
   Map<String, dynamic>? _ir;
-  AltrQLParseErrorModel? _error;
+  Map<String, dynamic>? _boundIr;
+  AltrQLErrorDetailModel? _error;
+  int _activeResultTab = 0; // 0: Bound IR, 1: Canonical IR
 
   static const String _defaultAltrQL = '''// AltrQL Query Definition
 GET users (
@@ -105,7 +108,7 @@ GET users (
 
   Future<void> _handleParse() async {
     final queryText = _queryController.text.trim();
-    if (queryText.isEmpty || _isParsing) return;
+    if (queryText.isEmpty || _isParsing || _isBinding) return;
 
     setState(() {
       _isParsing = true;
@@ -120,11 +123,14 @@ GET users (
         _isParsing = false;
         if (response.success) {
           _ir = response.ir;
+          _boundIr = null;
           _error = null;
+          _activeResultTab = 0;
         } else {
           _ir = null;
+          _boundIr = null;
           _error = response.error ??
-              AltrQLParseErrorModel(
+              AltrQLErrorDetailModel(
                 type: 'AltrQueryParseError',
                 message: 'Failed to parse query.',
               );
@@ -135,7 +141,64 @@ GET users (
       setState(() {
         _isParsing = false;
         _ir = null;
-        _error = AltrQLParseErrorModel(
+        _boundIr = null;
+        _error = AltrQLErrorDetailModel(
+          type: 'RequestError',
+          message: e.toString(),
+        );
+      });
+    }
+  }
+
+  Future<void> _handleBind() async {
+    final queryText = _queryController.text.trim();
+    if (queryText.isEmpty || _isParsing || _isBinding) return;
+
+    if (_selectedSource == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a target data source to bind against.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isBinding = true;
+      _error = null;
+    });
+
+    try {
+      final response = await _apiClient.bindAltrQL(
+        query: queryText,
+        sourceId: _selectedSource!.id,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _isBinding = false;
+        if (response.success) {
+          _ir = response.ir;
+          _boundIr = response.boundIr;
+          _error = null;
+          _activeResultTab = 0;
+        } else {
+          _ir = response.ir;
+          _boundIr = null;
+          _error = response.error ??
+              AltrQLErrorDetailModel(
+                type: 'AltrQuerySchemaError',
+                message: 'Failed to bind query to schema.',
+              );
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isBinding = false;
+        _boundIr = null;
+        _error = AltrQLErrorDetailModel(
           type: 'RequestError',
           message: e.toString(),
         );
@@ -182,7 +245,7 @@ GET users (
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'The unified AltrQL parser, compiler, and query execution engine are currently scheduled for subsequent implementation phases (Phases B–E).',
+                'AltrQL provides a unified, vendor-neutral query interface across multiple backend engines.',
                 style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
               ),
               const SizedBox(height: 16),
@@ -201,11 +264,11 @@ GET users (
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                     ),
                     const SizedBox(height: 8),
-                    _buildRoadmapItem('Phase B', 'Lock AltrQL Language Specification & Parser Core', true),
-                    _buildRoadmapItem('Phase B.5', 'Interactive Parser Playground Integration', true),
-                    _buildRoadmapItem('Phase C', 'Semantic Validation & Intermediate Representation (IR)', false),
-                    _buildRoadmapItem('Phase D', 'PostgreSQL / Engine Lowering Compiler', false),
-                    _buildRoadmapItem('Phase E', 'End-to-End AltrQL Query Execution Engine', false),
+                    _buildRoadmapItem('Phase B', 'Language Specification & Parser Core', true),
+                    _buildRoadmapItem('Phase B.5', 'Interactive Parser Playground', true),
+                    _buildRoadmapItem('Phase C', 'Semantic Validation & Normalization IR', true),
+                    _buildRoadmapItem('Phase D', 'Schema Binding & Type Validation', true),
+                    _buildRoadmapItem('Phase E', 'SQL Lowering & Live Execution Engine', false),
                   ],
                 ),
               ),
@@ -280,15 +343,15 @@ GET users (
 
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.enter, meta: true): _handleParse,
-        const SingleActivator(LogicalKeyboardKey.enter, control: true): _handleParse,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): _handleBind,
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): _handleBind,
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageHeader(
             title: 'AltrQL Console',
-            description: 'Unified, readable, vendor-neutral query interface for logical entity retrieval and filtering.',
+            description: 'Unified, readable, vendor-neutral query interface for logical entity retrieval, schema binding, and filtering.',
             nodeStatus: widget.nodeStatus,
             onNodeStatusTap: widget.onNodeStatusTap,
             primaryAction: OutlinedButton.icon(
@@ -313,7 +376,7 @@ GET users (
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'AltrQL provides a human-readable, vendor-neutral query language. Click "Parse Query" (⌘+Enter) to tokenize and parse queries into a typed AltrQueryIR AST.',
+                    'AltrQL provides a human-readable, vendor-neutral query language. Click "Bind Against Source" (⌘+Enter) to validate schema entities, column paths, and type compatibility against a connected data source.',
                     style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
                   ),
                 ),
@@ -464,7 +527,7 @@ GET users (
 
                 // Text Field
                 Container(
-                  height: 200,
+                  height: 180,
                   padding: const EdgeInsets.all(14),
                   child: TextField(
                     controller: _queryController,
@@ -499,22 +562,41 @@ GET users (
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Shortcuts: ⌘/Ctrl + Enter to Parse',
+                        'Shortcuts: ⌘/Ctrl + Enter to Bind',
                         style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                       ),
-                      FilledButton.icon(
-                        onPressed: _isParsing ? null : _handleParse,
-                        icon: _isParsing
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.account_tree_outlined, size: 16),
-                        label: Text(
-                          _isParsing ? 'Parsing...' : 'Parse Query',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                        ),
+                      Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: (_isParsing || _isBinding) ? null : _handleParse,
+                            icon: _isParsing
+                                ? const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.account_tree_outlined, size: 14),
+                            label: Text(
+                              _isParsing ? 'Parsing...' : 'Parse Query',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.icon(
+                            onPressed: (_isParsing || _isBinding) ? null : _handleBind,
+                            icon: _isBinding
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.fact_check_outlined, size: 16),
+                            label: Text(
+                              _isBinding ? 'Binding...' : 'Bind Against Source',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -524,7 +606,7 @@ GET users (
           ),
           const SizedBox(height: 16),
 
-          // Output Panel: Success (IR Viewer) OR Error (Diagnostics) OR Initial Placeholder
+          // Output Panel: Success (Bound IR / Canonical IR) OR Error (Diagnostics) OR Initial Placeholder
           _buildOutputPanel(context),
           const SizedBox(height: 16),
 
@@ -547,7 +629,7 @@ GET users (
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'AltrQL provides a readable, logical query model for entity retrieval, projection, and expressive filtering without vendor lock-in. In Phase B & B.5, the parser and intermediate representation (IR) are fully integrated for interactive inspection.',
+                    'AltrQL provides a strongly-typed, schema-bound query representation (BoundAltrQueryIR) that validates logical entities, projection paths, and comparison constraints against in-memory source schema snapshots before physical query execution.',
                     style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant, height: 1.4),
                   ),
                   const SizedBox(height: 12),
@@ -573,8 +655,11 @@ GET users (
   Widget _buildOutputPanel(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (_ir != null) {
-      final prettyJson = const JsonEncoder.withIndent('  ').convert(_ir);
+    if (_boundIr != null || _ir != null) {
+      final isBound = _boundIr != null;
+      final currentMap = (_activeResultTab == 0 && isBound) ? _boundIr : _ir;
+      final prettyJson = const JsonEncoder.withIndent('  ').convert(currentMap);
+
       return Container(
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
@@ -598,13 +683,55 @@ GET users (
                 children: [
                   const Icon(Icons.check_circle_outline, color: Colors.green, size: 18),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Query Parsed Successfully',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
+                  Text(
+                    isBound
+                        ? 'Query Bound & Type Validated'
+                        : 'Query Parsed & Semantically Valid',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
                   ),
+                  if (isBound) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _boundIr!['source_name']?.toString() ?? 'Schema Snapshot',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green),
+                      ),
+                    ),
+                  ],
                   const Spacer(),
+                  if (isBound) ...[
+                    SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 0,
+                          label: Text('Bound IR', style: TextStyle(fontSize: 11)),
+                        ),
+                        ButtonSegment(
+                          value: 1,
+                          label: Text('Canonical IR', style: TextStyle(fontSize: 11)),
+                        ),
+                      ],
+                      selected: {_activeResultTab},
+                      onSelectionChanged: (set) {
+                        setState(() => _activeResultTab = set.first);
+                      },
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   OutlinedButton.icon(
-                    onPressed: () => _copyToClipboard(prettyJson, 'AltrQueryIR JSON'),
+                    onPressed: () => _copyToClipboard(
+                      prettyJson,
+                      (_activeResultTab == 0 && isBound) ? 'BoundAltrQueryIR JSON' : 'AltrQueryIR JSON',
+                    ),
                     icon: const Icon(Icons.copy, size: 13),
                     label: const Text('Copy IR', style: TextStyle(fontSize: 11)),
                     style: OutlinedButton.styleFrom(
@@ -623,7 +750,9 @@ GET users (
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'AltrQueryIR (Typed Abstract Syntax Tree):',
+                    (_activeResultTab == 0 && isBound)
+                        ? 'BoundAltrQueryIR (Schema-Annotated & Type-Validated AST):'
+                        : 'AltrQueryIR (Typed Abstract Syntax Tree):',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -662,6 +791,20 @@ GET users (
 
     if (_error != null) {
       final errorText = '${_error!.type}: ${_error!.message}\n${_error!.locationDescription}'.trim();
+      String errorHeaderTitle = 'AltrQL Error';
+      if (_error!.type == 'AltrQuerySemanticError') {
+        errorHeaderTitle = 'AltrQL Semantic Error';
+      } else if (_error!.type == 'AltrQueryLexError') {
+        errorHeaderTitle = 'AltrQL Lexer Error';
+      } else if (_error!.type == 'UnknownEntityError' ||
+          _error!.type == 'UnknownFieldError' ||
+          _error!.type == 'TypeCompatibilityError' ||
+          _error!.type == 'AltrQuerySchemaError') {
+        errorHeaderTitle = 'AltrQL Schema Error';
+      } else if (_error!.type == 'AltrQueryParseError') {
+        errorHeaderTitle = 'AltrQL Parse Error';
+      }
+
       return Container(
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
@@ -686,7 +829,7 @@ GET users (
                   Icon(Icons.error_outline, color: colorScheme.error, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    'AltrQL Parse Error',
+                    errorHeaderTitle,
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.error),
                   ),
                   const Spacer(),
@@ -802,7 +945,7 @@ GET users (
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Click "Parse Query" or press ⌘+Enter to tokenize and parse the query into a deterministic AltrQueryIR AST.',
+                  'Click "Bind Against Source" or press ⌘+Enter to validate entities and types against discovered schema snapshots.',
                   style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                 ),
               ],

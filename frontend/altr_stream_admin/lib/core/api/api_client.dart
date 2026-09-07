@@ -228,5 +228,23 @@ class ApiClient {
     );
     return AltrQLParseResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
   }
+
+  /// Bind a parsed AltrQL query against a registered data source's discovered schema snapshot
+  Future<AltrQLBindResponseModel> bindAltrQL({
+    required String query,
+    required String sourceId,
+  }) async {
+    final body = jsonEncode({
+      'query': query,
+      'source_id': sourceId,
+    });
+
+    final res = await _client.post(
+      _uri('/altrql/bind'),
+      headers: _headers,
+      body: body,
+    );
+    return AltrQLBindResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+  }
 }
 

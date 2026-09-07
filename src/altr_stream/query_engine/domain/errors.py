@@ -45,3 +45,64 @@ class AltrQueryParseError(AltrQueryError):
         self.unexpected_token = unexpected_token
         self.expected_tokens = list(expected_tokens) if expected_tokens is not None else None
         super().__init__(message=message, line=line, column=column)
+
+
+class AltrQuerySemanticError(AltrQueryError):
+    """Raised during semantic analysis and IR normalization when AST invariants are violated."""
+
+    def __init__(
+        self,
+        message: str,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        super().__init__(message=message, line=line, column=column)
+
+
+class AltrQuerySchemaError(AltrQueryError):
+    """Base error for schema-aware query validation failures."""
+
+    def __init__(
+        self,
+        message: str,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        super().__init__(message=message, line=line, column=column)
+
+
+class UnknownEntityError(AltrQuerySchemaError):
+    """Raised when a query references an entity absent from the schema."""
+
+    def __init__(
+        self,
+        message: str,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        super().__init__(message=message, line=line, column=column)
+
+
+class UnknownFieldError(AltrQuerySchemaError):
+    """Raised when a field path cannot be resolved against the entity schema."""
+
+    def __init__(
+        self,
+        message: str,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        super().__init__(message=message, line=line, column=column)
+
+
+class TypeCompatibilityError(AltrQuerySchemaError):
+    """Raised when an operator or operand is incompatible with the resolved field type."""
+
+    def __init__(
+        self,
+        message: str,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        super().__init__(message=message, line=line, column=column)
+

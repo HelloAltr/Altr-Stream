@@ -322,23 +322,23 @@ class QueryExecuteResponseModel {
   bool get isCommandOutcome => columns.isEmpty;
 }
 
-class AltrQLParseErrorModel {
+class AltrQLErrorDetailModel {
   final String type;
   final String message;
   final int? line;
   final int? column;
 
-  AltrQLParseErrorModel({
+  AltrQLErrorDetailModel({
     required this.type,
     required this.message,
     this.line,
     this.column,
   });
 
-  factory AltrQLParseErrorModel.fromJson(Map<String, dynamic> json) {
-    return AltrQLParseErrorModel(
-      type: json['type'] as String? ?? 'AltrQueryParseError',
-      message: json['message'] as String? ?? 'Unknown parse error',
+  factory AltrQLErrorDetailModel.fromJson(Map<String, dynamic> json) {
+    return AltrQLErrorDetailModel(
+      type: json['type'] as String? ?? 'AltrQueryError',
+      message: json['message'] as String? ?? 'Unknown query error',
       line: (json['line'] as num?)?.toInt(),
       column: (json['column'] as num?)?.toInt(),
     );
@@ -354,10 +354,12 @@ class AltrQLParseErrorModel {
   }
 }
 
+typedef AltrQLParseErrorModel = AltrQLErrorDetailModel;
+
 class AltrQLParseResponseModel {
   final bool success;
   final Map<String, dynamic>? ir;
-  final AltrQLParseErrorModel? error;
+  final AltrQLErrorDetailModel? error;
 
   AltrQLParseResponseModel({
     required this.success,
@@ -370,7 +372,32 @@ class AltrQLParseResponseModel {
       success: json['success'] as bool? ?? false,
       ir: json['ir'] as Map<String, dynamic>?,
       error: json['error'] != null
-          ? AltrQLParseErrorModel.fromJson(json['error'] as Map<String, dynamic>)
+          ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+class AltrQLBindResponseModel {
+  final bool success;
+  final Map<String, dynamic>? ir;
+  final Map<String, dynamic>? boundIr;
+  final AltrQLErrorDetailModel? error;
+
+  AltrQLBindResponseModel({
+    required this.success,
+    this.ir,
+    this.boundIr,
+    this.error,
+  });
+
+  factory AltrQLBindResponseModel.fromJson(Map<String, dynamic> json) {
+    return AltrQLBindResponseModel(
+      success: json['success'] as bool? ?? false,
+      ir: json['ir'] as Map<String, dynamic>?,
+      boundIr: json['bound_ir'] as Map<String, dynamic>?,
+      error: json['error'] != null
+          ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
           : null,
     );
   }

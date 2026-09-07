@@ -596,3 +596,88 @@ def test_ast_to_dict_serialization():
     # Test deserialization back into AltrQueryIR
     reloaded = AltrQueryIR.model_validate(ast_dict)
     assert reloaded == ir
+
+
+# ===========================================================================
+# N. Explicit Temporal ISO Date Literals (@YYYY-MM-DD)
+# ===========================================================================
+
+
+def test_explicit_iso_date_literal():
+    query = "GET users WHERE { created_at = @2026-01-01 };"
+    ir = parse_altrql(query)
+    assert isinstance(ir.where, FieldExpression)
+    assert isinstance(ir.where.operand, TemporalLiteral)
+    assert ir.where.operand.value == "2026-01-01"
+    assert ir.where.operand.keyword is None
+
+
+def test_explicit_iso_date_leap_year_and_past():
+    query = "GET events WHERE { ts1 = @2024-02-29, ts2 = @1999-12-31 };"
+    ir = parse_altrql(query)
+    assert isinstance(ir.where, LogicalExpression)
+    assert isinstance(ir.where.operands[0].operand, TemporalLiteral)
+    assert ir.where.operands[0].operand.value == "2024-02-29"
+    assert isinstance(ir.where.operands[1].operand, TemporalLiteral)
+    assert ir.where.operands[1].operand.value == "1999-12-31"
+
+
+def test_explicit_iso_date_in_ranges_and_value_sets():
+    query = """
+    GET logs WHERE {
+        created_at = {@2026-01-01..@2026-12-31},
+        event_date = {@2026-01-01, @2026-06-01, TODAY}
+    };
+    """
+    ir = parse_altrql(query)
+    assert isinstance(ir.where, LogicalExpression)
+    # Range element
+    vs1 = ir.where.operands[0].operand
+    assert isinstance(vs1, ValueSet)
+    assert isinstance(vs1.elements[0], Range)
+    assert vs1.elements[0].start.value == "2026-01-01"
+    assert vs1.elements[0].end.value == "2026-12-31"
+
+    # Multi-element ValueSet with mixed ISO and keyword
+    vs2 = ir.where.operands[1].operand
+    assert isinstance(vs2, ValueSet)
+    assert len(vs2.elements) == 3
+    assert vs2.elements[0].value == "2026-01-01"
+    assert vs2.elements[1].value == "2026-06-01"
+    assert vs2.elements[2].keyword == TemporalKeyword.TODAY
+
+
+def test_explicit_iso_date_in_compound_constraints():
+    query = "GET orders WHERE { order_date = {>=@2026-01-01 & <=@2026-12-31} };"
+    ir = parse_altrql(query)
+    vs = ir.where.operand
+    assert isinstance(vs, ValueSet)
+    assert isinstance(vs.elements[0], CompoundAndConstraint)
+    assert vs.elements[0].constraints[0].value.value == "2026-01-01"
+    assert vs.elements[0].constraints[1].value.value == "2026-12-31"
+
+
+def test_quoted_date_remains_string_literal():
+    query = 'GET users WHERE { created_at = "2026-01-01" };'
+    ir = parse_altrql(query)
+    assert isinstance(ir.where, FieldExpression)
+    assert isinstance(ir.where.operand, StringLiteral)
+    assert ir.where.operand.value == "2026-01-01"
+
+
+@pytest.mark.parametrize(
+    "invalid_temporal_query,expected_err",
+    [
+        ("GET users WHERE { created_at = @2026-1-1 };", "Malformed temporal literal '@2026-1-1'"),
+        ("GET users WHERE { created_at = @hello };", "Malformed temporal literal '@hello'"),
+        ("GET users WHERE { created_at = @2026-99-99 };", "Invalid calendar date"),
+        ("GET users WHERE { created_at = @2026-02-30 };", "Invalid calendar date in temporal literal '@2026-02-30'"),
+        ("GET users WHERE { created_at = @2025-02-29 };", "Invalid calendar date in temporal literal '@2025-02-29'"),
+        ("GET users WHERE { created_at = @2026-13-01 };", "Invalid calendar date in temporal literal '@2026-13-01'"),
+        ("GET users WHERE { created_at = @ };", "Malformed temporal literal '@'"),
+    ],
+)
+def test_invalid_temporal_literals_fail_lexing(invalid_temporal_query, expected_err):
+    with pytest.raises(AltrQueryLexError) as exc_info:
+        parse_altrql(invalid_temporal_query)
+    assert expected_err in str(exc_info.value)

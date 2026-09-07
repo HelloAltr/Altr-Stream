@@ -92,7 +92,8 @@ class NullLiteral(ASTNode):
 
 class TemporalLiteral(ASTNode):
     kind: Literal["temporal"] = "temporal"
-    keyword: TemporalKeyword
+    keyword: Optional[TemporalKeyword] = None
+    value: Optional[str] = None
 
 
 LiteralValue = Union[

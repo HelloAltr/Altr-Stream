@@ -108,10 +108,18 @@ Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or n
    - Click **"Parse Query"** or press **`⌘ + Enter`** / **`Ctrl + Enter`**.
    - Inspect the resulting strongly typed `AltrQueryIR` AST in formatted monospace JSON.
    - Click **"Copy IR"** to copy the complete AST JSON to the clipboard.
-2. **Structured Error Diagnostics**:
-   - Syntax violations or case errors (e.g. `get users;`) render diagnostic callouts with `Line N · Column M` indicators.
+2. **Schema Binding & Type Validation**:
+   - Select any registered data source from the target source dropdown.
+   - Click **"Bind Against Source"** (`POST /api/v1/altrql/bind`).
+   - Inspect the strongly-typed `BoundAltrQueryIR` annotated with resolved entity metadata, column data types, and logical type categories (`NUMERIC`, `STRING`, `BOOLEAN`, `TEMPORAL`).
+   - Switch seamlessly between **Bound IR** and **Canonical IR** result views.
+3. **Temporal Literals**:
+   - AltrQL v0.1 supports both temporal keywords (`TODAY`, `NOW`) and explicit ISO date literals (`@YYYY-MM-DD`, e.g. `@2026-01-01`).
+   - Quoted date strings (`"2026-01-01"`) are treated strictly as strings and rejected for `TEMPORAL` fields without implicit coercion.
+4. **Structured Error Diagnostics**:
+   - Syntax violations, semantic errors, or schema mismatches (e.g. `UnknownEntityError`, `UnknownFieldError`, `TypeCompatibilityError`) render diagnostic callouts with `Line N · Column M` indicators.
    - Click **"Copy Error"** to copy diagnostic information.
-3. **Template Selector**:
+5. **Template Selector**:
    - One-click template insertion conforming to AltrQL v0.1 (`Simple Read`, `Range & Sets`, `Logical Conditions`, `Ranking & Pagination`).
 
 ### 4.2 Source-Scoped Native Database Playground

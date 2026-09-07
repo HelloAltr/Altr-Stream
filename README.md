@@ -76,6 +76,7 @@ docker compose down -v
 | :--- | :--- | :--- |
 | **Flutter Admin UI** | [http://localhost:3000](http://localhost:3000) | Desktop-first infrastructure management app for sources, schemas & telemetry |
 | **Backend REST API** | [http://localhost:8000](http://localhost:8000) | Core data infrastructure REST API |
+| **AltrQL Parse & Bind APIs** | `POST /api/v1/altrql/parse`<br>`POST /api/v1/altrql/bind` | Logical query parsing, semantic validation & schema binding endpoints |
 | **Interactive API Docs** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger UI for exploring and testing API endpoints |
 | **API Health Check** | [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) | Service health and version status |
 | **PostgreSQL Test DB** | `localhost:5432` (`altr_test_db`) | User: `altr_test_user` • Password: `altr_test_pass` |
@@ -141,7 +142,7 @@ Altr-Stream/
 ├── src/
 │   └── altr_stream/             # FastAPI Backend Service
 │       ├── domain/              # Source, Schema, Connector Contracts
-│       ├── query_engine/        # AltrQL v0.1 Parser, Lexer, AST & Operators
+│       ├── query_engine/        # AltrQL v0.1 Parser, Semantic Validation & Schema Binder
 │       ├── infrastructure/      # SQLite Metadata Store & PostgreSQL Connector
 │       ├── application/         # SourceService, SchemaService, QueryService
 │       ├── presentation/api/    # REST API Routes (/api/v1/sources, /altrql, /queries)

@@ -35,6 +35,9 @@ from altr_stream.query_engine.domain.operators import (
     TemporalKeyword,
 )
 from altr_stream.query_engine.parser.lexer import Lexer, RESERVED_KEYWORDS, Token, TokenType
+from altr_stream.query_engine.semantic.normalizer import normalize_ir
+from altr_stream.query_engine.semantic.validator import validate_ir
+
 
 
 class Parser:
@@ -427,9 +430,12 @@ class Parser:
         if self._match(TokenType.NOW):
             return TemporalLiteral(keyword=TemporalKeyword.NOW)
 
+        if self._match(TokenType.TEMPORAL_LITERAL):
+            return TemporalLiteral(value=tok.value)
+
         self._error(
-            f"Expected literal value (string, integer, float, TRUE, FALSE, NULL, TODAY, NOW), got '{tok.lexeme}'.",
-            expected=["STRING", "INTEGER", "FLOAT", "TRUE", "FALSE", "NULL", "TODAY", "NOW"],
+            f"Expected literal value (string, integer, float, TRUE, FALSE, NULL, TODAY, NOW, or @YYYY-MM-DD), got '{tok.lexeme}'.",
+            expected=["STRING", "INTEGER", "FLOAT", "TRUE", "FALSE", "NULL", "TODAY", "NOW", "TEMPORAL_LITERAL"],
         )
 
     def _parse_string_literal(self) -> StringLiteral:
@@ -486,8 +492,13 @@ class Parser:
 
 
 def parse_altrql(query_text: str) -> AltrQueryIR:
-    """Convenience function: Tokenize and parse AltrQL text into an AltrQueryIR."""
+    """Convenience function: Tokenize, parse, validate, and normalize AltrQL text into a canonical AltrQueryIR."""
     lexer = Lexer(query_text)
     tokens = lexer.tokenize()
     parser = Parser(tokens)
-    return parser.parse()
+    raw_ir = parser.parse()
+    validate_ir(raw_ir)
+    normalized_ir = normalize_ir(raw_ir)
+    validate_ir(normalized_ir)
+    return normalized_ir
+

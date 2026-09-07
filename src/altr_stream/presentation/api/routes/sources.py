@@ -14,8 +14,10 @@ from altr_stream.domain.errors import (
 )
 from altr_stream.domain.schema import SourceSchema
 from altr_stream.domain.source import ConnectionConfig
-from altr_stream.infrastructure.database.repository import SqliteSourceRepository
-from altr_stream.infrastructure.database.session import get_session
+from altr_stream.presentation.api.dependencies import (
+    get_schema_service,
+    get_source_service,
+)
 from altr_stream.presentation.api.dtos import (
     ConnectionTestRequestDTO,
     ConnectionTestResponseDTO,
@@ -25,16 +27,6 @@ from altr_stream.presentation.api.dtos import (
 )
 
 router = APIRouter(prefix="/sources", tags=["Sources"])
-
-
-def get_source_service(session: AsyncSession = Depends(get_session)) -> SourceService:
-    repository = SqliteSourceRepository(session)
-    return SourceService(repository)
-
-
-def get_schema_service(session: AsyncSession = Depends(get_session)) -> SchemaService:
-    repository = SqliteSourceRepository(session)
-    return SchemaService(repository)
 
 
 @router.post("", response_model=SourceResponseDTO, status_code=status.HTTP_201_CREATED)

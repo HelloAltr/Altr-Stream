@@ -22,11 +22,13 @@ class MockTestApiClient extends ApiClient {
   final SourceSchemaModel? schemaToReturn;
   final QueryExecuteResponseModel? queryResponseToReturn;
   final AltrQLParseResponseModel? altrqlParseResponseToReturn;
+  final AltrQLBindResponseModel? altrqlBindResponseToReturn;
 
   MockTestApiClient({
     this.schemaToReturn,
     this.queryResponseToReturn,
     this.altrqlParseResponseToReturn,
+    this.altrqlBindResponseToReturn,
   });
 
   @override
@@ -36,6 +38,35 @@ class MockTestApiClient extends ApiClient {
           success: true,
           ir: {
             'entity': 'users',
+            'projection': [],
+            'where': null,
+            'sort': [],
+            'ranking': null,
+            'offset': null,
+          },
+        );
+  }
+
+  @override
+  Future<AltrQLBindResponseModel> bindAltrQL({
+    required String query,
+    required String sourceId,
+  }) async {
+    return altrqlBindResponseToReturn ??
+        AltrQLBindResponseModel(
+          success: true,
+          ir: {
+            'entity': 'users',
+            'projection': [],
+            'where': null,
+            'sort': [],
+            'ranking': null,
+            'offset': null,
+          },
+          boundIr: {
+            'source_id': sourceId,
+            'source_name': 'Mock Source',
+            'entity': {'name': 'users', 'namespace': 'public', 'entity_type': 'TABLE'},
             'projection': [],
             'where': null,
             'sort': [],
@@ -848,7 +879,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify Success Banner and IR Viewer
-    expect(find.text('Query Parsed Successfully'), findsOneWidget);
+    expect(find.text('Query Parsed & Semantically Valid'), findsOneWidget);
     expect(find.text('AltrQueryIR (Typed Abstract Syntax Tree):'), findsOneWidget);
     expect(find.text('Copy IR'), findsOneWidget);
     expect(find.textContaining('"entity": "users"'), findsOneWidget);
@@ -911,6 +942,48 @@ void main() {
     expect(find.text('Error Diagnostics copied to clipboard'), findsOneWidget);
   });
 
+  testWidgets('AltrQLPlaygroundScreen displays semantic error banner on AltrQuerySemanticError', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient(
+      altrqlParseResponseToReturn: AltrQLParseResponseModel(
+        success: false,
+        error: AltrQLParseErrorModel(
+          type: 'AltrQuerySemanticError',
+          message: "Duplicate projection alias 'col' found in query projection.",
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: const [],
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap Parse Query
+    await tester.tap(find.text('Parse Query'));
+    await tester.pumpAndSettle();
+
+    // Verify Semantic Error Panel
+    expect(find.text('AltrQL Semantic Error'), findsOneWidget);
+    expect(find.text("Duplicate projection alias 'col' found in query projection."), findsOneWidget);
+  });
+
   testWidgets('AltrQLPlaygroundScreen template chips update query text correctly', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -945,4 +1018,215 @@ void main() {
 
     expect(find.textContaining('TOP 10 BY age OFFSET 20;'), findsOneWidget);
   });
+
+  testWidgets('AltrQLPlaygroundScreen successfully binds query against source and displays Bound IR banner', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_1',
+        name: 'Warehouse DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'db',
+        username: 'user',
+        status: 'ACTIVE',
+        passwordMasked: '••••',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockClient = MockTestApiClient(
+      altrqlBindResponseToReturn: AltrQLBindResponseModel(
+        success: true,
+        ir: {
+          'entity': 'users',
+          'projection': [],
+        },
+        boundIr: {
+          'source_id': 'src_1',
+          'source_name': 'Warehouse DB',
+          'entity': {'name': 'users', 'namespace': 'public', 'entity_type': 'TABLE'},
+          'projection': [],
+          'where': null,
+        },
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: mockSources,
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap 'Bind Against Source' button
+    await tester.tap(find.text('Bind Against Source'));
+    await tester.pumpAndSettle();
+
+    // Verify Bound Success Banner
+    expect(find.text('Query Bound & Type Validated'), findsOneWidget);
+    expect(find.text('Warehouse DB'), findsAtLeastNWidgets(1));
+    expect(find.text('Bound IR'), findsOneWidget);
+    expect(find.text('Canonical IR'), findsOneWidget);
+  });
+
+  testWidgets('AltrQLPlaygroundScreen displays schema error banner on UnknownEntityError', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_1',
+        name: 'Warehouse DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'db',
+        username: 'user',
+        status: 'ACTIVE',
+        passwordMasked: '••••',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockClient = MockTestApiClient(
+      altrqlBindResponseToReturn: AltrQLBindResponseModel(
+        success: false,
+        error: AltrQLErrorDetailModel(
+          type: 'UnknownEntityError',
+          message: "Unknown entity 'non_existent_table' in source schema 'Warehouse DB'.",
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: mockSources,
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap 'Bind Against Source'
+    await tester.tap(find.text('Bind Against Source'));
+    await tester.pumpAndSettle();
+
+    // Verify Schema Error Panel
+    expect(find.text('AltrQL Schema Error'), findsOneWidget);
+    expect(find.text("Unknown entity 'non_existent_table' in source schema 'Warehouse DB'."), findsOneWidget);
+  });
+
+  testWidgets('AltrQLPlaygroundScreen successfully binds query with explicit ISO date literal @YYYY-MM-DD', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_1',
+        name: 'Warehouse DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'db',
+        username: 'user',
+        status: 'ACTIVE',
+        passwordMasked: '••••',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockClient = MockTestApiClient(
+      altrqlBindResponseToReturn: AltrQLBindResponseModel(
+        success: true,
+        ir: {
+          'entity': 'users',
+          'projection': [],
+          'where': {
+            'kind': 'field_expression',
+            'field': {'segments': ['created_at']},
+            'operator': '>=',
+            'operand': {'kind': 'temporal', 'value': '2026-01-01'},
+          },
+        },
+        boundIr: {
+          'source_id': 'src_1',
+          'source_name': 'Warehouse DB',
+          'entity': {'name': 'users', 'namespace': 'public', 'entity_type': 'TABLE'},
+          'projection': [],
+          'where': {
+            'kind': 'bound_field_expression',
+            'field': {
+              'path': {'segments': ['created_at']},
+              'data_type': 'TIMESTAMPTZ',
+              'logical_category': 'TEMPORAL',
+            },
+            'operator': '>=',
+            'operand': {'kind': 'temporal', 'value': '2026-01-01'},
+          },
+        },
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: mockSources,
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Enter query with @2026-01-01
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'GET users WHERE { created_at >= @2026-01-01 };');
+    await tester.pump();
+
+    // Tap 'Bind Against Source' button
+    await tester.tap(find.text('Bind Against Source'));
+    await tester.pumpAndSettle();
+
+    // Verify Bound Success Banner
+    expect(find.text('Query Bound & Type Validated'), findsOneWidget);
+    expect(find.textContaining('"value": "2026-01-01"'), findsOneWidget);
+  });
 }
+
