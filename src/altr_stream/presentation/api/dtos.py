@@ -189,6 +189,3 @@ class AltrQLExecuteResponseDTO(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list, description="Normalized rows formatted as JSON dictionaries")
     metadata: QueryMetadataDTO | None = Field(default=None, description="Query execution performance metadata")
     error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
-
-
-

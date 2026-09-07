@@ -422,14 +422,6 @@ void main() {
     expect(find.text('AltrQL Editor'), findsOneWidget);
     expect(find.text('Parse Query'), findsOneWidget);
 
-    // Tap View Roadmap and verify roadmap dialog appears
-    await tester.tap(find.text('View Roadmap').first);
-    await tester.pumpAndSettle();
-    expect(find.text('AltrQL Execution Engine'), findsOneWidget);
-    expect(find.text('Got it'), findsOneWidget);
-    await tester.tap(find.text('Got it'));
-    await tester.pumpAndSettle();
-
     await tester.tap(find.text('Back to Dashboard'));
     await tester.pumpAndSettle();
 
@@ -922,6 +914,11 @@ void main() {
     expect(find.text('Interactive AST / IR Inspector'), findsOneWidget);
     expect(find.text('Parse Query'), findsOneWidget);
 
+    // Enter query text
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'GET users (id, name AS username) WHERE { status = "ACTIVE" };');
+    await tester.pump();
+
     // Tap Parse Query
     await tester.tap(find.text('Parse Query'));
     await tester.pumpAndSettle();
@@ -974,6 +971,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Enter invalid query text
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'get users (id);');
+    await tester.pump();
+
     // Tap Parse Query
     await tester.tap(find.text('Parse Query'));
     await tester.pumpAndSettle();
@@ -1023,6 +1025,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Enter query text with semantic error
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'GET users (col AS col, col AS col);');
+    await tester.pump();
+
     // Tap Parse Query
     await tester.tap(find.text('Parse Query'));
     await tester.pumpAndSettle();
@@ -1032,7 +1039,7 @@ void main() {
     expect(find.text("Duplicate projection alias 'col' found in query projection."), findsOneWidget);
   });
 
-  testWidgets('AltrQLPlaygroundScreen template chips update query text correctly', (WidgetTester tester) async {
+  testWidgets('AltrQLPlaygroundScreen template dropdown and reset query work correctly', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1054,17 +1061,34 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Tap 'Range & Sets' template chip
-    await tester.tap(find.text('Range & Sets'));
+    // Verify initial text field has hint text and is empty
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    final TextField initialTextField = tester.widget(queryField);
+    expect(initialTextField.controller?.text, isEmpty);
+    expect(initialTextField.decoration?.hintText, contains('Write an AltrQL query...'));
+
+    // Open Templates popup menu and select 'Range & Sets'
+    await tester.tap(find.text('Templates'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Range & Sets').last);
     await tester.pumpAndSettle();
 
     expect(find.textContaining('id = {1, 2, 6..10}'), findsOneWidget);
 
-    // Tap 'Ranking & Pagination' template chip
-    await tester.tap(find.text('Ranking & Pagination'));
+    // Open Templates popup menu and select 'Ranking & Pagination'
+    await tester.tap(find.text('Templates'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ranking & Pagination').last);
     await tester.pumpAndSettle();
 
     expect(find.textContaining('TOP 10 BY age OFFSET 20;'), findsOneWidget);
+
+    // Tap 'Reset Query' button to clear everything
+    await tester.tap(find.text('Reset Query'));
+    await tester.pumpAndSettle();
+
+    final TextField textField = tester.widget(queryField);
+    expect(textField.controller?.text, isEmpty);
   });
 
   testWidgets('AltrQLPlaygroundScreen successfully binds query against source and displays Bound IR banner', (WidgetTester tester) async {
@@ -1122,6 +1146,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    // Enter query text
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'GET users (id, username);');
+    await tester.pump();
 
     // Tap 'Bind Against Source' button
     await tester.tap(find.text('Bind Against Source'));
@@ -1182,6 +1211,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    // Enter query text
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'GET non_existent_table (id);');
+    await tester.pump();
 
     // Tap 'Bind Against Source'
     await tester.tap(find.text('Bind Against Source'));
@@ -1346,6 +1380,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Enter query text
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'GET users (id, username);');
+    await tester.pump();
+
     // Verify Execute Query button is present
     final executeBtn = find.text('Execute Query');
     expect(executeBtn, findsOneWidget);
@@ -1444,6 +1483,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    // Enter query text
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'GET users (id) WHERE { age >= 18 };');
+    await tester.pump();
 
     // Tap Execute Query
     await tester.tap(find.text('Execute Query'));

@@ -39,7 +39,6 @@ from altr_stream.query_engine.semantic.normalizer import normalize_ir
 from altr_stream.query_engine.semantic.validator import validate_ir
 
 
-
 class Parser:
     """Parses a sequence of AltrQL tokens into a deterministic, typed AltrQueryIR."""
 
