@@ -184,6 +184,16 @@ class PhysicalQueryDTO(BaseModel):
     source_name: str = Field(..., description="Target source name")
 
 
+class PhysicalQueryBatchDTO(BaseModel):
+    """Physical query batch representation returned in AltrQL execution responses."""
+
+    kind: str = "physical_query_batch"
+    dialect: str = Field(..., description="Target database dialect name")
+    queries: list[PhysicalQueryDTO] = Field(default_factory=list, description="Ordered physical queries in batch")
+    source_id: str = Field(..., description="Target source ID")
+    source_name: str = Field(..., description="Target source name")
+
+
 class AltrQLExecuteRequestDTO(BaseModel):
     """Request payload for executing an AltrQL query against a registered data source."""
 
@@ -199,7 +209,7 @@ class AltrQLExecuteResponseDTO(BaseModel):
     ir: dict[str, Any] | None = Field(default=None, description="Canonical AltrQueryIR AST")
     bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST")
     classification: MutationClassificationDTO | None = Field(default=None, description="Mutation classification metadata")
-    physical_query: PhysicalQueryDTO | None = Field(default=None, description="Lowered PhysicalQuery representation")
+    physical_query: PhysicalQueryDTO | PhysicalQueryBatchDTO | None = Field(default=None, description="Lowered PhysicalQuery representation")
     columns: list[str] = Field(default_factory=list, description="Ordered list of column names")
     rows: list[dict[str, Any]] = Field(default_factory=list, description="Normalized rows formatted as JSON dictionaries")
     metadata: QueryMetadataDTO | None = Field(default=None, description="Query execution performance metadata")

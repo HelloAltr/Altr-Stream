@@ -45,6 +45,7 @@ class TokenType(Enum):
     UPDATE = auto()
     DELETE = auto()
     WHERE = auto()
+    AND = auto()
     OR = auto()
     SORT = auto()
     ASC = auto()
@@ -74,6 +75,7 @@ RESERVED_KEYWORDS = {
     "UPDATE": TokenType.UPDATE,
     "DELETE": TokenType.DELETE,
     "WHERE": TokenType.WHERE,
+    "AND": TokenType.AND,
     "OR": TokenType.OR,
     "SORT": TokenType.SORT,
     "ASC": TokenType.ASC,

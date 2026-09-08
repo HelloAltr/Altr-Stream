@@ -15,6 +15,7 @@ from altr_stream.query_engine.domain.ast import (
     ASTNode,
     FieldPath,
     LiteralValue,
+    LogicalOperator,
     QueryOperation,
     Range,
     ValueSet,
@@ -70,6 +71,13 @@ class BoundMutationAssignment(ASTNode):
     value: LiteralValue
 
 
+class BoundCreateRecord(ASTNode):
+    """Schema-bound individual record payload in a CREATE operation."""
+
+    kind: Literal["bound_create_record"] = "bound_create_record"
+    assignments: List[BoundMutationAssignment]
+
+
 class BoundEntity(ASTNode):
     """Resolved entity metadata from the target data source schema."""
 
@@ -89,17 +97,26 @@ class BoundFieldExpression(ASTNode):
 
 
 class BoundLogicalExpression(ASTNode):
-    """Boolean compound expression combining bound child operands with AND or OR."""
+    """Binary boolean compound expression combining bound left and right with AND or OR."""
 
     kind: Literal["bound_logical_expression"] = "bound_logical_expression"
-    operator: Literal["AND", "OR"]
-    operands: List[BoundExpression]
+    operator: LogicalOperator
+    left: BoundExpression
+    right: BoundExpression
 
 
-BoundExpression = Union[BoundLogicalExpression, BoundFieldExpression]
+class BoundNegationExpression(ASTNode):
+    """Unary boolean negation expression on a bound expression."""
 
-# Rebuild model for recursive type reference
+    kind: Literal["bound_negation_expression"] = "bound_negation_expression"
+    operand: BoundExpression
+
+
+BoundExpression = Union[BoundLogicalExpression, BoundNegationExpression, BoundFieldExpression]
+
+# Rebuild models for recursive type reference
 BoundLogicalExpression.model_rebuild()
+BoundNegationExpression.model_rebuild()
 
 
 class BoundSortClause(ASTNode):
@@ -128,6 +145,7 @@ class BoundAltrQueryIR(ASTNode):
     projection: List[BoundFieldSelection] = Field(default_factory=list)
     where: Optional[BoundExpression] = None
     assignments: List[BoundMutationAssignment] = Field(default_factory=list)
+    records: List[BoundCreateRecord] = Field(default_factory=list)
     sort: List[BoundSortClause] = Field(default_factory=list)
     ranking: Optional[BoundRankingClause] = None
     offset: Optional[int] = None

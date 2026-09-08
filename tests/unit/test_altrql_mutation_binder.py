@@ -88,15 +88,16 @@ def test_bind_create_mutation_success(mock_schema: SourceSchema):
     assert bound.operation == QueryOperation.CREATE
     assert bound.entity.name == "users"
     assert bound.entity.namespace == "public"
-    assert len(bound.assignments) == 5
+    assert len(bound.records) == 1
+    assert len(bound.records[0].assignments) == 5
 
-    assert bound.assignments[0].field.segments == ["username"]
-    assert bound.assignments[0].field.logical_category == LogicalTypeCategory.STRING
-    assert bound.assignments[0].value == StringLiteral(value="alice")
+    assert bound.records[0].assignments[0].field.segments == ["username"]
+    assert bound.records[0].assignments[0].field.logical_category == LogicalTypeCategory.STRING
+    assert bound.records[0].assignments[0].value == StringLiteral(value="alice")
 
-    assert bound.assignments[2].field.segments == ["age"]
-    assert bound.assignments[2].field.logical_category == LogicalTypeCategory.NUMERIC
-    assert bound.assignments[2].value == IntegerLiteral(value=30)
+    assert bound.records[0].assignments[2].field.segments == ["age"]
+    assert bound.records[0].assignments[2].field.logical_category == LogicalTypeCategory.NUMERIC
+    assert bound.records[0].assignments[2].value == IntegerLiteral(value=30)
 
 
 def test_bind_update_mutation_with_where_success(mock_schema: SourceSchema):

@@ -19,7 +19,9 @@ from altr_stream.query_engine.domain.ast import (
     IntegerLiteral,
     LiteralValue,
     LogicalExpression,
+    LogicalOperator,
     MutationAssignment,
+    NegationExpression,
     NullLiteral,
     QueryOperation,
     Range,
@@ -49,9 +51,15 @@ def validate_ir(ir: AltrQueryIR) -> None:
             _validate_expression(ir.where)
 
     elif ir.operation == QueryOperation.CREATE:
-        if len(ir.assignments) < 1:
-            raise AltrQuerySemanticError("CREATE operation requires at least 1 field assignment.")
-        _validate_mutation_assignments(ir.assignments)
+        if len(ir.records) < 1 and len(ir.assignments) < 1:
+            raise AltrQuerySemanticError("CREATE operation requires at least 1 record or field assignment.")
+        if len(ir.records) > 0:
+            for record in ir.records:
+                if len(record.assignments) < 1:
+                    raise AltrQuerySemanticError("Record in CREATE batch cannot be empty.")
+                _validate_mutation_assignments(record.assignments)
+        elif len(ir.assignments) > 0:
+            _validate_mutation_assignments(ir.assignments)
         if len(ir.projection) > 0:
             raise AltrQuerySemanticError("Projection is not allowed on CREATE operations.")
         if ir.where is not None:
@@ -138,14 +146,21 @@ def _validate_sort_and_ranking_mutual_exclusion(ir: AltrQueryIR) -> None:
 
 
 def _validate_expression(expr: Expression) -> None:
-    """Recursively validate logical and field expressions."""
+    """Recursively validate logical, negation, and field expressions."""
     if isinstance(expr, LogicalExpression):
-        if len(expr.operands) < 1:
+        if expr.left is None or expr.right is None:
             raise AltrQuerySemanticError(
-                "LogicalExpression must contain at least 1 operand."
+                "LogicalExpression requires both left and right operand expressions."
             )
-        for operand in expr.operands:
-            _validate_expression(operand)
+        _validate_expression(expr.left)
+        _validate_expression(expr.right)
+
+    elif isinstance(expr, NegationExpression):
+        if expr.operand is None:
+            raise AltrQuerySemanticError(
+                "NegationExpression requires an operand expression."
+            )
+        _validate_expression(expr.operand)
 
     elif isinstance(expr, FieldExpression):
         _validate_field_expression(expr)

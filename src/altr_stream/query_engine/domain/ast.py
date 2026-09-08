@@ -156,6 +156,13 @@ class ValueSet(ASTNode):
 # ---------------------------------------------------------------------------
 
 
+class LogicalOperator(str, Enum):
+    """Binary boolean logical operators."""
+
+    AND = "AND"
+    OR = "OR"
+
+
 class FieldExpression(ASTNode):
     """Atomic field evaluation against a value, string operator, range, or value set."""
 
@@ -166,17 +173,26 @@ class FieldExpression(ASTNode):
 
 
 class LogicalExpression(ASTNode):
-    """Boolean compound expression combining operands with AND or OR."""
+    """Binary boolean compound expression combining left and right operands with AND or OR."""
 
     kind: Literal["logical_expression"] = "logical_expression"
-    operator: Literal["AND", "OR"]
-    operands: List[Expression]
+    operator: LogicalOperator
+    left: Expression
+    right: Expression
 
 
-Expression = Union[LogicalExpression, FieldExpression]
+class NegationExpression(ASTNode):
+    """Unary boolean negation expression (NOT operand)."""
 
-# Rebuild model for recursive type reference
+    kind: Literal["negation_expression"] = "negation_expression"
+    operand: Expression
+
+
+Expression = Union[LogicalExpression, NegationExpression, FieldExpression]
+
+# Rebuild models for recursive type reference
 LogicalExpression.model_rebuild()
+NegationExpression.model_rebuild()
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +214,13 @@ class MutationAssignment(ASTNode):
 
     field: FieldPath
     value: LiteralValue
+
+
+class CreateRecord(ASTNode):
+    """An individual record payload in a CREATE operation containing field assignments."""
+
+    kind: Literal["create_record"] = "create_record"
+    assignments: List[MutationAssignment]
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +256,7 @@ class AltrQueryIR(ASTNode):
     projection: List[FieldSelection] = Field(default_factory=list)
     where: Optional[Expression] = None
     assignments: List[MutationAssignment] = Field(default_factory=list)
+    records: List[CreateRecord] = Field(default_factory=list)
     sort: List[SortClause] = Field(default_factory=list)
     ranking: Optional[RankingClause] = None
     offset: Optional[int] = None

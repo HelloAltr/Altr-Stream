@@ -20,6 +20,7 @@ from altr_stream.presentation.api.dtos import (
     AltrQLParseRequestDTO,
     AltrQLParseResponseDTO,
     MutationClassificationDTO,
+    PhysicalQueryBatchDTO,
     PhysicalQueryDTO,
     QueryMetadataDTO,
 )
@@ -27,6 +28,7 @@ from altr_stream.query_engine.binding import bind_altrql
 from altr_stream.query_engine.classification import classify_query
 from altr_stream.query_engine.domain.ast import QueryOperation
 from altr_stream.query_engine.domain.errors import AltrQueryError
+from altr_stream.query_engine.domain.physical_query import PhysicalQueryBatch
 from altr_stream.query_engine.lowering import get_lowerer
 from altr_stream.query_engine.parser import parse_altrql
 
@@ -258,13 +260,30 @@ async def execute_altrql_query(
             ),
         )
 
-    physical_query_dto = PhysicalQueryDTO(
-        dialect=physical_query.dialect,
-        query=physical_query.query,
-        parameters=physical_query.parameters,
-        source_id=physical_query.source_id,
-        source_name=physical_query.source_name,
-    )
+    if isinstance(physical_query, PhysicalQueryBatch):
+        physical_query_dto = PhysicalQueryBatchDTO(
+            dialect=physical_query.dialect,
+            queries=[
+                PhysicalQueryDTO(
+                    dialect=q.dialect,
+                    query=q.query,
+                    parameters=q.parameters,
+                    source_id=q.source_id,
+                    source_name=q.source_name,
+                )
+                for q in physical_query.queries
+            ],
+            source_id=physical_query.source_id,
+            source_name=physical_query.source_name,
+        )
+    else:
+        physical_query_dto = PhysicalQueryDTO(
+            dialect=physical_query.dialect,
+            query=physical_query.query,
+            parameters=physical_query.parameters,
+            source_id=physical_query.source_id,
+            source_name=physical_query.source_name,
+        )
 
     # 7. Mass mutation safety gate
     if classification.requires_confirmation and not dto.confirm_mass_mutation:
@@ -285,11 +304,17 @@ async def execute_altrql_query(
 
     # 8. Physical database execution via QueryService
     try:
-        result = await query_service.execute_query(
-            source_id=dto.source_id,
-            query=physical_query.query,
-            parameters=physical_query.parameters,
-        )
+        if isinstance(physical_query, PhysicalQueryBatch):
+            result = await query_service.execute_batch(
+                source_id=dto.source_id,
+                queries=[(q.query, q.parameters) for q in physical_query.queries],
+            )
+        else:
+            result = await query_service.execute_query(
+                source_id=dto.source_id,
+                query=physical_query.query,
+                parameters=physical_query.parameters,
+            )
         affected = (
             result.affected_rows
             if result.affected_rows is not None

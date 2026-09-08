@@ -9,6 +9,7 @@ from altr_stream.query_engine.domain.ast import (
     BooleanLiteral,
     ComparisonConstraint,
     CompoundAndConstraint,
+    CreateRecord,
     Expression,
     FieldExpression,
     FieldPath,
@@ -17,7 +18,9 @@ from altr_stream.query_engine.domain.ast import (
     IntegerLiteral,
     LiteralValue,
     LogicalExpression,
+    LogicalOperator,
     MutationAssignment,
+    NegationExpression,
     NullLiteral,
     QueryOperation,
     Range,
@@ -203,10 +206,10 @@ class Parser:
         entity_token = self._advance()
         entity_name = entity_token.value
 
-        # 2. Require Mutation Payload ( field: value, ... )
+        # 2. Require Mutation Payload ( ... )
         if not self._check(TokenType.LPAREN):
             self._error(f"Expected '(' starting mutation payload after entity '{entity_name}'.", expected=["("])
-        assignments = self._parse_mutation_payload()
+        records = self._parse_create_payload()
 
         # 3. Disallowed clauses on CREATE
         if self._check(TokenType.WHERE):
@@ -222,8 +225,118 @@ class Parser:
         return AltrQueryIR(
             operation=QueryOperation.CREATE,
             entity=entity_name,
-            assignments=assignments,
+            records=records,
         )
+
+    def _parse_create_payload(self) -> List[CreateRecord]:
+        """Parse CREATE payload: either single-record (a: 1) or batch-record ( (a: 1), (a: 2) )."""
+        self._consume(TokenType.LPAREN, "Expected '(' starting CREATE payload.", expected=["("])
+
+        if self._check(TokenType.RPAREN):
+            self._error("CREATE payload cannot be empty.", expected=["record or field assignment"])
+
+        # Check if next token is '(' -> Batch mode
+        if self._check(TokenType.LPAREN):
+            return self._parse_batch_create_records()
+
+        # Check if next token is IDENTIFIER -> Single-record mode
+        if self._check(TokenType.IDENTIFIER):
+            return self._parse_single_create_record()
+
+        self._error(
+            "Expected '(' starting record block or field name in CREATE payload.",
+            expected=["(", "IDENTIFIER"],
+        )
+
+    def _parse_single_create_record(self) -> List[CreateRecord]:
+        """Parse assignments in single-record CREATE payload: field: value, ... )."""
+        assignments: List[MutationAssignment] = []
+        seen_fields: set[str] = set()
+
+        while not self._check(TokenType.RPAREN) and not self._is_at_end():
+            if self._check(TokenType.LPAREN):
+                self._error("Cannot mix single-record and batch-record syntax in CREATE payload.")
+
+            field = self._parse_field_path()
+            if field.full_path in seen_fields:
+                self._error(f"Duplicate assignment for field '{field.full_path}' in mutation payload.")
+            seen_fields.add(field.full_path)
+
+            self._consume(TokenType.COLON, f"Expected ':' after field '{field.full_path}' in mutation assignment.", expected=[":"])
+            value = self._parse_literal()
+            assignments.append(MutationAssignment(field=field, value=value))
+
+            if self._match(TokenType.COMMA):
+                if self._check(TokenType.RPAREN):
+                    self._error("Unexpected trailing comma in mutation payload.")
+                continue
+            elif self._check(TokenType.RPAREN):
+                break
+            else:
+                self._error("Expected ',' or ')' in mutation payload.", expected=[",", ")"])
+
+        self._consume(TokenType.RPAREN, "Expected ')' closing mutation payload.", expected=[")"])
+        return [CreateRecord(assignments=assignments)]
+
+    def _parse_batch_create_records(self) -> List[CreateRecord]:
+        """Parse batch records in CREATE payload: ( (fields), (fields), ... )."""
+        records: List[CreateRecord] = []
+
+        while not self._check(TokenType.RPAREN) and not self._is_at_end():
+            if self._check(TokenType.IDENTIFIER):
+                self._error("Cannot mix single-record and batch-record syntax in CREATE payload.")
+
+            if not self._check(TokenType.LPAREN):
+                self._error("Expected '(' starting record in CREATE batch payload.", expected=["("])
+
+            record = self._parse_create_record()
+            records.append(record)
+
+            if self._match(TokenType.COMMA):
+                if self._check(TokenType.RPAREN):
+                    self._error("Unexpected trailing comma in CREATE batch payload.")
+                continue
+            elif self._check(TokenType.RPAREN):
+                break
+            else:
+                if self._check(TokenType.LPAREN):
+                    self._error("Expected ',' between records in CREATE batch payload.", expected=[","])
+                self._error("Expected ',' or ')' in CREATE batch payload.", expected=[",", ")"])
+
+        self._consume(TokenType.RPAREN, "Expected ')' closing CREATE batch payload.", expected=[")"])
+        return records
+
+    def _parse_create_record(self) -> CreateRecord:
+        """Parse single record enclosed in parentheses: ( field: value, ... )."""
+        self._consume(TokenType.LPAREN, "Expected '(' starting record.", expected=["("])
+
+        if self._check(TokenType.RPAREN):
+            self._error("Record in CREATE batch cannot be empty.", expected=["field assignment"])
+
+        assignments: List[MutationAssignment] = []
+        seen_fields: set[str] = set()
+
+        while not self._check(TokenType.RPAREN) and not self._is_at_end():
+            field = self._parse_field_path()
+            if field.full_path in seen_fields:
+                self._error(f"Duplicate assignment for field '{field.full_path}' in record payload.")
+            seen_fields.add(field.full_path)
+
+            self._consume(TokenType.COLON, f"Expected ':' after field '{field.full_path}' in mutation assignment.", expected=[":"])
+            value = self._parse_literal()
+            assignments.append(MutationAssignment(field=field, value=value))
+
+            if self._match(TokenType.COMMA):
+                if self._check(TokenType.RPAREN):
+                    self._error("Unexpected trailing comma in record payload.")
+                continue
+            elif self._check(TokenType.RPAREN):
+                break
+            else:
+                self._error("Expected ',' or ')' in record payload.", expected=[",", ")"])
+
+        self._consume(TokenType.RPAREN, "Expected ')' closing record payload.", expected=[")"])
+        return CreateRecord(assignments=assignments)
 
     def _parse_update(self) -> AltrQueryIR:
         # 1. Require Entity Identifier
@@ -378,41 +491,71 @@ class Parser:
         if self._check(TokenType.RBRACE):
             self._error("WHERE block cannot be empty.", expected=["expression"])
 
-        entries: List[Expression] = []
+        expr = self._parse_or_expression()
 
-        while not self._check(TokenType.RBRACE) and not self._is_at_end():
-            or_expr = self._parse_or_expression()
-            entries.append(or_expr)
-
-            if self._match(TokenType.COMMA):
-                if self._check(TokenType.RBRACE):
-                    # Cleanly allow or reject trailing comma? Let's disallow trailing comma inside WHERE
-                    break
-                continue
-            elif self._check(TokenType.RBRACE):
-                break
-            else:
-                self._error("Expected ',' or '}' after expression in WHERE block.", expected=[",", "}"])
+        if self._match(TokenType.COMMA):
+            if self._check(TokenType.RBRACE):
+                self._error("Unexpected trailing comma in WHERE block.")
+            self._error("Unexpected ',' after expression in WHERE block.")
 
         self._consume(TokenType.RBRACE, "Expected '}' closing WHERE block.", expected=["}"])
-
-        if len(entries) == 1:
-            return entries[0]
-        return LogicalExpression(operator="AND", operands=entries)
+        return expr
 
     def _parse_or_expression(self) -> Expression:
-        first = self._parse_atomic_field_expression()
-        if not self._match(TokenType.OR):
-            return first
+        expr = self._parse_and_expression()
 
-        or_operands: List[Expression] = [first]
+        while self._match(TokenType.OR):
+            if self._check(TokenType.RBRACE) or self._is_at_end() or self._check(TokenType.SEMICOLON):
+                self._error("Expected expression after 'OR'.", expected=["expression"])
+            right = self._parse_and_expression()
+            expr = LogicalExpression(operator=LogicalOperator.OR, left=expr, right=right)
+
+        return expr
+
+    def _parse_and_expression(self) -> Expression:
+        expr = self._parse_not_expression()
+
         while True:
-            next_expr = self._parse_atomic_field_expression()
-            or_operands.append(next_expr)
-            if not self._match(TokenType.OR):
+            if self._match(TokenType.AND):
+                if self._check(TokenType.RBRACE) or self._is_at_end() or self._check(TokenType.SEMICOLON):
+                    self._error("Expected expression after 'AND'.", expected=["expression"])
+                right = self._parse_not_expression()
+                expr = LogicalExpression(operator=LogicalOperator.AND, left=expr, right=right)
+            elif self._check(TokenType.COMMA):
+                if self._peek(1).type == TokenType.RBRACE:
+                    self._error("Unexpected trailing comma in WHERE block.")
+                self._advance()  # Consume ','
+                right = self._parse_not_expression()
+                expr = LogicalExpression(operator=LogicalOperator.AND, left=expr, right=right)
+            else:
                 break
 
-        return LogicalExpression(operator="OR", operands=or_operands)
+        return expr
+
+    def _parse_not_expression(self) -> Expression:
+        if self._match(TokenType.NOT):
+            if self._check(TokenType.RBRACE) or self._is_at_end() or self._check(TokenType.SEMICOLON):
+                self._error("Expected expression after 'NOT'.", expected=["expression"])
+            operand = self._parse_not_expression()
+            return NegationExpression(operand=operand)
+
+        return self._parse_primary_expression()
+
+    def _parse_primary_expression(self) -> Expression:
+        if self._match(TokenType.LBRACE):
+            if self._check(TokenType.RBRACE):
+                self._error("Condition group '{ }' cannot be empty.", expected=["expression"])
+            inner_expr = self._parse_or_expression()
+            self._consume(TokenType.RBRACE, "Expected '}' closing condition group.", expected=["}"])
+            return inner_expr
+
+        if self._check(TokenType.IDENTIFIER):
+            return self._parse_atomic_field_expression()
+
+        self._error(
+            "Expected field expression, '{', or 'NOT'.",
+            expected=["IDENTIFIER", "{", "NOT"],
+        )
 
     def _parse_atomic_field_expression(self) -> FieldExpression:
         field = self._parse_field_path()
@@ -462,6 +605,11 @@ class Parser:
 
         # 3. Parse Operand: ValueSet { ... }, or Literal
         if self._match(TokenType.LBRACE):
+            if matched_op in (ComparisonOperator.GT, ComparisonOperator.LT, ComparisonOperator.GTE, ComparisonOperator.LTE):
+                self._error(
+                    f"Comparison operator '{matched_op.value}' cannot accept a value set or group '{{...}}' as right operand.",
+                    expected=["LITERAL"],
+                )
             value_set = self._parse_value_set()
             return matched_op, value_set
 

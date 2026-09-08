@@ -6,6 +6,7 @@ from altr_stream.query_engine.domain.ast import (
     BooleanLiteral,
     ComparisonConstraint,
     CompoundAndConstraint,
+    CreateRecord,
     Expression,
     FieldExpression,
     FieldPath,
@@ -14,7 +15,9 @@ from altr_stream.query_engine.domain.ast import (
     IntegerLiteral,
     LiteralValue,
     LogicalExpression,
+    LogicalOperator,
     MutationAssignment,
+    NegationExpression,
     NullLiteral,
     QueryOperation,
     Range,
@@ -27,6 +30,7 @@ from altr_stream.query_engine.domain.ast import (
 )
 from altr_stream.query_engine.domain.bound_ast import (
     BoundAltrQueryIR,
+    BoundCreateRecord,
     BoundEntity,
     BoundExpression,
     BoundFieldExpression,
@@ -34,6 +38,7 @@ from altr_stream.query_engine.domain.bound_ast import (
     BoundFieldSelection,
     BoundLogicalExpression,
     BoundMutationAssignment,
+    BoundNegationExpression,
     BoundRankingClause,
     BoundSortClause,
     LogicalTypeCategory,
@@ -59,7 +64,11 @@ from altr_stream.query_engine.domain.operators import (
     StringOperator,
     TemporalKeyword,
 )
-from altr_stream.query_engine.domain.physical_query import PhysicalQuery
+from altr_stream.query_engine.domain.physical_query import (
+    PhysicalQuery,
+    PhysicalQueryBatch,
+    PhysicalQueryResult,
+)
 
 __all__ = [
     "ASTNode",
@@ -67,6 +76,7 @@ __all__ = [
     "BooleanLiteral",
     "ComparisonConstraint",
     "CompoundAndConstraint",
+    "CreateRecord",
     "Expression",
     "FieldExpression",
     "FieldPath",
@@ -75,7 +85,9 @@ __all__ = [
     "IntegerLiteral",
     "LiteralValue",
     "LogicalExpression",
+    "LogicalOperator",
     "MutationAssignment",
+    "NegationExpression",
     "NullLiteral",
     "QueryOperation",
     "Range",
@@ -86,6 +98,7 @@ __all__ = [
     "ValueSet",
     "ValueSetElement",
     "BoundAltrQueryIR",
+    "BoundCreateRecord",
     "BoundEntity",
     "BoundExpression",
     "BoundFieldExpression",
@@ -93,10 +106,13 @@ __all__ = [
     "BoundFieldSelection",
     "BoundLogicalExpression",
     "BoundMutationAssignment",
+    "BoundNegationExpression",
     "BoundRankingClause",
     "BoundSortClause",
     "LogicalTypeCategory",
     "PhysicalQuery",
+    "PhysicalQueryBatch",
+    "PhysicalQueryResult",
     "AltrQueryError",
     "AltrQueryExecutionError",
     "AltrQueryLexError",

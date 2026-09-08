@@ -6,8 +6,10 @@ PostgreSQL SELECT, INSERT, UPDATE, and DELETE statements without performing data
 
 from __future__ import annotations
 
+import datetime
 from typing import Any, List
 
+from altr_stream.domain.schema import StandardDataType
 from altr_stream.query_engine.domain.ast import (
     BooleanLiteral,
     ComparisonConstraint,
@@ -24,9 +26,11 @@ from altr_stream.query_engine.domain.ast import (
 )
 from altr_stream.query_engine.domain.bound_ast import (
     BoundAltrQueryIR,
+    BoundCreateRecord,
     BoundExpression,
     BoundFieldExpression,
     BoundLogicalExpression,
+    BoundNegationExpression,
 )
 from altr_stream.query_engine.domain.operators import (
     ComparisonOperator,
@@ -34,21 +38,52 @@ from altr_stream.query_engine.domain.operators import (
     StringOperator,
     TemporalKeyword,
 )
-from altr_stream.query_engine.domain.physical_query import PhysicalQuery
+from altr_stream.query_engine.domain.physical_query import (
+    PhysicalQuery,
+    PhysicalQueryBatch,
+    PhysicalQueryResult,
+)
 from altr_stream.query_engine.lowering.base import QueryLowerer
+
+
+def _convert_literal_to_parameter(lit: LiteralValue) -> Any:
+    """Convert an AltrQL literal value into a Python native parameter for PostgreSQL drivers."""
+    if isinstance(lit, TemporalLiteral):
+        if lit.value is not None:
+            try:
+                if "T" in lit.value or " " in lit.value:
+                    return datetime.datetime.fromisoformat(lit.value)
+                return datetime.date.fromisoformat(lit.value)
+            except ValueError:
+                return lit.value
+        return None
+    if isinstance(lit, NullLiteral):
+        return None
+    if isinstance(lit, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral)):
+        return lit.value
+    return getattr(lit, "value", None)
+
+
+def _is_date_only_literal(lit: LiteralValue) -> bool:
+    """Check if a literal is a date-only TemporalLiteral (YYYY-MM-DD) without time component."""
+    if isinstance(lit, TemporalLiteral) and lit.keyword is None and lit.value is not None:
+        return "T" not in lit.value and " " not in lit.value
+    return False
+
+
+def _parse_date_only_range(value: str) -> tuple[datetime.datetime, datetime.datetime]:
+    """Parse YYYY-MM-DD string into start of day and start of next day datetimes."""
+    d = datetime.date.fromisoformat(value)
+    start_dt = datetime.datetime(d.year, d.month, d.day, 0, 0, 0)
+    end_dt = start_dt + datetime.timedelta(days=1)
+    return start_dt, end_dt
 
 
 class PostgreSQLLowerer(QueryLowerer):
     """Deterministic physical query compiler for PostgreSQL dialect."""
 
-    def lower(self, query: BoundAltrQueryIR) -> PhysicalQuery:
-        """Translate a schema-bound AltrQL query into a parameterized PostgreSQL PhysicalQuery."""
-        params: List[Any] = []
-
-        def add_param(val: Any) -> str:
-            params.append(val)
-            return f"${len(params)}"
-
+    def lower(self, query: BoundAltrQueryIR) -> PhysicalQueryResult:
+        """Translate a schema-bound AltrQL query into a parameterized PostgreSQL PhysicalQuery or PhysicalQueryBatch."""
         def quote_ident(name: str) -> str:
             return f'"{name}"'
 
@@ -58,6 +93,87 @@ class PostgreSQLLowerer(QueryLowerer):
         else:
             target_table = quote_ident(query.entity.name)
 
+        # -------------------------------------------------------------------
+        # CREATE Operation Handling (Single & Batch with Consecutive Grouping)
+        # -------------------------------------------------------------------
+        if query.operation == QueryOperation.CREATE:
+            records = (
+                query.records
+                if query.records
+                else ([BoundCreateRecord(assignments=query.assignments)] if query.assignments else [])
+            )
+
+            # Chunk consecutive records with identical ordered column tuples:
+            groups: List[List[BoundCreateRecord]] = []
+            for rec in records:
+                cols = tuple(a.field.path.leaf for a in rec.assignments)
+                if not groups:
+                    groups.append([rec])
+                    continue
+
+                previous_cols = tuple(
+                    a.field.path.leaf for a in groups[-1][0].assignments
+                )
+                if previous_cols == cols:
+                    groups[-1].append(rec)
+                else:
+                    groups.append([rec])
+
+            physical_queries: List[PhysicalQuery] = []
+            for group in groups:
+                group_params: List[Any] = []
+
+                def add_group_param(val: Any) -> str:
+                    group_params.append(val)
+                    return f"${len(group_params)}"
+
+                def lower_group_literal(lit: LiteralValue) -> str:
+                    if isinstance(lit, TemporalLiteral):
+                        if lit.keyword == TemporalKeyword.TODAY:
+                            return "CURRENT_DATE"
+                        if lit.keyword == TemporalKeyword.NOW:
+                            return "CURRENT_TIMESTAMP"
+                        if lit.value is not None:
+                            return add_group_param(_convert_literal_to_parameter(lit))
+                        return "NULL"
+                    if isinstance(lit, NullLiteral):
+                        return "NULL"
+                    if isinstance(lit, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral)):
+                        return add_group_param(_convert_literal_to_parameter(lit))
+                    return add_group_param(_convert_literal_to_parameter(lit))
+
+                cols = [quote_ident(a.field.path.leaf) for a in group[0].assignments]
+                row_value_tuples: List[str] = []
+                for rec in group:
+                    row_vals = [lower_group_literal(a.value) for a in rec.assignments]
+                    row_value_tuples.append(f"({', '.join(row_vals)})")
+
+                group_sql = f"INSERT INTO {target_table} ({', '.join(cols)}) VALUES {', '.join(row_value_tuples)} RETURNING *;"
+                physical_queries.append(
+                    PhysicalQuery(
+                        dialect="postgresql",
+                        query=group_sql,
+                        parameters=group_params,
+                        source_id=query.source_id,
+                        source_name=query.source_name,
+                    )
+                )
+
+            if len(physical_queries) == 1:
+                return physical_queries[0]
+            return PhysicalQueryBatch(
+                dialect="postgresql",
+                queries=physical_queries,
+                source_id=query.source_id,
+                source_name=query.source_name,
+            )
+
+        params: List[Any] = []
+
+        def add_param(val: Any) -> str:
+            params.append(val)
+            return f"${len(params)}"
+
         # Literal lowering helper
         def lower_literal(lit: LiteralValue) -> str:
             if isinstance(lit, TemporalLiteral):
@@ -66,18 +182,19 @@ class PostgreSQLLowerer(QueryLowerer):
                 if lit.keyword == TemporalKeyword.NOW:
                     return "CURRENT_TIMESTAMP"
                 if lit.value is not None:
-                    return add_param(lit.value)
+                    return add_param(_convert_literal_to_parameter(lit))
                 return "NULL"
             if isinstance(lit, NullLiteral):
                 return "NULL"
             if isinstance(lit, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral)):
-                return add_param(lit.value)
-            return add_param(getattr(lit, "value", None))
+                return add_param(_convert_literal_to_parameter(lit))
+            return add_param(_convert_literal_to_parameter(lit))
 
         def lower_field_expression(expr: BoundFieldExpression) -> str:
             col = quote_ident(expr.field.path.leaf)
             op = expr.operator
             operand = expr.operand
+            is_timestamp_field = expr.field.data_type in (StandardDataType.TIMESTAMP, StandardDataType.TIMESTAMPTZ)
 
             # String operators: STARTS, ENDS, HAS, NOT HAS
             if isinstance(op, StringOperator):
@@ -106,17 +223,28 @@ class PostgreSQLLowerer(QueryLowerer):
 
                 # ComparisonConstraint operand
                 if isinstance(operand, ComparisonConstraint):
+                    if (
+                        operand.operator == ComparisonOperator.EQ
+                        and is_timestamp_field
+                        and _is_date_only_literal(operand.value)
+                    ):
+                        start_dt, end_dt = _parse_date_only_range(operand.value.value)  # type: ignore[arg-type]
+                        p1 = add_param(start_dt)
+                        p2 = add_param(end_dt)
+                        return f"({col} >= {p1} AND {col} < {p2})"
                     return f"{col} {operand.operator.value} {lower_literal(operand.value)}"
 
                 # ValueSet operand
                 if isinstance(operand, ValueSet):
+                    has_date_only_temporals = any(_is_date_only_literal(elem) for elem in operand.elements)
+
                     # Check if all elements are simple literal values (not Range/Constraints/Temporal Keywords)
                     all_simple_literals = all(
                         isinstance(elem, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral))
                         or (isinstance(elem, TemporalLiteral) and elem.keyword is None and elem.value is not None)
                         for elem in operand.elements
                     )
-                    if all_simple_literals and len(operand.elements) > 0:
+                    if all_simple_literals and len(operand.elements) > 0 and not (is_timestamp_field and has_date_only_temporals):
                         placeholders = [lower_literal(elem) for elem in operand.elements]  # type: ignore[arg-type]
                         return f"{col} IN ({', '.join(placeholders)})"
 
@@ -126,7 +254,17 @@ class PostgreSQLLowerer(QueryLowerer):
                         if isinstance(elem, Range):
                             elem_preds.append(f"{col} BETWEEN {lower_literal(elem.start)} AND {lower_literal(elem.end)}")
                         elif isinstance(elem, ComparisonConstraint):
-                            elem_preds.append(f"{col} {elem.operator.value} {lower_literal(elem.value)}")
+                            if (
+                                elem.operator == ComparisonOperator.EQ
+                                and is_timestamp_field
+                                and _is_date_only_literal(elem.value)
+                            ):
+                                start_dt, end_dt = _parse_date_only_range(elem.value.value)  # type: ignore[arg-type]
+                                p1 = add_param(start_dt)
+                                p2 = add_param(end_dt)
+                                elem_preds.append(f"({col} >= {p1} AND {col} < {p2})")
+                            else:
+                                elem_preds.append(f"{col} {elem.operator.value} {lower_literal(elem.value)}")
                         elif isinstance(elem, CompoundAndConstraint):
                             c_preds = [f"{col} {c.operator.value} {lower_literal(c.value)}" for c in elem.constraints]
                             elem_preds.append(f"({' AND '.join(c_preds)})")
@@ -135,6 +273,11 @@ class PostgreSQLLowerer(QueryLowerer):
                                 elem_preds.append(f"{col} = CURRENT_DATE")
                             elif elem.keyword == TemporalKeyword.NOW:
                                 elem_preds.append(f"{col} = CURRENT_TIMESTAMP")
+                            elif is_timestamp_field and _is_date_only_literal(elem):
+                                start_dt, end_dt = _parse_date_only_range(elem.value)  # type: ignore[arg-type]
+                                p1 = add_param(start_dt)
+                                p2 = add_param(end_dt)
+                                elem_preds.append(f"({col} >= {p1} AND {col} < {p2})")
                             else:
                                 elem_preds.append(f"{col} = {lower_literal(elem)}")
                         elif isinstance(elem, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral)):
@@ -152,6 +295,15 @@ class PostgreSQLLowerer(QueryLowerer):
                         return f"{col} {op.value} CURRENT_DATE"
                     if operand.keyword == TemporalKeyword.NOW:
                         return f"{col} {op.value} CURRENT_TIMESTAMP"
+                    if (
+                        op == ComparisonOperator.EQ
+                        and is_timestamp_field
+                        and _is_date_only_literal(operand)
+                    ):
+                        start_dt, end_dt = _parse_date_only_range(operand.value)  # type: ignore[arg-type]
+                        p1 = add_param(start_dt)
+                        p2 = add_param(end_dt)
+                        return f"({col} >= {p1} AND {col} < {p2})"
                     return f"{col} {op.value} {lower_literal(operand)}"
 
                 if isinstance(operand, LiteralValue):  # type: ignore[misc]
@@ -164,26 +316,22 @@ class PostgreSQLLowerer(QueryLowerer):
             if isinstance(expr, BoundFieldExpression):
                 return lower_field_expression(expr)
             if isinstance(expr, BoundLogicalExpression):
-                if not expr.operands:
-                    return "1=1"
-                if len(expr.operands) == 1:
-                    return lower_expression(expr.operands[0])
-                child_sqls = [lower_expression(op) for op in expr.operands]
-                if expr.operator == "AND":
-                    return f"{' AND '.join(child_sqls)}"
-                return f"({f' {expr.operator} '.join(child_sqls)})"
+                left_sql = lower_expression(expr.left)
+                right_sql = lower_expression(expr.right)
+                op_str = expr.operator.value if hasattr(expr.operator, "value") else str(expr.operator)
+                return f"({left_sql} {op_str} {right_sql})"
+            if isinstance(expr, BoundNegationExpression):
+                operand_sql = lower_expression(expr.operand)
+                if operand_sql.startswith("(") and operand_sql.endswith(")"):
+                    return f"NOT {operand_sql}"
+                return f"NOT ({operand_sql})"
             return "1=1"
 
         # -------------------------------------------------------------------
-        # Operation Dispatch
+        # Operation Dispatch (UPDATE, DELETE, READ)
         # -------------------------------------------------------------------
 
-        if query.operation == QueryOperation.CREATE:
-            cols = [quote_ident(a.field.path.leaf) for a in query.assignments]
-            vals = [lower_literal(a.value) for a in query.assignments]
-            final_sql = f"INSERT INTO {target_table} ({', '.join(cols)}) VALUES ({', '.join(vals)}) RETURNING *;"
-
-        elif query.operation == QueryOperation.UPDATE:
+        if query.operation == QueryOperation.UPDATE:
             set_items = [f"{quote_ident(a.field.path.leaf)} = {lower_literal(a.value)}" for a in query.assignments]
             where_sql = f" WHERE {lower_expression(query.where)}" if query.where is not None else ""
             final_sql = f"UPDATE {target_table} SET {', '.join(set_items)}{where_sql} RETURNING *;"

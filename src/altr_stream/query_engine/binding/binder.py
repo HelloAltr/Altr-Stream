@@ -17,12 +17,16 @@ from altr_stream.query_engine.binding.type_validator import (
 )
 from altr_stream.query_engine.domain.ast import (
     AltrQueryIR,
+    CreateRecord,
     Expression,
     FieldExpression,
     LogicalExpression,
+    NegationExpression,
+    QueryOperation,
 )
 from altr_stream.query_engine.domain.bound_ast import (
     BoundAltrQueryIR,
+    BoundCreateRecord,
     BoundEntity,
     BoundExpression,
     BoundFieldExpression,
@@ -30,6 +34,7 @@ from altr_stream.query_engine.domain.bound_ast import (
     BoundFieldSelection,
     BoundLogicalExpression,
     BoundMutationAssignment,
+    BoundNegationExpression,
     BoundRankingClause,
     BoundSortClause,
 )
@@ -41,7 +46,7 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
     Guarantees:
     - Pure, deterministic transformation with zero I/O or database access.
     - Preserves input AltrQueryIR immutability.
-    - Validates entity, projection, mutation assignments, WHERE, SORT, and ranking field paths.
+    - Validates entity, projection, mutation assignments, records, WHERE, SORT, and ranking field paths.
     - Enforces schema operator and operand type compatibility.
 
     Raises:
@@ -77,25 +82,55 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
             )
         )
 
-    # 3. Resolve and Type-Validate Mutation Assignments (CREATE / UPDATE)
+    # 3. Resolve and Type-Validate Mutation Assignments and Records
+    bound_records: List[BoundCreateRecord] = []
     bound_assignments: List[BoundMutationAssignment] = []
-    for assign in ir.assignments:
-        field_schema = resolve_field_path(assign.field, entity_schema)
-        bound_field = BoundFieldPath(
-            path=assign.field,
-            data_type=field_schema.data_type,
-            logical_category=to_logical_category(field_schema.data_type),
-            native_type=field_schema.native_data_type,
-            nullable=field_schema.nullable,
-            is_primary_key=field_schema.is_primary_key,
+
+    if ir.operation == QueryOperation.CREATE:
+        records_to_bind = (
+            ir.records
+            if ir.records
+            else ([CreateRecord(assignments=ir.assignments)] if ir.assignments else [])
         )
-        validate_assignment_value(bound_field, assign.value)
-        bound_assignments.append(
-            BoundMutationAssignment(
-                field=bound_field,
-                value=assign.value,
+        for rec in records_to_bind:
+            rec_assignments: List[BoundMutationAssignment] = []
+            for assign in rec.assignments:
+                field_schema = resolve_field_path(assign.field, entity_schema)
+                bound_field = BoundFieldPath(
+                    path=assign.field,
+                    data_type=field_schema.data_type,
+                    logical_category=to_logical_category(field_schema.data_type),
+                    native_type=field_schema.native_data_type,
+                    nullable=field_schema.nullable,
+                    is_primary_key=field_schema.is_primary_key,
+                )
+                validate_assignment_value(bound_field, assign.value)
+                rec_assignments.append(
+                    BoundMutationAssignment(
+                        field=bound_field,
+                        value=assign.value,
+                    )
+                )
+            bound_records.append(BoundCreateRecord(assignments=rec_assignments))
+
+    elif ir.operation == QueryOperation.UPDATE:
+        for assign in ir.assignments:
+            field_schema = resolve_field_path(assign.field, entity_schema)
+            bound_field = BoundFieldPath(
+                path=assign.field,
+                data_type=field_schema.data_type,
+                logical_category=to_logical_category(field_schema.data_type),
+                native_type=field_schema.native_data_type,
+                nullable=field_schema.nullable,
+                is_primary_key=field_schema.is_primary_key,
             )
-        )
+            validate_assignment_value(bound_field, assign.value)
+            bound_assignments.append(
+                BoundMutationAssignment(
+                    field=bound_field,
+                    value=assign.value,
+                )
+            )
 
     # 4. Resolve and Type-Validate WHERE Clause
     bound_where: Optional[BoundExpression] = None
@@ -146,6 +181,7 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
         projection=bound_projections,
         where=bound_where,
         assignments=bound_assignments,
+        records=bound_records,
         sort=bound_sort,
         ranking=bound_ranking,
         offset=ir.offset,
@@ -173,11 +209,19 @@ def _bind_expression(expr: Expression, entity: EntitySchema) -> BoundExpression:
             operand=expr.operand,
         )
 
+    if isinstance(expr, NegationExpression):
+        bound_operand = _bind_expression(expr.operand, entity)
+        return BoundNegationExpression(
+            operand=bound_operand,
+        )
+
     if isinstance(expr, LogicalExpression):
-        bound_operands = [_bind_expression(child, entity) for child in expr.operands]
+        bound_left = _bind_expression(expr.left, entity)
+        bound_right = _bind_expression(expr.right, entity)
         return BoundLogicalExpression(
             operator=expr.operator,
-            operands=bound_operands,
+            left=bound_left,
+            right=bound_right,
         )
 
     raise TypeError(f"Unexpected expression type during binding: {type(expr)}")

@@ -233,6 +233,70 @@ class PostgreSQLConnector(BaseConnector):
                 except Exception:
                     pass
 
+    async def execute_batch(self, queries: list[tuple[str, list[Any] | None]]) -> QueryResult:
+        """Execute multiple queries sequentially within a single transaction and return aggregated results."""
+        start_time = time_module.perf_counter()
+        conn = None
+        all_rows: list[dict[str, Any]] = []
+        all_columns: list[str] = []
+        total_affected: int | None = None
+        status_msgs: list[str] = []
+
+        try:
+            conn = await self._get_connection()
+            async with conn.transaction():
+                for query_str, params in queries:
+                    q_params = params or []
+                    stmt = await conn.prepare(query_str)
+                    attributes = stmt.get_attributes()
+
+                    if attributes:
+                        records = await stmt.fetch(*q_params)
+                        status_msg = stmt.get_statusmsg()
+                        if status_msg:
+                            status_msgs.append(status_msg)
+                        cols = [attr.name for attr in attributes]
+                        if not all_columns:
+                            all_columns = cols
+                        for record in records:
+                            all_rows.append({col: normalize_value(record[col]) for col in cols})
+                    else:
+                        await stmt.fetch(*q_params)
+                        status_str = stmt.get_statusmsg() or ""
+                        if status_str:
+                            status_msgs.append(status_str)
+                        affected = _parse_affected_rows(status_str)
+                        if affected is not None:
+                            total_affected = (total_affected or 0) + affected
+
+            execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+            return QueryResult(
+                columns=all_columns,
+                rows=all_rows,
+                row_count=len(all_rows),
+                affected_rows=total_affected,
+                message="; ".join(status_msgs) if status_msgs else "Batch executed successfully",
+                execution_time_ms=execution_time_ms,
+            )
+        except (asyncpg.PostgresError, asyncio.TimeoutError, OSError) as e:
+            sanitized = self._sanitize_error(e)
+            raise QueryExecutionError(
+                f"PostgreSQL batch execution failed: {sanitized}",
+                details=sanitized,
+            ) from e
+        except Exception as e:
+            sanitized = self._sanitize_error(e)
+            raise QueryExecutionError(
+                f"Unexpected error executing query batch: {sanitized}",
+                details=sanitized,
+            ) from e
+        finally:
+            if conn:
+                try:
+                    await conn.close()
+                except Exception:
+                    pass
+
     def get_capabilities(self) -> SourceCapabilities:
         """Report capabilities for the PostgreSQL connector."""
         return SourceCapabilities(

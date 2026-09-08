@@ -17,6 +17,7 @@ from altr_stream.query_engine import (
     FloatLiteral,
     IntegerLiteral,
     LogicalExpression,
+    LogicalOperator,
     NullLiteral,
     Range,
     RankingClause,
@@ -147,19 +148,17 @@ def test_where_implicit_and_with_commas():
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
     assert ir.where.operator == "AND"
-    assert len(ir.where.operands) == 3
 
-    assert isinstance(ir.where.operands[0], FieldExpression)
-    assert ir.where.operands[0].field.full_path == "age"
-    assert ir.where.operands[0].operand.value == 18
+    # AND(AND(age=18, status="ACTIVE"), verified=TRUE)
+    assert isinstance(ir.where.left, LogicalExpression)
+    assert ir.where.left.left.field.full_path == "age"
+    assert ir.where.left.left.operand.value == 18
+    assert ir.where.left.right.field.full_path == "status"
+    assert ir.where.left.right.operand.value == "ACTIVE"
 
-    assert isinstance(ir.where.operands[1], FieldExpression)
-    assert ir.where.operands[1].field.full_path == "status"
-    assert ir.where.operands[1].operand.value == "ACTIVE"
-
-    assert isinstance(ir.where.operands[2], FieldExpression)
-    assert ir.where.operands[2].field.full_path == "verified"
-    assert ir.where.operands[2].operand.value is True
+    assert isinstance(ir.where.right, FieldExpression)
+    assert ir.where.right.field.full_path == "verified"
+    assert ir.where.right.operand.value is True
 
 
 def test_where_explicit_or():
@@ -167,33 +166,47 @@ def test_where_explicit_or():
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
     assert ir.where.operator == "OR"
-    assert len(ir.where.operands) == 2
-    assert ir.where.operands[0].field.full_path == "age"
-    assert ir.where.operands[1].field.full_path == "role"
+    assert ir.where.left.field.full_path == "age"
+    assert ir.where.right.field.full_path == "role"
 
 
 def test_where_precedence_or_within_comma_and():
+    # 1. Without grouping: Comma (AND) has higher precedence than OR -> OR(a=18, AND(role="ADMIN", status="ACTIVE"))
     query = """
     GET users WHERE {
-        age = {>18} OR role = "ADMIN",
+        age = 18 OR role = "ADMIN",
         status = "ACTIVE"
     };
     """
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
-    assert ir.where.operator == "AND"
-    assert len(ir.where.operands) == 2
+    assert ir.where.operator == LogicalOperator.OR
+    assert ir.where.left.field.full_path == "age"
 
-    # Group 1: age = {>18} OR role = "ADMIN"
-    group1 = ir.where.operands[0]
+    right_and = ir.where.right
+    assert isinstance(right_and, LogicalExpression)
+    assert right_and.operator == LogicalOperator.AND
+    assert right_and.left.field.full_path == "role"
+    assert right_and.right.field.full_path == "status"
+
+    # 2. With explicit { ... } grouping: overrides default precedence -> AND(OR(age=18, role="ADMIN"), status="ACTIVE")
+    query_grouped = """
+    GET users WHERE {
+        { age = 18 OR role = "ADMIN" },
+        status = "ACTIVE"
+    };
+    """
+    ir_grouped = parse_altrql(query_grouped)
+    assert isinstance(ir_grouped.where, LogicalExpression)
+    assert ir_grouped.where.operator == LogicalOperator.AND
+
+    group1 = ir_grouped.where.left
     assert isinstance(group1, LogicalExpression)
-    assert group1.operator == "OR"
-    assert len(group1.operands) == 2
-    assert group1.operands[0].field.full_path == "age"
-    assert group1.operands[1].field.full_path == "role"
+    assert group1.operator == LogicalOperator.OR
+    assert group1.left.field.full_path == "age"
+    assert group1.right.field.full_path == "role"
 
-    # Group 2: status = "ACTIVE"
-    group2 = ir.where.operands[1]
+    group2 = ir_grouped.where.right
     assert isinstance(group2, FieldExpression)
     assert group2.field.full_path == "status"
 
@@ -201,26 +214,21 @@ def test_where_precedence_or_within_comma_and():
 def test_where_complex_multiple_or_groups():
     query = """
     GET users WHERE {
-        tier = "GOLD" OR tier = "PLATINUM",
-        country = "US" OR country = "CA" OR country = "UK",
+        { tier = "GOLD" OR tier = "PLATINUM" },
+        { country = "US" OR country = "CA" },
         active = TRUE
     };
     """
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
     assert ir.where.operator == "AND"
-    assert len(ir.where.operands) == 3
 
-    assert isinstance(ir.where.operands[0], LogicalExpression)
-    assert ir.where.operands[0].operator == "OR"
-    assert len(ir.where.operands[0].operands) == 2
-
-    assert isinstance(ir.where.operands[1], LogicalExpression)
-    assert ir.where.operands[1].operator == "OR"
-    assert len(ir.where.operands[1].operands) == 3
-
-    assert isinstance(ir.where.operands[2], FieldExpression)
-    assert ir.where.operands[2].field.full_path == "active"
+    # AND(AND(group1, group2), active=TRUE)
+    inner_and = ir.where.left
+    assert isinstance(inner_and, LogicalExpression)
+    assert inner_and.left.operator == "OR"
+    assert inner_and.right.operator == "OR"
+    assert ir.where.right.field.full_path == "active"
 
 
 # ===========================================================================
@@ -348,19 +356,24 @@ def test_string_operators():
     """
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
-    assert len(ir.where.operands) == 4
 
-    assert ir.where.operands[0].operator == StringOperator.STARTS
-    assert ir.where.operands[0].operand.value == "San"
+    op4 = ir.where.right
+    assert op4.operator == StringOperator.NOT_HAS
+    assert op4.operand.value == "spam"
 
-    assert ir.where.operands[1].operator == StringOperator.ENDS
-    assert ir.where.operands[1].operand.value == "@helloaltr.com"
+    and3 = ir.where.left
+    op3 = and3.right
+    assert op3.operator == StringOperator.HAS
+    assert op3.operand.value == "database"
 
-    assert ir.where.operands[2].operator == StringOperator.HAS
-    assert ir.where.operands[2].operand.value == "database"
+    and2 = and3.left
+    op2 = and2.right
+    assert op2.operator == StringOperator.ENDS
+    assert op2.operand.value == "@helloaltr.com"
 
-    assert ir.where.operands[3].operator == StringOperator.NOT_HAS
-    assert ir.where.operands[3].operand.value == "spam"
+    op1 = and2.left
+    assert op1.operator == StringOperator.STARTS
+    assert op1.operand.value == "San"
 
 
 # ===========================================================================
@@ -380,30 +393,37 @@ def test_reserved_literals():
     """
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
-    assert len(ir.where.operands) == 5
 
-    assert isinstance(ir.where.operands[0].operand, BooleanLiteral)
-    assert ir.where.operands[0].operand.value is True
+    e5 = ir.where.right
+    assert isinstance(e5.operand, TemporalLiteral)
+    assert e5.operand.keyword == TemporalKeyword.NOW
 
-    assert isinstance(ir.where.operands[1].operand, BooleanLiteral)
-    assert ir.where.operands[1].operand.value is False
+    and4 = ir.where.left
+    e4 = and4.right
+    assert isinstance(e4.operand, TemporalLiteral)
+    assert e4.operand.keyword == TemporalKeyword.TODAY
 
-    assert isinstance(ir.where.operands[2].operand, NullLiteral)
+    and3 = and4.left
+    e3 = and3.right
+    assert isinstance(e3.operand, NullLiteral)
 
-    assert isinstance(ir.where.operands[3].operand, TemporalLiteral)
-    assert ir.where.operands[3].operand.keyword == TemporalKeyword.TODAY
+    and2 = and3.left
+    e2 = and2.right
+    assert isinstance(e2.operand, BooleanLiteral)
+    assert e2.operand.value is False
 
-    assert isinstance(ir.where.operands[4].operand, TemporalLiteral)
-    assert ir.where.operands[4].operand.keyword == TemporalKeyword.NOW
+    e1 = and2.left
+    assert isinstance(e1.operand, BooleanLiteral)
+    assert e1.operand.value is True
 
 
 def test_float_and_escaped_string_literals():
     query = r'GET items WHERE { score = 98.75, note = "line1\nline2" };'
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
-    assert isinstance(ir.where.operands[0].operand, FloatLiteral)
-    assert ir.where.operands[0].operand.value == 98.75
-    assert ir.where.operands[1].operand.value == "line1\nline2"
+    assert isinstance(ir.where.left.operand, FloatLiteral)
+    assert ir.where.left.operand.value == 98.75
+    assert ir.where.right.operand.value == "line1\nline2"
 
 
 # ===========================================================================
@@ -616,10 +636,10 @@ def test_explicit_iso_date_leap_year_and_past():
     query = "GET events WHERE { ts1 = @2024-02-29, ts2 = @1999-12-31 };"
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
-    assert isinstance(ir.where.operands[0].operand, TemporalLiteral)
-    assert ir.where.operands[0].operand.value == "2024-02-29"
-    assert isinstance(ir.where.operands[1].operand, TemporalLiteral)
-    assert ir.where.operands[1].operand.value == "1999-12-31"
+    assert isinstance(ir.where.left.operand, TemporalLiteral)
+    assert ir.where.left.operand.value == "2024-02-29"
+    assert isinstance(ir.where.right.operand, TemporalLiteral)
+    assert ir.where.right.operand.value == "1999-12-31"
 
 
 def test_explicit_iso_date_in_ranges_and_value_sets():
@@ -632,14 +652,14 @@ def test_explicit_iso_date_in_ranges_and_value_sets():
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
     # Range element
-    vs1 = ir.where.operands[0].operand
+    vs1 = ir.where.left.operand
     assert isinstance(vs1, ValueSet)
     assert isinstance(vs1.elements[0], Range)
     assert vs1.elements[0].start.value == "2026-01-01"
     assert vs1.elements[0].end.value == "2026-12-31"
 
     # Multi-element ValueSet with mixed ISO and keyword
-    vs2 = ir.where.operands[1].operand
+    vs2 = ir.where.right.operand
     assert isinstance(vs2, ValueSet)
     assert len(vs2.elements) == 3
     assert vs2.elements[0].value == "2026-01-01"

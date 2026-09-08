@@ -1,6 +1,6 @@
 """Unit tests for AltrQL IR Normalizer (normalize_ir).
 
-Tests single-operand collapsing, same-operator flattening, structure preservation,
+Tests expression tree preservation, negation normalization, structure preservation,
 idempotence, and determinism.
 """
 
@@ -13,6 +13,8 @@ from altr_stream.query_engine.domain.ast import (
     FieldSelection,
     IntegerLiteral,
     LogicalExpression,
+    LogicalOperator,
+    NegationExpression,
     Range,
     StringLiteral,
     ValueSet,
@@ -30,12 +32,12 @@ def _make_field_expr(name: str, val: int) -> FieldExpression:
     )
 
 
-def test_normalizer_single_operand_and_collapse():
-    """Test collapsing LogicalExpression with single operand into inner expression."""
+def test_normalizer_preserves_field_expression():
+    """Test normalizing an atomic field expression."""
     expr = _make_field_expr("age", 25)
     ir = AltrQueryIR(
         entity="users",
-        where=LogicalExpression(operator="AND", operands=[expr]),
+        where=expr,
     )
     normalized = normalize_ir(ir)
     assert isinstance(normalized.where, FieldExpression)
@@ -43,114 +45,40 @@ def test_normalizer_single_operand_and_collapse():
     assert normalized.where.operand.value == 25
 
 
-def test_normalizer_single_operand_or_collapse():
-    """Test collapsing LogicalExpression(OR, [A]) into A."""
-    expr = _make_field_expr("role", 1)
+def test_normalizer_preserves_negation_expression():
+    """Test normalizing a NegationExpression."""
+    expr = _make_field_expr("is_active", 0)
     ir = AltrQueryIR(
         entity="users",
-        where=LogicalExpression(operator="OR", operands=[expr]),
+        where=NegationExpression(operand=expr),
     )
     normalized = normalize_ir(ir)
-    assert isinstance(normalized.where, FieldExpression)
-    assert normalized.where.field.full_path == "role"
+    assert isinstance(normalized.where, NegationExpression)
+    assert isinstance(normalized.where.operand, FieldExpression)
+    assert normalized.where.operand.field.full_path == "is_active"
 
 
-def test_normalizer_nested_single_operand_collapse():
-    """Test recursive collapse of nested single-operand logical expressions."""
-    inner = _make_field_expr("status", 1)
-    ir = AltrQueryIR(
-        entity="users",
-        where=LogicalExpression(
-            operator="AND",
-            operands=[
-                LogicalExpression(
-                    operator="OR",
-                    operands=[
-                        LogicalExpression(operator="AND", operands=[inner])
-                    ],
-                )
-            ],
-        ),
-    )
-    normalized = normalize_ir(ir)
-    assert isinstance(normalized.where, FieldExpression)
-    assert normalized.where.field.full_path == "status"
-
-
-def test_normalizer_flatten_same_operator_and():
-    """Test flattening AND(A, AND(B, C), D) -> AND(A, B, C, D)."""
-    a = _make_field_expr("a", 1)
-    b = _make_field_expr("b", 2)
-    c = _make_field_expr("c", 3)
-    d = _make_field_expr("d", 4)
-
-    ir = AltrQueryIR(
-        entity="users",
-        where=LogicalExpression(
-            operator="AND",
-            operands=[
-                a,
-                LogicalExpression(operator="AND", operands=[b, c]),
-                d,
-            ],
-        ),
-    )
-    normalized = normalize_ir(ir)
-    assert isinstance(normalized.where, LogicalExpression)
-    assert normalized.where.operator == "AND"
-    assert len(normalized.where.operands) == 4
-    paths = [op.field.full_path for op in normalized.where.operands]
-    assert paths == ["a", "b", "c", "d"]
-
-
-def test_normalizer_flatten_same_operator_or():
-    """Test flattening OR(OR(A, B), OR(C, D)) -> OR(A, B, C, D)."""
-    a = _make_field_expr("a", 1)
-    b = _make_field_expr("b", 2)
-    c = _make_field_expr("c", 3)
-    d = _make_field_expr("d", 4)
-
-    ir = AltrQueryIR(
-        entity="users",
-        where=LogicalExpression(
-            operator="OR",
-            operands=[
-                LogicalExpression(operator="OR", operands=[a, b]),
-                LogicalExpression(operator="OR", operands=[c, d]),
-            ],
-        ),
-    )
-    normalized = normalize_ir(ir)
-    assert isinstance(normalized.where, LogicalExpression)
-    assert normalized.where.operator == "OR"
-    assert len(normalized.where.operands) == 4
-    paths = [op.field.full_path for op in normalized.where.operands]
-    assert paths == ["a", "b", "c", "d"]
-
-
-def test_normalizer_preserves_mixed_operator_hierarchy():
-    """Test that AND(A, OR(B, C)) is strictly preserved without flattening across operators."""
+def test_normalizer_preserves_nested_logical_expression_tree():
+    """Test normalizing a binary LogicalExpression tree."""
     a = _make_field_expr("a", 1)
     b = _make_field_expr("b", 2)
     c = _make_field_expr("c", 3)
 
+    inner_and = LogicalExpression(operator=LogicalOperator.AND, left=a, right=b)
+    root_or = LogicalExpression(operator=LogicalOperator.OR, left=inner_and, right=c)
+
     ir = AltrQueryIR(
         entity="users",
-        where=LogicalExpression(
-            operator="AND",
-            operands=[
-                a,
-                LogicalExpression(operator="OR", operands=[b, c]),
-            ],
-        ),
+        where=root_or,
     )
     normalized = normalize_ir(ir)
     assert isinstance(normalized.where, LogicalExpression)
-    assert normalized.where.operator == "AND"
-    assert len(normalized.where.operands) == 2
-    assert isinstance(normalized.where.operands[1], LogicalExpression)
-    assert normalized.where.operands[1].operator == "OR"
-    assert len(normalized.where.operands[1].operands) == 2
+    assert normalized.where.operator == LogicalOperator.OR
+    assert isinstance(normalized.where.left, LogicalExpression)
+    assert normalized.where.left.operator == LogicalOperator.AND
+    assert normalized.where.left.left.field.full_path == "a"
+    assert normalized.where.left.right.field.full_path == "b"
+    assert normalized.where.right.field.full_path == "c"
 
 
 def test_normalizer_preserves_value_sets_and_constraints_as_is():
@@ -163,15 +91,16 @@ def test_normalizer_preserves_value_sets_and_constraints_as_is():
     """
     ir = parse_altrql(query)
     assert isinstance(ir.where, LogicalExpression)
-    assert ir.where.operator == "AND"
-    assert len(ir.where.operands) == 2
+    assert ir.where.operator == LogicalOperator.AND
 
-    first_op = ir.where.operands[0]
+    first_op = ir.where.left
+    assert isinstance(first_op, FieldExpression)
     assert isinstance(first_op.operand, ValueSet)
     assert len(first_op.operand.elements) == 3
     assert isinstance(first_op.operand.elements[2], Range)
 
-    second_op = ir.where.operands[1]
+    second_op = ir.where.right
+    assert isinstance(second_op, FieldExpression)
     assert isinstance(second_op.operand, ValueSet)
     assert len(second_op.operand.elements) == 1
     assert isinstance(second_op.operand.elements[0], CompoundAndConstraint)
@@ -182,7 +111,7 @@ def test_normalizer_idempotence_and_determinism():
     """Test that normalize_ir is idempotent: normalize(normalize(ir)) == normalize(ir)."""
     query = """
     GET users (id, name AS uname) WHERE {
-        age = {18..65} OR score = 100,
+        age = 25 OR score = 100,
         status = "ACTIVE"
     } TOP 10 BY age OFFSET 0;
     """

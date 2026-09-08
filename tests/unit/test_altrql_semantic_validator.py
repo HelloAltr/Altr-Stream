@@ -179,15 +179,20 @@ def test_validator_rejects_combined_sort_and_ranking_direct_ast():
 # ---------------------------------------------------------------------------
 
 
-def test_validator_rejects_empty_logical_expression_direct_ast():
-    """Test that LogicalExpression with 0 operands raises AltrQuerySemanticError."""
-    ir = AltrQueryIR(
+def test_validator_rejects_missing_operands_logical_expression_direct_ast():
+    """Test that LogicalExpression with None operands raises AltrQuerySemanticError."""
+    ir = AltrQueryIR.model_construct(
         entity="users",
-        where=LogicalExpression(operator="AND", operands=[]),
+        where=LogicalExpression.model_construct(operator="AND", left=None, right=None),
+        projection=[],
+        assignments=[],
+        sort=[],
+        ranking=None,
+        offset=None,
     )
     with pytest.raises(AltrQuerySemanticError) as exc_info:
         validate_ir(ir)
-    assert "LogicalExpression must contain at least 1 operand" in exc_info.value.message
+    assert "LogicalExpression requires both left and right operand expressions" in exc_info.value.message
 
 
 def test_validator_rejects_string_operator_with_numeric_literal_direct_ast():

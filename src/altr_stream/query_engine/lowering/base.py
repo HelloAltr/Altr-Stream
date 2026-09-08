@@ -7,13 +7,13 @@ into a target dialect's PhysicalQuery without performing any database I/O or net
 from abc import ABC, abstractmethod
 
 from altr_stream.query_engine.domain.bound_ast import BoundAltrQueryIR
-from altr_stream.query_engine.domain.physical_query import PhysicalQuery
+from altr_stream.query_engine.domain.physical_query import PhysicalQuery, PhysicalQueryResult
 
 
 class QueryLowerer(ABC):
     """Abstract interface for pure, deterministic physical dialect query lowerers."""
 
     @abstractmethod
-    def lower(self, query: BoundAltrQueryIR) -> PhysicalQuery:
-        """Translate a schema-bound AltrQL IR into an executable physical query."""
+    def lower(self, query: BoundAltrQueryIR) -> PhysicalQueryResult:
+        """Translate a schema-bound AltrQL IR into an executable physical query or query batch."""
         ...

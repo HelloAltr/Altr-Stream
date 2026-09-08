@@ -23,10 +23,11 @@ def test_parse_create_basic():
 
     assert ir.operation == QueryOperation.CREATE
     assert ir.entity == "users"
-    assert len(ir.assignments) == 3
-    assert ir.assignments[0] == MutationAssignment(field=FieldPath(segments=["username"]), value=StringLiteral(value="alice"))
-    assert ir.assignments[1] == MutationAssignment(field=FieldPath(segments=["email"]), value=StringLiteral(value="alice@example.com"))
-    assert ir.assignments[2] == MutationAssignment(field=FieldPath(segments=["age"]), value=IntegerLiteral(value=25))
+    assert len(ir.records) == 1
+    assert len(ir.records[0].assignments) == 3
+    assert ir.records[0].assignments[0] == MutationAssignment(field=FieldPath(segments=["username"]), value=StringLiteral(value="alice"))
+    assert ir.records[0].assignments[1] == MutationAssignment(field=FieldPath(segments=["email"]), value=StringLiteral(value="alice@example.com"))
+    assert ir.records[0].assignments[2] == MutationAssignment(field=FieldPath(segments=["age"]), value=IntegerLiteral(value=25))
     assert ir.where is None
     assert ir.sort == []
     assert ir.ranking is None

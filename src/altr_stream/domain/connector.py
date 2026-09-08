@@ -66,6 +66,10 @@ class BaseConnector(ABC):
         """Execute a native database query and return normalized results."""
         ...
 
+    async def execute_batch(self, queries: list[tuple[str, list[Any] | None]]) -> QueryResult:
+        """Execute a sequence of native queries atomically and return combined results."""
+        raise NotImplementedError("Batch query execution is not supported by this connector.")
+
     async def close(self) -> None:
         """Clean up connection pools and resources."""
         pass

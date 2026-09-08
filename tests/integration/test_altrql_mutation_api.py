@@ -94,7 +94,8 @@ async def test_parse_mutation_endpoints(client: AsyncClient):
     data_create = res_create.json()
     assert data_create["success"] is True
     assert data_create["ir"]["operation"] == "CREATE"
-    assert len(data_create["ir"]["assignments"]) == 2
+    assert len(data_create["ir"]["records"]) == 1
+    assert len(data_create["ir"]["records"][0]["assignments"]) == 2
 
     # 2. UPDATE
     res_update = await client.post(

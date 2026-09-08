@@ -103,25 +103,26 @@ def test_bind_complex_where_clause(sample_schema: SourceSchema):
     assert bound.where is not None
     assert isinstance(bound.where, BoundLogicalExpression)
     assert bound.where.operator == "AND"
-    assert len(bound.where.operands) == 3
 
-    # Check 1st operand: event_type STARTS "auth_"
-    op1 = bound.where.operands[0]
+    # Bound tree is left-associative: AND(AND(op1, op2), op3)
+    inner_and = bound.where.left
+    assert isinstance(inner_and, BoundLogicalExpression)
+    assert inner_and.operator == "AND"
+
+    op1 = inner_and.left
     assert isinstance(op1, BoundFieldExpression)
     assert op1.field.segments == ["event_type"]
     assert op1.field.logical_category == LogicalTypeCategory.STRING
     assert op1.operator == StringOperator.STARTS
     assert isinstance(op1.operand, StringLiteral)
 
-    # Check 2nd operand: user_id = {1, 2, 5..10}
-    op2 = bound.where.operands[1]
+    op2 = inner_and.right
     assert isinstance(op2, BoundFieldExpression)
     assert op2.field.segments == ["user_id"]
     assert op2.field.logical_category == LogicalTypeCategory.NUMERIC
     assert isinstance(op2.operand, ValueSet)
 
-    # Check 3rd operand: timestamp >= TODAY
-    op3 = bound.where.operands[2]
+    op3 = bound.where.right
     assert isinstance(op3, BoundFieldExpression)
     assert op3.field.segments == ["timestamp"]
     assert op3.field.logical_category == LogicalTypeCategory.TEMPORAL

@@ -211,3 +211,105 @@ async def test_api_live_postgres_execution(client: AsyncClient):
     assert res_discover_after.status_code == 200
     entity_names_after = [e["name"] for e in res_discover_after.json()["entities"]]
     assert "api_probe_temp" not in entity_names_after
+
+
+@pytest.mark.asyncio
+async def test_postgres_live_altrql_temporal_execution(client: AsyncClient):
+    """Verify end-to-end AltrQL query execution with temporal literals against live PostgreSQL."""
+    if not await _is_postgres_available():
+        pytest.skip("PostgreSQL test container not available on port 5432")
+
+    # 1. Register PostgreSQL source in SQLite metadata
+    source_payload = {
+        "name": "Live AltrQL Temporal Source",
+        "type": "POSTGRESQL",
+        "host": PG_CONFIG.host,
+        "port": PG_CONFIG.port,
+        "database_name": PG_CONFIG.database_name,
+        "username": PG_CONFIG.username,
+        "password": PG_CONFIG.password,
+    }
+    src_res = await client.post("/api/v1/sources", json=source_payload)
+    assert src_res.status_code == 201
+    source_id = src_res.json()["id"]
+
+    # 2. Discover schema
+    disc_res = await client.post(f"/api/v1/sources/{source_id}/schema/discover")
+    assert disc_res.status_code == 200
+
+    # 3. Date-only equality query on TIMESTAMP field matching records created across the day
+    res1 = await client.post(
+        "/api/v1/altrql/execute",
+        json={
+            "source_id": source_id,
+            "query": "GET users WHERE { created_at = @2026-09-06 };",
+        },
+    )
+    assert res1.status_code == 200
+    data1 = res1.json()
+    assert data1["success"] is True
+    assert data1["error"] is None
+    assert data1["rows"] is not None
+    # All 3 records on 2026-09-06 are returned regardless of time (06:41:16)
+    assert len(data1["rows"]) == 3
+    emails = {r["email"] for r in data1["rows"]}
+    assert emails == {"alice@example.com", "bob@example.com", "carol@example.com"}
+    assert data1["physical_query"]["parameters"] == ["2026-09-06T00:00:00", "2026-09-07T00:00:00"]
+
+    # 4. Date-only equality query on TIMESTAMP field matching single record on 2026-09-08
+    res_edith = await client.post(
+        "/api/v1/altrql/execute",
+        json={
+            "source_id": source_id,
+            "query": "GET users WHERE { created_at = @2026-09-08 };",
+        },
+    )
+    assert res_edith.status_code == 200
+    data_edith = res_edith.json()
+    assert data_edith["success"] is True
+    assert len(data_edith["rows"]) == 1
+    assert data_edith["rows"][0]["email"] == "edith@example.com"
+
+    # 5. Date-only equality query on date with zero records
+    res_empty = await client.post(
+        "/api/v1/altrql/execute",
+        json={
+            "source_id": source_id,
+            "query": "GET users WHERE { created_at = @2026-09-07 };",
+        },
+    )
+    assert res_empty.status_code == 200
+    data_empty = res_empty.json()
+    assert data_empty["success"] is True
+    assert len(data_empty["rows"]) == 0
+
+    # 6. Nested logical expression regression query with multiple temporal equalities
+    nested_query = """
+    GET users WHERE {
+        NOT {
+            is_active = FALSE,
+            created_at = @2026-09-06
+        } OR {
+            is_active = TRUE,
+            created_at = @2026-09-08
+        }
+    };
+    """
+    res2 = await client.post(
+        "/api/v1/altrql/execute",
+        json={"source_id": source_id, "query": nested_query},
+    )
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["success"] is True
+    assert data2["error"] is None
+    assert data2["rows"] is not None
+    assert len(data2["rows"]) > 0
+    assert data2["physical_query"]["parameters"] == [
+        False,
+        "2026-09-06T00:00:00",
+        "2026-09-07T00:00:00",
+        True,
+        "2026-09-08T00:00:00",
+        "2026-09-09T00:00:00",
+    ]
