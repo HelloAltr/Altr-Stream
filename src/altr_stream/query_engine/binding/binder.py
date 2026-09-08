@@ -12,6 +12,7 @@ from altr_stream.domain.schema import EntitySchema, SourceSchema
 from altr_stream.query_engine.binding.resolver import resolve_entity, resolve_field_path
 from altr_stream.query_engine.binding.type_validator import (
     to_logical_category,
+    validate_assignment_value,
     validate_field_operator_and_operand,
 )
 from altr_stream.query_engine.domain.ast import (
@@ -28,6 +29,7 @@ from altr_stream.query_engine.domain.bound_ast import (
     BoundFieldPath,
     BoundFieldSelection,
     BoundLogicalExpression,
+    BoundMutationAssignment,
     BoundRankingClause,
     BoundSortClause,
 )
@@ -39,7 +41,7 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
     Guarantees:
     - Pure, deterministic transformation with zero I/O or database access.
     - Preserves input AltrQueryIR immutability.
-    - Validates entity, projection, WHERE, SORT, and ranking field paths.
+    - Validates entity, projection, mutation assignments, WHERE, SORT, and ranking field paths.
     - Enforces schema operator and operand type compatibility.
 
     Raises:
@@ -75,12 +77,32 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
             )
         )
 
-    # 3. Resolve and Type-Validate WHERE Clause
+    # 3. Resolve and Type-Validate Mutation Assignments (CREATE / UPDATE)
+    bound_assignments: List[BoundMutationAssignment] = []
+    for assign in ir.assignments:
+        field_schema = resolve_field_path(assign.field, entity_schema)
+        bound_field = BoundFieldPath(
+            path=assign.field,
+            data_type=field_schema.data_type,
+            logical_category=to_logical_category(field_schema.data_type),
+            native_type=field_schema.native_data_type,
+            nullable=field_schema.nullable,
+            is_primary_key=field_schema.is_primary_key,
+        )
+        validate_assignment_value(bound_field, assign.value)
+        bound_assignments.append(
+            BoundMutationAssignment(
+                field=bound_field,
+                value=assign.value,
+            )
+        )
+
+    # 4. Resolve and Type-Validate WHERE Clause
     bound_where: Optional[BoundExpression] = None
     if ir.where is not None:
         bound_where = _bind_expression(ir.where, entity_schema)
 
-    # 4. Resolve SORT Clauses
+    # 5. Resolve SORT Clauses
     bound_sort: List[BoundSortClause] = []
     for sc in ir.sort:
         field_schema = resolve_field_path(sc.field, entity_schema)
@@ -99,7 +121,7 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
             )
         )
 
-    # 5. Resolve Ranking Clause
+    # 6. Resolve Ranking Clause
     bound_ranking: Optional[BoundRankingClause] = None
     if ir.ranking is not None:
         field_schema = resolve_field_path(ir.ranking.field, entity_schema)
@@ -117,11 +139,13 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
             field=bound_field,
         )
 
-    # 6. Construct BoundAltrQueryIR
+    # 7. Construct BoundAltrQueryIR
     return BoundAltrQueryIR(
+        operation=ir.operation,
         entity=bound_entity,
         projection=bound_projections,
         where=bound_where,
+        assignments=bound_assignments,
         sort=bound_sort,
         ranking=bound_ranking,
         offset=ir.offset,

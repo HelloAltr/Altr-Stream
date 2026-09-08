@@ -1,7 +1,7 @@
-"""PostgreSQL physical query lowerer for AltrQL v0.1.
+"""PostgreSQL physical query lowerer for AltrQL v0.2.
 
 Translates schema-bound BoundAltrQueryIR into deterministic, fully parameterized
-PostgreSQL SELECT statements without performing database I/O or network calls.
+PostgreSQL SELECT, INSERT, UPDATE, and DELETE statements without performing database I/O or network calls.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from altr_stream.query_engine.domain.ast import (
     IntegerLiteral,
     LiteralValue,
     NullLiteral,
+    QueryOperation,
     Range,
     StringLiteral,
     TemporalLiteral,
@@ -51,26 +52,13 @@ class PostgreSQLLowerer(QueryLowerer):
         def quote_ident(name: str) -> str:
             return f'"{name}"'
 
-        # 1. Projections (SELECT clause)
-        if query.is_wildcard_projection:
-            select_clause = "SELECT *"
-        else:
-            select_items: List[str] = []
-            for sel in query.projection:
-                col_name = quote_ident(sel.field.path.leaf)
-                if sel.alias:
-                    select_items.append(f"{col_name} AS {quote_ident(sel.alias)}")
-                else:
-                    select_items.append(col_name)
-            select_clause = f"SELECT {', '.join(select_items)}"
-
-        # 2. Entity (FROM clause with schema qualification if available)
+        # Target table identifier (with namespace schema qualification if present)
         if query.entity.namespace:
-            from_clause = f"FROM {quote_ident(query.entity.namespace)}.{quote_ident(query.entity.name)}"
+            target_table = f"{quote_ident(query.entity.namespace)}.{quote_ident(query.entity.name)}"
         else:
-            from_clause = f"FROM {quote_ident(query.entity.name)}"
+            target_table = quote_ident(query.entity.name)
 
-        # 3. WHERE clause lowering helpers
+        # Literal lowering helper
         def lower_literal(lit: LiteralValue) -> str:
             if isinstance(lit, TemporalLiteral):
                 if lit.keyword == TemporalKeyword.TODAY:
@@ -186,43 +174,67 @@ class PostgreSQLLowerer(QueryLowerer):
                 return f"({f' {expr.operator} '.join(child_sqls)})"
             return "1=1"
 
-        where_clause: str | None = None
-        if query.where is not None:
-            where_sql = lower_expression(query.where)
-            where_clause = f"WHERE {where_sql}"
+        # -------------------------------------------------------------------
+        # Operation Dispatch
+        # -------------------------------------------------------------------
 
-        # 4. ORDER BY (Ranking provides primary ordering, explicit SORT provides secondary ordering)
-        order_by_items: List[str] = []
-        if query.ranking:
-            rank_col = quote_ident(query.ranking.field.path.leaf)
-            rank_dir = "DESC" if query.ranking.direction == RankingDirection.TOP else "ASC"
-            order_by_items.append(f"{rank_col} {rank_dir}")
+        if query.operation == QueryOperation.CREATE:
+            cols = [quote_ident(a.field.path.leaf) for a in query.assignments]
+            vals = [lower_literal(a.value) for a in query.assignments]
+            final_sql = f"INSERT INTO {target_table} ({', '.join(cols)}) VALUES ({', '.join(vals)}) RETURNING *;"
 
-        if query.sort:
-            for s in query.sort:
-                sort_col = quote_ident(s.field.path.leaf)
-                order_by_items.append(f"{sort_col} {s.direction.value}")
+        elif query.operation == QueryOperation.UPDATE:
+            set_items = [f"{quote_ident(a.field.path.leaf)} = {lower_literal(a.value)}" for a in query.assignments]
+            where_sql = f" WHERE {lower_expression(query.where)}" if query.where is not None else ""
+            final_sql = f"UPDATE {target_table} SET {', '.join(set_items)}{where_sql} RETURNING *;"
 
-        order_by_clause = f"ORDER BY {', '.join(order_by_items)}" if order_by_items else None
+        elif query.operation == QueryOperation.DELETE:
+            where_sql = f" WHERE {lower_expression(query.where)}" if query.where is not None else ""
+            final_sql = f"DELETE FROM {target_table}{where_sql} RETURNING *;"
 
-        # 5. LIMIT (from ranking)
-        limit_clause = f"LIMIT {query.ranking.count}" if query.ranking else None
+        else:
+            # READ (SELECT query)
+            if query.is_wildcard_projection:
+                select_clause = "SELECT *"
+            else:
+                select_items: List[str] = []
+                for sel in query.projection:
+                    col_name = quote_ident(sel.field.path.leaf)
+                    if sel.alias:
+                        select_items.append(f"{col_name} AS {quote_ident(sel.alias)}")
+                    else:
+                        select_items.append(col_name)
+                select_clause = f"SELECT {', '.join(select_items)}"
 
-        # 6. OFFSET
-        offset_clause = f"OFFSET {query.offset}" if query.offset is not None else None
+            from_clause = f"FROM {target_table}"
+            where_clause = f"WHERE {lower_expression(query.where)}" if query.where is not None else None
 
-        # Assemble query parts
-        query_parts = [select_clause, from_clause]
-        if where_clause:
-            query_parts.append(where_clause)
-        if order_by_clause:
-            query_parts.append(order_by_clause)
-        if limit_clause:
-            query_parts.append(limit_clause)
-        if offset_clause:
-            query_parts.append(offset_clause)
+            order_by_items: List[str] = []
+            if query.ranking:
+                rank_col = quote_ident(query.ranking.field.path.leaf)
+                rank_dir = "DESC" if query.ranking.direction == RankingDirection.TOP else "ASC"
+                order_by_items.append(f"{rank_col} {rank_dir}")
 
-        final_sql = " ".join(query_parts) + ";"
+            if query.sort:
+                for s in query.sort:
+                    sort_col = quote_ident(s.field.path.leaf)
+                    order_by_items.append(f"{sort_col} {s.direction.value}")
+
+            order_by_clause = f"ORDER BY {', '.join(order_by_items)}" if order_by_items else None
+            limit_clause = f"LIMIT {query.ranking.count}" if query.ranking else None
+            offset_clause = f"OFFSET {query.offset}" if query.offset is not None else None
+
+            query_parts = [select_clause, from_clause]
+            if where_clause:
+                query_parts.append(where_clause)
+            if order_by_clause:
+                query_parts.append(order_by_clause)
+            if limit_clause:
+                query_parts.append(limit_clause)
+            if offset_clause:
+                query_parts.append(offset_clause)
+
+            final_sql = " ".join(query_parts) + ";"
 
         return PhysicalQuery(
             dialect="postgresql",
@@ -231,3 +243,4 @@ class PostgreSQLLowerer(QueryLowerer):
             source_id=query.source_id,
             source_name=query.source_name,
         )
+

@@ -1,7 +1,8 @@
-"""Strongly-typed Abstract Syntax Tree (AST) and Intermediate Representation (IR) models for AltrQL v0.1."""
+"""Strongly-typed Abstract Syntax Tree (AST) and Intermediate Representation (IR) models for AltrQL v0.2."""
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -179,6 +180,27 @@ LogicalExpression.model_rebuild()
 
 
 # ---------------------------------------------------------------------------
+# Query Operations & Mutation Payloads
+# ---------------------------------------------------------------------------
+
+
+class QueryOperation(str, Enum):
+    """Supported AltrQL root query operations."""
+
+    READ = "READ"
+    CREATE = "CREATE"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+
+
+class MutationAssignment(ASTNode):
+    """Field-to-value assignment in a mutation payload (e.g. 'is_active: TRUE')."""
+
+    field: FieldPath
+    value: LiteralValue
+
+
+# ---------------------------------------------------------------------------
 # Sorting, Ranking, and Pagination Clauses
 # ---------------------------------------------------------------------------
 
@@ -206,9 +228,11 @@ class RankingClause(ASTNode):
 class AltrQueryIR(ASTNode):
     """Root representation of an AltrQL query."""
 
+    operation: QueryOperation = QueryOperation.READ
     entity: str
     projection: List[FieldSelection] = Field(default_factory=list)
     where: Optional[Expression] = None
+    assignments: List[MutationAssignment] = Field(default_factory=list)
     sort: List[SortClause] = Field(default_factory=list)
     ranking: Optional[RankingClause] = None
     offset: Optional[int] = None

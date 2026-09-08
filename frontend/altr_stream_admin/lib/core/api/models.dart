@@ -273,12 +273,16 @@ class QueryMetadataModel {
   final int? affectedRows;
   final String? message;
   final double executionTimeMs;
+  final String? operation;
+  final String? mutationScope;
 
   QueryMetadataModel({
     required this.rowCount,
     this.affectedRows,
     this.message,
     required this.executionTimeMs,
+    this.operation,
+    this.mutationScope,
   });
 
   factory QueryMetadataModel.fromJson(Map<String, dynamic> json) {
@@ -287,6 +291,34 @@ class QueryMetadataModel {
       affectedRows: (json['affected_rows'] as num?)?.toInt(),
       message: json['message'] as String?,
       executionTimeMs: (json['execution_time_ms'] as num?)?.toDouble() ?? 0.0,
+      operation: json['operation'] as String?,
+      mutationScope: json['mutation_scope'] as String?,
+    );
+  }
+}
+
+class MutationClassificationModel {
+  final String operation;
+  final String mutationScope;
+  final bool requiresConfirmation;
+  final String entity;
+  final String description;
+
+  MutationClassificationModel({
+    required this.operation,
+    required this.mutationScope,
+    required this.requiresConfirmation,
+    required this.entity,
+    required this.description,
+  });
+
+  factory MutationClassificationModel.fromJson(Map<String, dynamic> json) {
+    return MutationClassificationModel(
+      operation: json['operation'] as String? ?? 'READ',
+      mutationScope: json['mutation_scope'] as String? ?? 'NOT_APPLICABLE',
+      requiresConfirmation: json['requires_confirmation'] as bool? ?? false,
+      entity: json['entity'] as String? ?? '',
+      description: json['description'] as String? ?? '',
     );
   }
 }
@@ -382,12 +414,14 @@ class AltrQLBindResponseModel {
   final bool success;
   final Map<String, dynamic>? ir;
   final Map<String, dynamic>? boundIr;
+  final MutationClassificationModel? classification;
   final AltrQLErrorDetailModel? error;
 
   AltrQLBindResponseModel({
     required this.success,
     this.ir,
     this.boundIr,
+    this.classification,
     this.error,
   });
 
@@ -396,6 +430,9 @@ class AltrQLBindResponseModel {
       success: json['success'] as bool? ?? false,
       ir: json['ir'] as Map<String, dynamic>?,
       boundIr: json['bound_ir'] as Map<String, dynamic>?,
+      classification: json['classification'] != null
+          ? MutationClassificationModel.fromJson(json['classification'] as Map<String, dynamic>)
+          : null,
       error: json['error'] != null
           ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
           : null,
@@ -433,6 +470,7 @@ class AltrQLExecuteResponseModel {
   final bool success;
   final Map<String, dynamic>? ir;
   final Map<String, dynamic>? boundIr;
+  final MutationClassificationModel? classification;
   final PhysicalQueryModel? physicalQuery;
   final List<String> columns;
   final List<Map<String, dynamic>> rows;
@@ -443,6 +481,7 @@ class AltrQLExecuteResponseModel {
     required this.success,
     this.ir,
     this.boundIr,
+    this.classification,
     this.physicalQuery,
     required this.columns,
     required this.rows,
@@ -455,6 +494,9 @@ class AltrQLExecuteResponseModel {
       success: json['success'] as bool? ?? false,
       ir: json['ir'] as Map<String, dynamic>?,
       boundIr: json['bound_ir'] as Map<String, dynamic>?,
+      classification: json['classification'] != null
+          ? MutationClassificationModel.fromJson(json['classification'] as Map<String, dynamic>)
+          : null,
       physicalQuery: json['physical_query'] != null
           ? PhysicalQueryModel.fromJson(json['physical_query'] as Map<String, dynamic>)
           : null,

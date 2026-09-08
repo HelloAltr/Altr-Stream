@@ -143,3 +143,19 @@ class QueryLoweringError(AltrQueryExecutionError):
         super().__init__(message=message, line=line, column=column)
 
 
+class MassMutationConfirmationRequiredError(AltrQueryExecutionError):
+    """Raised when an unconstrained mass mutation query requires explicit confirmation before execution."""
+
+    def __init__(
+        self,
+        message: str,
+        operation: str = "MUTATION",
+        mutation_scope: str = "MASS",
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+    ) -> None:
+        self.operation = operation
+        self.mutation_scope = mutation_scope
+        super().__init__(message=message, line=line, column=column)
+
+

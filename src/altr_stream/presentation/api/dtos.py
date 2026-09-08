@@ -107,6 +107,8 @@ class QueryMetadataDTO(BaseModel):
     affected_rows: int | None = Field(default=None, description="Number of rows affected for command/mutation queries")
     execution_time_ms: float = Field(..., description="Execution duration in milliseconds")
     message: str | None = Field(default=None, description="Command status or outcome message")
+    operation: str | None = Field(default=None, description="Query operation type (READ, CREATE, UPDATE, DELETE)")
+    mutation_scope: str | None = Field(default=None, description="Mutation scope (NOT_APPLICABLE, CONSTRAINED, MASS)")
 
 
 class QueryExecuteResponseDTO(BaseModel):
@@ -137,6 +139,16 @@ class AltrQLErrorDetailDTO(BaseModel):
 AltrQLParseErrorDetailDTO = AltrQLErrorDetailDTO
 
 
+class MutationClassificationDTO(BaseModel):
+    """Classification metadata determining mutation properties and confirmation requirements."""
+
+    operation: str = Field(..., description="Query operation (READ, CREATE, UPDATE, DELETE)")
+    mutation_scope: str = Field(..., description="Scope of mutation (NOT_APPLICABLE, CONSTRAINED, MASS)")
+    requires_confirmation: bool = Field(..., description="Whether client confirmation is required before execution")
+    entity: str = Field(..., description="Target entity name")
+    description: str = Field(..., description="Human-readable classification summary")
+
+
 class AltrQLParseResponseDTO(BaseModel):
     """Response payload for AltrQL parse requests."""
 
@@ -158,6 +170,7 @@ class AltrQLBindResponseDTO(BaseModel):
     success: bool = Field(..., description="Whether schema binding and type validation succeeded")
     ir: dict[str, Any] | None = Field(default=None, description="Canonical AltrQueryIR AST")
     bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST if successful")
+    classification: MutationClassificationDTO | None = Field(default=None, description="Mutation classification metadata if successful")
     error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
 
 
@@ -176,6 +189,7 @@ class AltrQLExecuteRequestDTO(BaseModel):
 
     query: str = Field(..., min_length=1, description="AltrQL query string to execute")
     source_id: str = Field(..., min_length=1, description="Registered data source ID to execute against")
+    confirm_mass_mutation: bool = Field(default=False, description="Explicit confirmation for mass mutations without WHERE filter")
 
 
 class AltrQLExecuteResponseDTO(BaseModel):
@@ -184,6 +198,7 @@ class AltrQLExecuteResponseDTO(BaseModel):
     success: bool = Field(..., description="Whether query compilation and physical execution succeeded")
     ir: dict[str, Any] | None = Field(default=None, description="Canonical AltrQueryIR AST")
     bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST")
+    classification: MutationClassificationDTO | None = Field(default=None, description="Mutation classification metadata")
     physical_query: PhysicalQueryDTO | None = Field(default=None, description="Lowered PhysicalQuery representation")
     columns: list[str] = Field(default_factory=list, description="Ordered list of column names")
     rows: list[dict[str, Any]] = Field(default_factory=list, description="Normalized rows formatted as JSON dictionaries")

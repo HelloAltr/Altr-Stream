@@ -17,7 +17,9 @@ from altr_stream.query_engine.domain.ast import (
     IntegerLiteral,
     LiteralValue,
     LogicalExpression,
+    MutationAssignment,
     NullLiteral,
+    QueryOperation,
     Range,
     RankingClause,
     SortClause,
@@ -108,33 +110,51 @@ class Parser:
             return self._advance()
         self._error(message, expected=expected or [token_type.name])
 
+    def _consume_terminating_semicolon(self) -> None:
+        """Verify mandatory semicolon at the end of every statement and ensure EOF."""
+        if not self._match(TokenType.SEMICOLON):
+            self._error("Expected ';' at end of query.", expected=[";"])
+        if not self._is_at_end():
+            self._error("Unexpected tokens after query terminating ';'.")
+
     # -----------------------------------------------------------------------
     # Root Entry Point
     # -----------------------------------------------------------------------
 
     def parse(self) -> AltrQueryIR:
-        """Parse complete query string and verify mandatory semicolon."""
-        # 1. Require GET
-        if not self._match(TokenType.GET):
-            self._error("Expected 'GET' keyword at beginning of query.", expected=["GET"])
+        """Parse complete query string (GET, CREATE, UPDATE, DELETE) and verify mandatory semicolon."""
+        if self._match(TokenType.GET):
+            return self._parse_get()
+        if self._match(TokenType.CREATE):
+            return self._parse_create()
+        if self._match(TokenType.UPDATE):
+            return self._parse_update()
+        if self._match(TokenType.DELETE):
+            return self._parse_delete()
 
-        # 2. Require Entity Identifier
+        self._error(
+            "Expected 'GET', 'CREATE', 'UPDATE', or 'DELETE' keyword at beginning of query.",
+            expected=["GET", "CREATE", "UPDATE", "DELETE"],
+        )
+
+    def _parse_get(self) -> AltrQueryIR:
+        # 1. Require Entity Identifier
         if not self._check(TokenType.IDENTIFIER):
             self._error("Expected entity name after 'GET'.", expected=["IDENTIFIER"])
         entity_token = self._advance()
         entity_name = entity_token.value
 
-        # 3. Optional Projection List ( ... )
+        # 2. Optional Projection List ( ... )
         projection: List[FieldSelection] = []
         if self._match(TokenType.LPAREN):
             projection = self._parse_projection_list()
 
-        # 4. Optional WHERE { ... }
+        # 3. Optional WHERE { ... }
         where_clause: Optional[Expression] = None
         if self._match(TokenType.WHERE):
             where_clause = self._parse_where_block()
 
-        # 5. Optional SORT or TOP/BOTTOM Ranking
+        # 4. Optional SORT or TOP/BOTTOM Ranking
         sort_clauses: List[SortClause] = []
         ranking_clause: Optional[RankingClause] = None
 
@@ -155,7 +175,7 @@ class Parser:
                 ranking_clause = self._parse_ranking_clause(direction_token)
                 has_ranking = True
 
-        # 6. Optional OFFSET n
+        # 5. Optional OFFSET n
         offset_val: Optional[int] = None
         if self._match(TokenType.OFFSET):
             if not self._check(TokenType.INTEGER):
@@ -163,15 +183,11 @@ class Parser:
             offset_token = self._advance()
             offset_val = offset_token.value
 
-        # 7. Mandatory Semicolon
-        if not self._match(TokenType.SEMICOLON):
-            self._error("Expected ';' at end of query.", expected=[";"])
-
-        # 8. Must reach EOF
-        if not self._is_at_end():
-            self._error("Unexpected tokens after query terminating ';'.")
+        # 6. Mandatory Semicolon & EOF
+        self._consume_terminating_semicolon()
 
         return AltrQueryIR(
+            operation=QueryOperation.READ,
             entity=entity_name,
             projection=projection,
             where=where_clause,
@@ -179,6 +195,133 @@ class Parser:
             ranking=ranking_clause,
             offset=offset_val,
         )
+
+    def _parse_create(self) -> AltrQueryIR:
+        # 1. Require Entity Identifier
+        if not self._check(TokenType.IDENTIFIER):
+            self._error("Expected entity name after 'CREATE'.", expected=["IDENTIFIER"])
+        entity_token = self._advance()
+        entity_name = entity_token.value
+
+        # 2. Require Mutation Payload ( field: value, ... )
+        if not self._check(TokenType.LPAREN):
+            self._error(f"Expected '(' starting mutation payload after entity '{entity_name}'.", expected=["("])
+        assignments = self._parse_mutation_payload()
+
+        # 3. Disallowed clauses on CREATE
+        if self._check(TokenType.WHERE):
+            self._error("WHERE clause is not supported on 'CREATE' operations.")
+        if self._check(TokenType.SORT) or self._check(TokenType.TOP) or self._check(TokenType.BOTTOM):
+            self._error("SORT / ranking clauses are not supported on 'CREATE' operations.")
+        if self._check(TokenType.OFFSET):
+            self._error("OFFSET clause is not supported on 'CREATE' operations.")
+
+        # 4. Mandatory Semicolon & EOF
+        self._consume_terminating_semicolon()
+
+        return AltrQueryIR(
+            operation=QueryOperation.CREATE,
+            entity=entity_name,
+            assignments=assignments,
+        )
+
+    def _parse_update(self) -> AltrQueryIR:
+        # 1. Require Entity Identifier
+        if not self._check(TokenType.IDENTIFIER):
+            self._error("Expected entity name after 'UPDATE'.", expected=["IDENTIFIER"])
+        entity_token = self._advance()
+        entity_name = entity_token.value
+
+        # 2. Require Mutation Payload ( field: value, ... )
+        if not self._check(TokenType.LPAREN):
+            self._error(f"Expected '(' starting mutation payload after entity '{entity_name}'.", expected=["("])
+        assignments = self._parse_mutation_payload()
+
+        # 3. Optional WHERE Clause
+        where_clause: Optional[Expression] = None
+        if self._match(TokenType.WHERE):
+            where_clause = self._parse_where_block()
+
+        # 4. Disallowed clauses on UPDATE
+        if self._check(TokenType.SORT) or self._check(TokenType.TOP) or self._check(TokenType.BOTTOM):
+            self._error("SORT / ranking clauses are not supported on 'UPDATE' operations.")
+        if self._check(TokenType.OFFSET):
+            self._error("OFFSET clause is not supported on 'UPDATE' operations.")
+
+        # 5. Mandatory Semicolon & EOF
+        self._consume_terminating_semicolon()
+
+        return AltrQueryIR(
+            operation=QueryOperation.UPDATE,
+            entity=entity_name,
+            assignments=assignments,
+            where=where_clause,
+        )
+
+    def _parse_delete(self) -> AltrQueryIR:
+        # 1. Require Entity Identifier
+        if not self._check(TokenType.IDENTIFIER):
+            self._error("Expected entity name after 'DELETE'.", expected=["IDENTIFIER"])
+        entity_token = self._advance()
+        entity_name = entity_token.value
+
+        # 2. Reject mutation payload on DELETE
+        if self._check(TokenType.LPAREN):
+            self._error("Mutation assignment payloads are not supported on 'DELETE' operations.")
+
+        # 3. Optional WHERE Clause
+        where_clause: Optional[Expression] = None
+        if self._match(TokenType.WHERE):
+            where_clause = self._parse_where_block()
+
+        # 4. Disallowed clauses on DELETE
+        if self._check(TokenType.SORT) or self._check(TokenType.TOP) or self._check(TokenType.BOTTOM):
+            self._error("SORT / ranking clauses are not supported on 'DELETE' operations.")
+        if self._check(TokenType.OFFSET):
+            self._error("OFFSET clause is not supported on 'DELETE' operations.")
+
+        # 5. Mandatory Semicolon & EOF
+        self._consume_terminating_semicolon()
+
+        return AltrQueryIR(
+            operation=QueryOperation.DELETE,
+            entity=entity_name,
+            where=where_clause,
+        )
+
+    def _parse_mutation_payload(self) -> List[MutationAssignment]:
+        """Parse mutation assignment payload enclosed in parentheses: ( field: value, ... )."""
+        self._consume(TokenType.LPAREN, "Expected '(' starting mutation payload.", expected=["("])
+        assignments: List[MutationAssignment] = []
+
+        if self._check(TokenType.RPAREN):
+            self._error("Mutation payload cannot be empty.", expected=["field assignment"])
+
+        seen_fields: set[str] = set()
+
+        while not self._check(TokenType.RPAREN) and not self._is_at_end():
+            field = self._parse_field_path()
+            if field.full_path in seen_fields:
+                self._error(f"Duplicate assignment for field '{field.full_path}' in mutation payload.")
+            seen_fields.add(field.full_path)
+
+            self._consume(TokenType.COLON, f"Expected ':' after field '{field.full_path}' in mutation assignment.", expected=[":"])
+            value = self._parse_literal()
+
+            assignments.append(MutationAssignment(field=field, value=value))
+
+            if self._match(TokenType.COMMA):
+                if self._check(TokenType.RPAREN):
+                    self._error("Unexpected trailing comma in mutation payload.")
+                continue
+            elif self._check(TokenType.RPAREN):
+                break
+            else:
+                self._error("Expected ',' or ')' in mutation payload.", expected=[",", ")"])
+
+        self._consume(TokenType.RPAREN, "Expected ')' closing mutation payload.", expected=[")"])
+        return assignments
+
 
     # -----------------------------------------------------------------------
     # Projection Parsing

@@ -244,3 +244,59 @@ def _validate_comparison_constraint(field: BoundFieldPath, constraint: Compariso
             raise TypeCompatibilityError(
                 f"Constraint value '{temp_desc}' (TEMPORAL) is incompatible with {field.logical_category.value} field '{field.full_path}'."
             )
+
+
+def validate_assignment_value(field: BoundFieldPath, value: LiteralValue) -> None:
+    """Validate that a literal value assigned in a mutation payload is compatible with the target field's schema type.
+
+    Raises:
+        TypeCompatibilityError: If the literal value is incompatible with the field's schema data type.
+    """
+    if field.logical_category == LogicalTypeCategory.UNKNOWN:
+        raise TypeCompatibilityError(
+            f"Field '{field.full_path}' has unsupported AltrQL mutation type '{field.data_type.value}'."
+        )
+
+    # NULL assignment is valid for nullable fields
+    if isinstance(value, NullLiteral):
+        if not field.nullable:
+            raise TypeCompatibilityError(
+                f"Cannot assign NULL to non-nullable field '{field.full_path}'."
+            )
+        return
+
+    # NUMERIC fields (INTEGER, FLOAT, BIGINT, SMALLINT, DECIMAL)
+    if field.logical_category == LogicalTypeCategory.NUMERIC:
+        if not isinstance(value, (IntegerLiteral, FloatLiteral)):
+            raise TypeCompatibilityError(
+                f"Cannot assign {value.__class__.__name__} to NUMERIC field '{field.full_path}'."
+            )
+        return
+
+    # STRING fields (STRING, UUID)
+    if field.logical_category == LogicalTypeCategory.STRING:
+        if not isinstance(value, StringLiteral):
+            raise TypeCompatibilityError(
+                f"Cannot assign {value.__class__.__name__} to STRING field '{field.full_path}'."
+            )
+        return
+
+    # BOOLEAN fields
+    if field.logical_category == LogicalTypeCategory.BOOLEAN:
+        if not isinstance(value, BooleanLiteral):
+            raise TypeCompatibilityError(
+                f"Cannot assign {value.__class__.__name__} to BOOLEAN field '{field.full_path}'."
+            )
+        return
+
+    # TEMPORAL fields (DATE, TIME, TIMESTAMP, TIMESTAMPTZ)
+    if field.logical_category == LogicalTypeCategory.TEMPORAL:
+        if not isinstance(value, TemporalLiteral):
+            raise TypeCompatibilityError(
+                f"Cannot assign {value.__class__.__name__} to TEMPORAL field '{field.full_path}'. Expected @YYYY-MM-DD, TODAY, or NOW."
+            )
+        return
+
+    raise TypeCompatibilityError(
+        f"Cannot assign {value.__class__.__name__} to field '{field.full_path}' of type {field.logical_category.value}."
+    )

@@ -251,10 +251,12 @@ class ApiClient {
   Future<AltrQLExecuteResponseModel> executeAltrQL({
     required String query,
     required String sourceId,
+    bool confirmMassMutation = false,
   }) async {
     final body = jsonEncode({
       'query': query,
       'source_id': sourceId,
+      'confirm_mass_mutation': confirmMassMutation,
     });
 
     final res = await _client.post(

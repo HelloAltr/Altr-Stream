@@ -19,7 +19,9 @@ from altr_stream.query_engine.domain.ast import (
     IntegerLiteral,
     LiteralValue,
     LogicalExpression,
+    MutationAssignment,
     NullLiteral,
+    QueryOperation,
     Range,
     StringLiteral,
     TemporalLiteral,
@@ -36,12 +38,65 @@ def validate_ir(ir: AltrQueryIR) -> None:
     Raises:
         AltrQuerySemanticError: If any semantic rule or AST invariant is violated.
     """
-    _validate_projections(ir)
-    _validate_ranking(ir)
-    _validate_offset(ir)
-    _validate_sort_and_ranking_mutual_exclusion(ir)
-    if ir.where is not None:
-        _validate_expression(ir.where)
+    if ir.operation == QueryOperation.READ:
+        if len(ir.assignments) > 0:
+            raise AltrQuerySemanticError("Mutation assignments are not allowed on READ queries.")
+        _validate_projections(ir)
+        _validate_ranking(ir)
+        _validate_offset(ir)
+        _validate_sort_and_ranking_mutual_exclusion(ir)
+        if ir.where is not None:
+            _validate_expression(ir.where)
+
+    elif ir.operation == QueryOperation.CREATE:
+        if len(ir.assignments) < 1:
+            raise AltrQuerySemanticError("CREATE operation requires at least 1 field assignment.")
+        _validate_mutation_assignments(ir.assignments)
+        if len(ir.projection) > 0:
+            raise AltrQuerySemanticError("Projection is not allowed on CREATE operations.")
+        if ir.where is not None:
+            raise AltrQuerySemanticError("WHERE clause is not allowed on CREATE operations.")
+        if len(ir.sort) > 0 or ir.ranking is not None:
+            raise AltrQuerySemanticError("SORT/ranking clauses are not allowed on CREATE operations.")
+        if ir.offset is not None:
+            raise AltrQuerySemanticError("OFFSET clause is not allowed on CREATE operations.")
+
+    elif ir.operation == QueryOperation.UPDATE:
+        if len(ir.assignments) < 1:
+            raise AltrQuerySemanticError("UPDATE operation requires at least 1 field assignment.")
+        _validate_mutation_assignments(ir.assignments)
+        if len(ir.projection) > 0:
+            raise AltrQuerySemanticError("Projection is not allowed on UPDATE operations.")
+        if len(ir.sort) > 0 or ir.ranking is not None:
+            raise AltrQuerySemanticError("SORT/ranking clauses are not allowed on UPDATE operations.")
+        if ir.offset is not None:
+            raise AltrQuerySemanticError("OFFSET clause is not allowed on UPDATE operations.")
+        if ir.where is not None:
+            _validate_expression(ir.where)
+
+    elif ir.operation == QueryOperation.DELETE:
+        if len(ir.assignments) > 0:
+            raise AltrQuerySemanticError("Mutation assignments are not allowed on DELETE operations.")
+        if len(ir.projection) > 0:
+            raise AltrQuerySemanticError("Projection is not allowed on DELETE operations.")
+        if len(ir.sort) > 0 or ir.ranking is not None:
+            raise AltrQuerySemanticError("SORT/ranking clauses are not allowed on DELETE operations.")
+        if ir.offset is not None:
+            raise AltrQuerySemanticError("OFFSET clause is not allowed on DELETE operations.")
+        if ir.where is not None:
+            _validate_expression(ir.where)
+
+
+def _validate_mutation_assignments(assignments: list[MutationAssignment]) -> None:
+    """Ensure mutation assignment fields are unique across the payload."""
+    seen_fields: Set[str] = set()
+    for assign in assignments:
+        field_str = assign.field.full_path
+        if field_str in seen_fields:
+            raise AltrQuerySemanticError(
+                f"Duplicate assignment for field '{field_str}' found in mutation payload."
+            )
+        seen_fields.add(field_str)
 
 
 def _validate_projections(ir: AltrQueryIR) -> None:

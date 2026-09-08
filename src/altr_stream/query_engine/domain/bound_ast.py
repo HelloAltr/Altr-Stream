@@ -15,6 +15,7 @@ from altr_stream.query_engine.domain.ast import (
     ASTNode,
     FieldPath,
     LiteralValue,
+    QueryOperation,
     Range,
     ValueSet,
 )
@@ -60,6 +61,13 @@ class BoundFieldSelection(ASTNode):
 
     field: BoundFieldPath
     alias: Optional[str] = None
+
+
+class BoundMutationAssignment(ASTNode):
+    """Schema-bound field-to-value assignment in a mutation payload."""
+
+    field: BoundFieldPath
+    value: LiteralValue
 
 
 class BoundEntity(ASTNode):
@@ -115,9 +123,11 @@ class BoundAltrQueryIR(ASTNode):
     Contains complete logical query semantics plus resolved source and field metadata.
     """
 
+    operation: QueryOperation = QueryOperation.READ
     entity: BoundEntity
     projection: List[BoundFieldSelection] = Field(default_factory=list)
     where: Optional[BoundExpression] = None
+    assignments: List[BoundMutationAssignment] = Field(default_factory=list)
     sort: List[BoundSortClause] = Field(default_factory=list)
     ranking: Optional[BoundRankingClause] = None
     offset: Optional[int] = None

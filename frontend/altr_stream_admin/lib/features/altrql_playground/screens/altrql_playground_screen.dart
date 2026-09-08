@@ -44,6 +44,7 @@ class _AltrQLPlaygroundScreenState extends State<AltrQLPlaygroundScreen> {
   List<String> _columns = [];
   List<Map<String, dynamic>> _rows = [];
   QueryMetadataModel? _metadata;
+  MutationClassificationModel? _classification;
   AltrQLErrorDetailModel? _error;
 
   int _activeResultTab =
@@ -82,6 +83,28 @@ GET users (
     username,
     age
 ) TOP 10 BY age OFFSET 20;''',
+    'Create Entity': '''// Insert a new record into entity
+CREATE users (
+    username: "alice",
+    email: "alice@example.com",
+    age: 25
+);''',
+    'Update Constrained': '''// Update entity records with WHERE filter
+UPDATE users (
+    email: "updated@example.com"
+) WHERE {
+    id = 1
+};''',
+    'Update Mass': '''// Mass update all records in entity (requires confirmation)
+UPDATE users (
+    is_active: false
+);''',
+    'Delete Constrained': '''// Delete specific entity record with WHERE filter
+DELETE users WHERE {
+    id = 1
+};''',
+    'Delete Mass': '''// Mass delete all records in entity (requires confirmation)
+DELETE users;''',
   };
 
   @override
@@ -122,6 +145,7 @@ GET users (
         if (response.success) {
           _ir = response.ir;
           _boundIr = null;
+          _classification = null;
           _physicalQuery = null;
           _columns = [];
           _rows = [];
@@ -131,6 +155,7 @@ GET users (
         } else {
           _ir = null;
           _boundIr = null;
+          _classification = null;
           _physicalQuery = null;
           _columns = [];
           _rows = [];
@@ -149,6 +174,7 @@ GET users (
         _isParsing = false;
         _ir = null;
         _boundIr = null;
+        _classification = null;
         _physicalQuery = null;
         _columns = [];
         _rows = [];
@@ -182,6 +208,7 @@ GET users (
         if (response.success) {
           _ir = response.ir;
           _boundIr = response.boundIr;
+          _classification = response.classification;
           _physicalQuery = null;
           _columns = [];
           _rows = [];
@@ -191,6 +218,7 @@ GET users (
         } else {
           _ir = response.ir;
           _boundIr = null;
+          _classification = null;
           _physicalQuery = null;
           _columns = [];
           _rows = [];
@@ -208,6 +236,7 @@ GET users (
       setState(() {
         _isBinding = false;
         _boundIr = null;
+        _classification = null;
         _physicalQuery = null;
         _columns = [];
         _rows = [];
@@ -220,7 +249,7 @@ GET users (
     }
   }
 
-  Future<void> _handleExecute() async {
+  Future<void> _handleExecute({bool confirmMassMutation = false}) async {
     final queryText = _queryController.text.trim();
     if (queryText.isEmpty || _isBusy || _selectedSource == null) return;
 
@@ -233,6 +262,7 @@ GET users (
       final response = await _apiClient.executeAltrQL(
         query: queryText,
         sourceId: _selectedSource!.id,
+        confirmMassMutation: confirmMassMutation,
       );
       if (!mounted) return;
 
@@ -240,6 +270,7 @@ GET users (
         _isExecuting = false;
         _ir = response.ir;
         _boundIr = response.boundIr;
+        _classification = response.classification;
         _physicalQuery = response.physicalQuery;
 
         if (response.success) {
@@ -264,6 +295,14 @@ GET users (
           }
         }
       });
+
+      if (!response.success &&
+          response.error?.type == 'MassMutationConfirmationRequiredError') {
+        _showMassMutationConfirmationDialog(
+          response.classification,
+          queryText,
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -277,6 +316,59 @@ GET users (
         );
       });
     }
+  }
+
+  void _showMassMutationConfirmationDialog(
+    MutationClassificationModel? classification,
+    String queryText,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final op = classification?.operation ?? 'MUTATION';
+    final entity = classification?.entity ?? 'entity';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 36),
+        title: Text('Mass $op Confirmation Required'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You are executing an unconstrained $op operation on entity \'$entity\' without a WHERE clause.',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This will modify or delete ALL records in \'$entity\'. Are you sure you want to proceed?',
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _handleExecute(confirmMassMutation: true);
+            },
+            icon: const Icon(Icons.check, size: 16),
+            label: Text('Confirm & Execute Mass $op'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _copyToClipboard(String text, String label) {
@@ -1024,30 +1116,30 @@ GET users (
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
-                        Flexible(
-                          child: Text(
-                            isSuccess
-                                ? (hasResults
-                                      ? 'Query Executed Successfully'
-                                      : (hasBoundIr
-                                            ? 'Query Bound & Type Validated'
-                                            : 'Query Parsed & Semantically Valid'))
-                                : _getErrorTitle(_error?.type),
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: isSuccess
-                                  ? Colors.green
-                                  : colorScheme.error,
-                            ),
+                        Text(
+                          isSuccess
+                              ? (hasResults
+                                    ? (_metadata?.operation != null && _metadata!.operation != 'READ'
+                                          ? '${_metadata!.operation} Mutation Executed'
+                                          : 'Query Executed Successfully')
+                                    : (hasBoundIr
+                                          ? 'Query Bound & Type Validated'
+                                          : 'Query Parsed & Semantically Valid'))
+                              : _getErrorTitle(_error?.type),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isSuccess
+                                ? Colors.green
+                                : colorScheme.error,
                           ),
                         ),
                         if (_metadata != null) ...[
-                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
@@ -1058,11 +1150,47 @@ GET users (
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              '${_metadata!.executionTimeMs} ms · ${_metadata!.rowCount} rows',
+                              '${_metadata!.executionTimeMs} ms · ${_metadata!.rowCount} rows${_metadata!.affectedRows != null ? ' (${_metadata!.affectedRows} affected)' : ''}',
                               style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (_classification != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _classification!.operation == 'READ'
+                                  ? colorScheme.primaryContainer
+                                  : (_classification!.operation == 'DELETE'
+                                      ? Colors.red.withValues(alpha: 0.2)
+                                      : (_classification!.operation == 'CREATE'
+                                          ? Colors.green.withValues(alpha: 0.2)
+                                          : Colors.amber.withValues(alpha: 0.2))),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _classification!.mutationScope == 'MASS'
+                                  ? '${_classification!.operation} · MASS ⚠️'
+                                  : (_classification!.mutationScope == 'CONSTRAINED'
+                                      ? '${_classification!.operation} · CONSTRAINED'
+                                      : _classification!.operation),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: _classification!.operation == 'READ'
+                                    ? colorScheme.primary
+                                    : (_classification!.operation == 'DELETE'
+                                        ? Colors.red
+                                        : (_classification!.operation == 'CREATE'
+                                            ? Colors.green.shade800
+                                            : Colors.amber.shade900)),
                               ),
                             ),
                           ),
@@ -1253,6 +1381,9 @@ GET users (
     if (errorType == 'UnsupportedDialectError' ||
         errorType == 'QueryLoweringError') {
       return 'AltrQL Lowering Error';
+    }
+    if (errorType == 'MassMutationConfirmationRequiredError') {
+      return 'AltrQL Mass Mutation Safety Gate';
     }
     return 'AltrQL Execution Error';
   }

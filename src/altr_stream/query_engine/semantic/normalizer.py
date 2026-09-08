@@ -24,14 +24,16 @@ def normalize_ir(ir: AltrQueryIR) -> AltrQueryIR:
     Guarantees:
     - Pure, deterministic transformation.
     - Idempotence: normalize_ir(normalize_ir(ir)) == normalize_ir(ir).
-    - Preserves all field expressions, projections, sorts, rankings, and offsets.
+    - Preserves all field expressions, projections, assignments, sorts, rankings, and offsets.
     """
     normalized_where = _normalize_expression(ir.where) if ir.where is not None else None
 
     return AltrQueryIR(
+        operation=ir.operation,
         entity=ir.entity,
         projection=list(ir.projection),
         where=normalized_where,
+        assignments=list(ir.assignments),
         sort=list(ir.sort),
         ranking=ir.ranking,
         offset=ir.offset,

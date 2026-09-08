@@ -82,6 +82,7 @@ class MockTestApiClient extends ApiClient {
   Future<AltrQLExecuteResponseModel> executeAltrQL({
     required String query,
     required String sourceId,
+    bool confirmMassMutation = false,
   }) async {
     return altrqlExecuteResponseToReturn ??
         AltrQLExecuteResponseModel(
@@ -1501,6 +1502,184 @@ void main() {
     expect(find.text('POSTGRESQL Dialect'), findsOneWidget);
     expect(find.text('SELECT * FROM "public"."users" WHERE "age" >= \$1;'), findsOneWidget);
     expect(find.text('\$1 = 18'), findsOneWidget);
+  });
+
+  testWidgets('AltrQLPlaygroundScreen executes mutation and displays classification badge and affected rows', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_mut_1',
+        name: 'PostgreSQL DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'db',
+        username: 'user',
+        status: 'ACTIVE',
+        passwordMasked: '••••',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockClient = MockTestApiClient(
+      altrqlExecuteResponseToReturn: AltrQLExecuteResponseModel(
+        success: true,
+        ir: {
+          'operation': 'UPDATE',
+          'entity': 'users',
+          'assignments': [{'field': 'email', 'value': 'new@test.com'}],
+        },
+        boundIr: {
+          'source_id': 'src_mut_1',
+          'source_name': 'PostgreSQL DB',
+          'operation': 'UPDATE',
+          'entity': {'name': 'users', 'namespace': 'public', 'entity_type': 'TABLE'},
+        },
+        classification: MutationClassificationModel(
+          operation: 'UPDATE',
+          mutationScope: 'CONSTRAINED',
+          requiresConfirmation: false,
+          entity: 'users',
+          description: "Constrained UPDATE on entity 'users' with WHERE filter.",
+        ),
+        physicalQuery: PhysicalQueryModel(
+          dialect: 'postgresql',
+          query: 'UPDATE "public"."users" SET "email" = \$1 WHERE "id" = \$2 RETURNING *;',
+          parameters: ['new@test.com', 1],
+          sourceId: 'src_mut_1',
+          sourceName: 'PostgreSQL DB',
+        ),
+        columns: ['id', 'email'],
+        rows: [
+          {'id': 1, 'email': 'new@test.com'},
+        ],
+        metadata: QueryMetadataModel(
+          rowCount: 1,
+          affectedRows: 1,
+          executionTimeMs: 5.12,
+          operation: 'UPDATE',
+          mutationScope: 'CONSTRAINED',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: mockSources,
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'UPDATE users ( email: "new@test.com" ) WHERE { id = 1 };');
+    await tester.pump();
+
+    await tester.tap(find.text('Execute Query'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('UPDATE Mutation Executed'), findsOneWidget);
+    expect(find.text('UPDATE · CONSTRAINED'), findsOneWidget);
+    expect(find.text('5.12 ms · 1 rows (1 affected)'), findsOneWidget);
+    expect(find.text('new@test.com'), findsOneWidget);
+  });
+
+  testWidgets('AltrQLPlaygroundScreen handles MassMutationConfirmationRequiredError with confirmation dialog and resubmission', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_mut_2',
+        name: 'PostgreSQL DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'db',
+        username: 'user',
+        status: 'ACTIVE',
+        passwordMasked: '••••',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockClient = MockTestApiClient(
+      altrqlExecuteResponseToReturn: AltrQLExecuteResponseModel(
+        success: false,
+        classification: MutationClassificationModel(
+          operation: 'DELETE',
+          mutationScope: 'MASS',
+          requiresConfirmation: true,
+          entity: 'users',
+          description: "Mass DELETE on entity 'users' without WHERE clause.",
+        ),
+        physicalQuery: PhysicalQueryModel(
+          dialect: 'postgresql',
+          query: 'DELETE FROM "public"."users" RETURNING *;',
+          parameters: [],
+          sourceId: 'src_mut_2',
+          sourceName: 'PostgreSQL DB',
+        ),
+        columns: [],
+        rows: [],
+        error: AltrQLErrorDetailModel(
+          type: 'MassMutationConfirmationRequiredError',
+          message: "Mass DELETE operation on entity 'users' without a WHERE clause requires explicit confirmation.",
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AltrQLPlaygroundScreen(
+              sources: mockSources,
+              nodeStatus: 'ONLINE',
+              apiClient: mockClient,
+              onBack: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
+    await tester.enterText(queryField, 'DELETE users;');
+    await tester.pump();
+
+    await tester.tap(find.text('Execute Query'));
+    await tester.pumpAndSettle();
+
+    // Verify confirmation dialog appeared
+    expect(find.text('Mass DELETE Confirmation Required'), findsOneWidget);
+    expect(find.textContaining('This will modify or delete ALL records in \'users\''), findsOneWidget);
+    expect(find.text('Confirm & Execute Mass DELETE'), findsOneWidget);
+
+    // Tap Cancel
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mass DELETE Confirmation Required'), findsNothing);
   });
 }
 

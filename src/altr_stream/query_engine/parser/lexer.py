@@ -20,6 +20,7 @@ class TokenType(Enum):
     COMMA = auto()        # ,
     SEMICOLON = auto()    # ;
     DOT = auto()          # .
+    COLON = auto()        # :
     AMPERSAND = auto()    # &
     DOTDOT = auto()       # ..
 
@@ -40,6 +41,9 @@ class TokenType(Enum):
 
     # Reserved Keywords (Strictly Uppercase)
     GET = auto()
+    CREATE = auto()
+    UPDATE = auto()
+    DELETE = auto()
     WHERE = auto()
     OR = auto()
     SORT = auto()
@@ -66,6 +70,9 @@ class TokenType(Enum):
 
 RESERVED_KEYWORDS = {
     "GET": TokenType.GET,
+    "CREATE": TokenType.CREATE,
+    "UPDATE": TokenType.UPDATE,
+    "DELETE": TokenType.DELETE,
     "WHERE": TokenType.WHERE,
     "OR": TokenType.OR,
     "SORT": TokenType.SORT,
@@ -186,6 +193,7 @@ class Lexer:
                 ",": TokenType.COMMA,
                 ";": TokenType.SEMICOLON,
                 ".": TokenType.DOT,
+                ":": TokenType.COLON,
                 "&": TokenType.AMPERSAND,
                 "=": TokenType.EQ,
                 ">": TokenType.GT,
