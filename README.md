@@ -2,7 +2,7 @@
 
 > **Physical source abstraction and data infrastructure service for the HelloAltr / Altr Mesh ecosystem.**
 
-Altr Stream is responsible for knowing *how* to physically connect to, introspect, and operate on external data sources (PostgreSQL, with MySQL and MongoDB planned). It encapsulates connection pools, catalog discovery, schema normalization, native pushdown operations, and future Change Data Capture (CDC).
+Altr Stream is responsible for knowing *how* to physically connect to, introspect, and operate on external data sources (PostgreSQL, with MySQL and MongoDB planned). It encapsulates connection pools, catalog discovery, schema normalization, native pushdown operations, the **AltrQL logical query compiler**, and future Change Data Capture (CDC).
 
 ---
 
@@ -20,6 +20,7 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │        - Persistent desktop sidebar & progressive UX        │
 │        - Overview, Data Sources, Activity, Settings         │
 │        - Schema Explorer & Native Query Playground          │
+│        - Global AltrQL Console & Multi-View Compiler View   │
 │        - 4-step guided source onboarding wizard             │
 │        - Serves pre-compiled static Flutter Web bundle      │
 │        - Proxies /api/* to backend service                  │
@@ -30,6 +31,7 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │               altr-stream-app (Port 8000)                   │
 │                   FastAPI Backend Service                   │
 │        - Source registration & lifecycle management         │
+│        - AltrQL v0.4 Query Engine & Compiler Pipeline       │
 │        - PostgreSQL connector (asyncpg)                     │
 │        - Schema catalog introspection & normalizer          │
 │        - SQLite metadata store (aiosqlite)                  │
@@ -41,6 +43,93 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │          PostgreSQL Test Database (Pre-seeded)              │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## ⚡ AltrQL Query Engine (v0.4)
+
+AltrQL is a declarative, database-neutral logical query and mutation language designed for the Altr platform. The query engine compiles AltrQL queries through pure, isolated compiler phases into 100% parameterized dialect-specific SQL:
+
+```text
+Raw AltrQL String
+       │
+       ▼ Lex & Parse
+Canonical AST (`AltrQueryIR`)
+       │
+       ▼ Semantic Validation & Normalization
+Validated AST
+       │
+       ▼ Schema Binding & Type Validation
+Bound AST (`BoundAltrQueryIR`)
+       │
+       ▼ Pure Dialect Lowering
+Physical Query (`PhysicalQuery` | `PhysicalQueryBatch`)
+       │
+       ▼ Transactional Connector Execution
+Normalized Query Result (`QueryResult`)
+```
+
+### Supported Operations & Syntax
+
+#### 1. `GET` (Logical Retrieval)
+```altrql
+GET users (
+    id,
+    username,
+    email
+) WHERE {
+    age = {18..65},
+    created_at = @2026-09-06,
+    status = {"ACTIVE", "PENDING"}
+} TOP 10 BY created_at OFFSET 20;
+```
+- **Projections**: Field selections with optional aliases (`id AS user_id`).
+- **Expressions**: Rich logical boolean tree (`AND`, `,`, `OR`, `NOT`, `{ ... }`).
+- **Operators**: Equality (`=`), inequality (`!=`), range (`18..65`), compound bounds (`>=18 & <=65`), value sets (`{"A", "B"}`), and string pattern matchers (`STARTS`, `ENDS`, `HAS`, `NOT HAS`).
+- **Precision-Aware Temporal Comparisons**: Comparing a date-only literal (`@YYYY-MM-DD`) against a `TIMESTAMP`/`TIMESTAMPTZ` field rewrites into a half-open day range `("created_at" >= $1 AND "created_at" < $2)` covering the entire calendar day `[00:00:00, 24:00:00)`.
+
+#### 2. `CREATE` (Single & Batch Insertions)
+- **Single-Record Syntax** (Backward-compatible):
+  ```altrql
+  CREATE users (
+      username: "alice",
+      email: "alice@example.com",
+      age: 28
+  );
+  ```
+- **Batch / Grouped Syntax**:
+  ```altrql
+  CREATE users (
+      (username: "alice", email: "alice@example.com"),
+      (username: "bob", email: "bob@example.com")
+  );
+  ```
+- **Consecutive-Only Grouping**: Homogeneous records lower into a single multi-row `INSERT INTO ... VALUES ($1, $2), ($3, $4) RETURNING *;`. Heterogeneous records with differing column shapes (e.g. `[A, A, B, A]`) are grouped only across adjacent matching shapes (`[A, A]`, `[B]`, `[A]`), preserving exact logical record order and emitting a `PhysicalQueryBatch`.
+- **Atomic Batch Execution**: `execute_batch()` executes statements sequentially inside an explicit transaction (`async with conn.transaction():`), ensuring complete rollback on any record failure.
+
+#### 3. `UPDATE` (Set-Based with Mandatory WHERE)
+```altrql
+UPDATE users (
+    full_name: "Alice Updated",
+    is_active: TRUE
+) WHERE {
+    email = "alice@example.com"
+};
+```
+- **Mandatory WHERE**: Full-table mutations without a `WHERE` clause are rejected at parse and validation time as a language-level safety invariant.
+- **Single PhysicalQuery**: UPDATE is strictly set-based and always compiles to a single `PhysicalQuery`.
+- **Deterministic Parameter Ordering**: Mutation assignment parameters precede condition parameters (`$1, $2` for SET, `$3` for WHERE).
+
+#### 4. `DELETE` (Constrained & Mass Mutations)
+- **Constrained DELETE**:
+  ```altrql
+  DELETE users WHERE { id = 42 };
+  ```
+- **Mass DELETE (Safety Gated)**:
+  ```altrql
+  DELETE users;
+  ```
+  Requires explicit `confirm_mass_mutation=true` in the execution API, otherwise returning `MassMutationConfirmationRequiredError`.
 
 ---
 
@@ -95,8 +184,8 @@ uv pip install -e ".[dev]"
 # Run FastAPI backend with hot reload
 uvicorn altr_stream.main:app --reload --host 0.0.0.0 --port 8000
 
-# Run backend test suite
-pytest -v
+# Run backend test suite (397 tests)
+pytest tests/ -v
 ```
 
 ### Frontend (Flutter Web)
@@ -111,6 +200,9 @@ flutter run -d chrome
 
 # Run multi-viewport Flutter tests
 flutter test
+
+# Run Flutter static analysis
+flutter analyze
 
 # Build release web bundle
 flutter build web --release
@@ -129,7 +221,7 @@ Altr-Stream/
 │       │   ├── features/
 │       │   │   ├── overview/    # Node overview, summaries & quick links
 │       │   │   ├── sources/     # Sources list, details tabs & 4-step wizard
-│       │   │   ├── altrql_playground/ # Global AltrQL Console & AST Viewer
+│       │   │   ├── altrql_playground/ # Global AltrQL Console & Multi-View Compiler Inspector
 │       │   │   ├── source_playground/ # Source-scoped Schema Explorer & Native SQL Playground
 │       │   │   ├── activity/    # Operational timeline
 │       │   │   └── settings/    # Node configuration & diagnostics
@@ -142,16 +234,26 @@ Altr-Stream/
 ├── src/
 │   └── altr_stream/             # FastAPI Backend Service
 │       ├── domain/              # Source, Schema, Connector Contracts
-│       ├── query_engine/        # AltrQL v0.1 Parser, Semantic Validation & Schema Binder
-│       ├── infrastructure/      # SQLite Metadata Store & PostgreSQL Connector
+│       ├── query_engine/        # AltrQL v0.4 Compiler (Parser, Semantic Validator, Binder, Lowerer)
+│       │   ├── binding/         # Schema resolution & type compatibility validation
+│       │   ├── classification/  # Pure deterministic mutation classification & safety scoping
+│       │   ├── domain/          # Canonical AST, Bound AST, PhysicalQuery models
+│       │   ├── lowering/        # Dialect lowerers (PostgreSQL multi-row & consecutive batch)
+│       │   ├── parser/          # Lexer & recursive descent parser
+│       │   └── semantic/        # AST invariants validator & normalizer
+│       ├── infrastructure/      # SQLite Metadata Store & PostgreSQL Connector (asyncpg)
 │       ├── application/         # SourceService, SchemaService, QueryService
 │       ├── presentation/api/    # REST API Routes (/api/v1/sources, /altrql, /queries)
 │       └── main.py              # FastAPI Application Entry
 ├── tests/                       # Backend Pytest Test Suite (Unit & Integration)
+│   ├── unit/                    # Compiler unit tests (Parser, Validator, Binder, Lowerer)
+│   └── integration/             # REST API & live database integration tests
 ├── docker/
 │   └── postgres/init.sql        # Seed database schemas & sample tables
 ├── docker-compose.yml           # Multi-container production orchestration
 ├── docker-compose.dev.yml       # Development hot-reload override
 ├── Dockerfile                   # Python backend container
-└── pyproject.toml               # Python packaging & dependencies
+├── pyproject.toml               # Python packaging & dependencies
+├── README.md                    # Project overview & architecture guide
+└── USAGE.md                     # Operational manual & developer command reference
 ```

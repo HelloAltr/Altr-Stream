@@ -1,4 +1,4 @@
-"""Schema-aware type validator for AltrQL v0.1.
+"""Schema-aware type validator for AltrQL v0.4.
 
 Maps physical schema types into logical categories and validates operator/operand
 compatibility, strict temporal literal checking, range bounds vs field type,

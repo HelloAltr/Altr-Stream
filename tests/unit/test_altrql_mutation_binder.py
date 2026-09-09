@@ -1,4 +1,4 @@
-"""Unit tests for AltrQL v0.2 schema binding and type validation on mutations."""
+"""Unit tests for AltrQL v0.4 schema binding and type validation on mutations."""
 
 from datetime import datetime, timezone
 import pytest
@@ -137,7 +137,7 @@ def test_bind_mutation_unknown_field_rejected(mock_schema: SourceSchema):
 
 def test_bind_mutation_type_incompatibility_rejected(mock_schema: SourceSchema):
     """Assigning incompatible types (e.g., string to integer column) must raise TypeCompatibilityError."""
-    raw_ir = parse_altrql('UPDATE users ( age: "not_a_number" );')
+    raw_ir = parse_altrql('UPDATE users ( age: "not_a_number" ) WHERE { id = 1 };')
     with pytest.raises(TypeCompatibilityError) as exc_info:
         bind_altrql(raw_ir, mock_schema)
-    assert "incompatible" in exc_info.value.message.lower() or "age" in exc_info.value.message.lower()
+    assert "age" in exc_info.value.message.lower() or "age" in exc_info.value.message.lower()

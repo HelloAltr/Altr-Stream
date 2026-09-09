@@ -103,29 +103,79 @@ Altr Stream provides a clean separation between **Native Database Playgrounds** 
 
 ### 4.1 AltrQL Console & Interactive Multi-View Execution Inspector (`/altrql`)
 Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or navigation header:
-1. **Interactive Language Parsing & Validation**:
-   - Write declarative AltrQL queries in the editor (e.g. `GET users WHERE { status = "ACTIVE" };`).
-   - Click **"Parse Query"** (`POST /api/v1/altrql/parse`) to validate syntax and inspect normalized `AltrQueryIR`.
-2. **Schema Binding & Type Validation**:
-   - Select any registered data source from the target source dropdown.
-   - Click **"Bind Against Source"** (`POST /api/v1/altrql/bind`).
-   - Inspect the strongly-typed `BoundAltrQueryIR` annotated with resolved entity metadata, column data types, and logical type categories (`NUMERIC`, `STRING`, `BOOLEAN`, `TEMPORAL`).
-3. **Controlled Query Execution & Physical Lowering**:
-   - Click **"Execute Query"** or press **`⌘ + Enter`** / **`Ctrl + Enter`** (`POST /api/v1/altrql/execute`).
-   - Compiles the query deterministically through `Parse -> Bind -> Lower -> Execute`.
-   - **Multi-View Result Switcher**:
-     - **Results:** Renders interactive tabular data with execution latency (`X ms`) and row count (`Y rows`) badges.
-     - **Physical Query:** Inspects dialect-specific SQL (e.g. PostgreSQL `FROM "public"."users"`) and 100% parameterized value chips (`$1 = ...`).
-     - **Bound IR:** Monospace JSON view of the schema-bound AST.
-     - **Canonical IR:** Monospace JSON view of the normalized language AST.
-4. **Temporal & Pattern Features**:
-   - AltrQL v0.1 supports temporal keywords (`TODAY`, `NOW`) and explicit ISO date literals (`@YYYY-MM-DD`, e.g. `@2026-01-01`).
-   - Supports pattern matching (`STARTS`, `ENDS`, `HAS`, `NOT HAS`), discrete sets (`{1, 2, 6..10}`), ranges (`{>=18 & <=50}`), and ranking (`TOP 10 BY age OFFSET 20;`).
-5. **Structured Error Diagnostics**:
-   - Syntax violations, semantic errors, schema mismatches, lowering errors, or execution failures render diagnostic callouts with `Line N · Column M` indicators and dedicated **"Copy Error"** buttons.
-   - Failed database executions preserve pipeline artifacts (`ir`, `bound_ir`, `physical_query`) for rapid debugging.
-6. **Template Selector**:
-   - One-click template insertion conforming to AltrQL v0.1 (`Simple Read`, `Range & Sets`, `String Patterns`, `Ranking & Pagination`).
+
+1. **Language Operations & Syntax (AltrQL v0.4)**:
+   - **`GET` (Logical Retrieval)**:
+     ```altrql
+     GET users (
+         id,
+         username,
+         email
+     ) WHERE {
+         age = {18..65},
+         created_at = @2026-09-06,
+         status = {"ACTIVE", "PENDING"}
+     } TOP 10 BY created_at OFFSET 20;
+     ```
+     - Projections with optional aliases (`id AS user_id`).
+     - Rich boolean logic (`AND`, `,`, `OR`, `NOT`, `{ ... }`), ranges (`18..65`), compound bounds (`>=18 & <=65`), value sets (`{"A", "B"}`), and string pattern matchers (`STARTS`, `ENDS`, `HAS`, `NOT HAS`).
+     - **Precision-Aware Temporal Equality**: Comparing a date-only literal (`@YYYY-MM-DD`) against a `TIMESTAMP`/`TIMESTAMPTZ` field rewrites automatically into a half-open day range `("created_at" >= $1 AND "created_at" < $2)` covering the full calendar day `[00:00:00, 24:00:00)`.
+   - **`CREATE` (Single & Batch Insertions)**:
+     - *Single-Record Syntax*:
+       ```altrql
+       CREATE users (
+           username: "alice",
+           email: "alice@example.com",
+           age: 28
+       );
+       ```
+     - *Grouped / Batch Syntax*:
+       ```altrql
+       CREATE users (
+           (username: "alice", email: "alice@example.com"),
+           (username: "bob", email: "bob@example.com")
+       );
+       ```
+     - *Consecutive-Only Grouping Lowering*: Homogeneous batches merge into a single multi-row `INSERT INTO ... VALUES ($1, $2), ($3, $4) RETURNING *;`. Heterogeneous records with differing column shapes (e.g. `[A, A, B, A]`) group only across adjacent matching shapes (`[A, A]`, `[B]`, `[A]`), preserving exact logical record order and emitting a `PhysicalQueryBatch`.
+     - *Atomic Batch Transaction*: `execute_batch()` runs statements sequentially inside an explicit database transaction (`async with conn.transaction():`), guaranteeing complete rollback on any error.
+   - **`UPDATE` (Set-Based Mutations)**:
+     ```altrql
+     UPDATE users (
+         full_name: "Alice Updated",
+         is_active: TRUE
+     ) WHERE {
+         email = "alice@example.com"
+     };
+     ```
+     - *Mandatory WHERE*: Full-table mutations without a `WHERE` clause are rejected at parse and validation time as a language-level safety invariant.
+     - *Validation*: Duplicate assignment fields are rejected during semantic validation via `_validate_mutation_assignments()`.
+     - *Lowering*: Compiles to a single `PhysicalQuery` with deterministic parameter ordering (`$1, $2` for SET assignments before `$3` for WHERE conditions) and `RETURNING *`.
+     - *Execution*: Returns all affected rows. Updating zero matching rows succeeds cleanly, returning 0 rows.
+   - **`DELETE` (Constrained & Mass Mutations)**:
+     - *Constrained DELETE*: `DELETE users WHERE { id = 42 };`
+     - *Mass DELETE*: `DELETE users;` (requires explicit `confirm_mass_mutation=true` in execution request, otherwise raising `MassMutationConfirmationRequiredError`).
+
+2. **Compiler Pipeline & Multi-View Execution Inspector**:
+   - **Interactive Language Parsing & Validation**:
+     - Click **"Parse Query"** (`POST /api/v1/altrql/parse`) to validate syntax and inspect normalized `AltrQueryIR`.
+   - **Schema Binding & Type Validation**:
+     - Select any registered data source from the target source dropdown and click **"Bind Against Source"** (`POST /api/v1/altrql/bind`).
+     - Inspect the strongly-typed `BoundAltrQueryIR` annotated with resolved entity metadata, column data types, and logical type categories (`NUMERIC`, `STRING`, `BOOLEAN`, `TEMPORAL`).
+   - **Controlled Query Execution & Physical Lowering**:
+     - Click **"Execute Query"** or press **`⌘ + Enter`** / **`Ctrl + Enter`** (`POST /api/v1/altrql/execute`).
+     - **Multi-View Result Switcher**:
+       - **Results:** Interactive tabular data with execution latency (`X ms`) and affected/returned row count badges.
+       - **Physical Query:** Dialect-specific generated SQL (e.g. PostgreSQL `FROM "public"."users"`) and 100% parameterized placeholder chips (`$1 = ...`), supporting multi-statement batch inspection.
+       - **Bound IR:** Monospace JSON view of the schema-bound AST.
+       - **Canonical IR:** Monospace JSON view of the normalized language AST.
+   - **Mutation Badges & Safety Scoping**:
+     - Visual classification badges (`READ`, `CREATE`, `UPDATE`, `DELETE`, `BATCH`).
+     - Destructive mass mutations trigger safety confirmation dialogs.
+   - **Structured Error Diagnostics**:
+     - Syntax violations (`AltrQueryParseError`), semantic errors (`AltrQuerySemanticError`), schema binding errors (`AltrQueryBindingError`), lowering errors (`AltrQueryLoweringError`), mass mutation gates (`MassMutationConfirmationRequiredError`), and execution failures render diagnostic callouts with `Line N · Column M` indicators and dedicated **"Copy Error"** buttons.
+     - Failed executions preserve pipeline artifacts (`ir`, `bound_ir`, `physical_query`) for rapid debugging.
+   - **Template Selector**:
+     - One-click template insertion conforming to AltrQL v0.4 (`Simple Read`, `Range & Sets`, `String Patterns`, `Create Single Entity`, `Create Batch Entities`, `Update Entity`, `Constrained Delete`).
 
 ### 4.2 Source-Scoped Native Database Playground
 Accessible inside any Data Source detail page (`Data Sources → Select Source → Playground` tab):

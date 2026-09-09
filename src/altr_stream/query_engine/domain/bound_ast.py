@@ -1,4 +1,4 @@
-"""Strongly-typed Schema-Bound Abstract Syntax Tree (Bound AST) and IR models for AltrQL v0.1.
+"""Strongly-typed Schema-Bound Abstract Syntax Tree (Bound AST) and IR models for AltrQL v0.4.
 
 Attaches resolved schema metadata, logical type categories, and field properties
 to logical AltrQL queries without lowering into physical SQL or database dialect representations.

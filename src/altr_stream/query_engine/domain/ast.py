@@ -1,4 +1,4 @@
-"""Strongly-typed Abstract Syntax Tree (AST) and Intermediate Representation (IR) models for AltrQL v0.2."""
+"""Strongly-typed Abstract Syntax Tree (AST) and Intermediate Representation (IR) models for AltrQL v0.4."""
 
 from __future__ import annotations
 

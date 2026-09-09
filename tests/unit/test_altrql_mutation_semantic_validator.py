@@ -1,4 +1,4 @@
-"""Unit tests for AltrQL v0.2 semantic validation and normalization on mutations."""
+"""Unit tests for AltrQL v0.4 semantic validation and normalization on mutations."""
 
 import pytest
 

@@ -1,4 +1,4 @@
-"""Integration tests for AltrQL v0.2 mutation endpoints across parse, bind, and execute."""
+"""Integration tests for AltrQL v0.4 mutation endpoints across parse, bind, and execute."""
 
 from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
@@ -213,48 +213,20 @@ async def test_execute_constrained_update_mutation_success(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_execute_mass_update_safety_gate_and_confirmation(client: AsyncClient):
-    """Test /altrql/execute safety gate for mass UPDATE requiring explicit confirmation."""
+async def test_execute_update_without_where_fails_at_parse(client: AsyncClient):
+    """Test /altrql/execute rejecting UPDATE without WHERE clause at compilation phase."""
     source_id = await _setup_test_source_and_schema(client)
 
-    mock_result = QueryResult(
-        columns=["id", "is_active"],
-        rows=[{"id": 1, "is_active": False}, {"id": 2, "is_active": False}],
-        row_count=2,
-        execution_time_ms=3.1,
-        message="UPDATE 2",
-    )
-
     query = "UPDATE users ( is_active: FALSE );"
-
-    # 1. Without confirmation -> blocked by safety gate, returns diagnostic error with preserved artifacts
-    res_blocked = await client.post(
+    res = await client.post(
         "/api/v1/altrql/execute",
         json={"query": query, "source_id": source_id, "confirm_mass_mutation": False},
     )
-    assert res_blocked.status_code == 200
-    data_blocked = res_blocked.json()
-    assert data_blocked["success"] is False
-    assert data_blocked["error"]["type"] == "MassMutationConfirmationRequiredError"
-    assert "requires explicit confirmation" in data_blocked["error"]["message"]
-    assert data_blocked["classification"]["requires_confirmation"] is True
-    assert data_blocked["physical_query"]["query"] == 'UPDATE "public"."users" SET "is_active" = $1 RETURNING *;'
-    assert data_blocked["physical_query"]["parameters"] == [False]
-
-    # 2. With confirmation -> executes successfully
-    with patch(
-        "altr_stream.infrastructure.connectors.postgres.connector.PostgreSQLConnector.execute_query",
-        new=AsyncMock(return_value=mock_result),
-    ):
-        res_confirmed = await client.post(
-            "/api/v1/altrql/execute",
-            json={"query": query, "source_id": source_id, "confirm_mass_mutation": True},
-        )
-        assert res_confirmed.status_code == 200
-        data_confirmed = res_confirmed.json()
-        assert data_confirmed["success"] is True
-        assert data_confirmed["error"] is None
-        assert data_confirmed["metadata"]["affected_rows"] == 2
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is False
+    assert data["error"]["type"] == "AltrQueryParseError"
+    assert "where" in data["error"]["message"].lower()
 
 
 @pytest.mark.asyncio

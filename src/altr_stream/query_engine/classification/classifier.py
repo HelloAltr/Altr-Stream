@@ -1,4 +1,4 @@
-"""Pure, deterministic mutation classifier for AltrQL v0.2."""
+"""Pure, deterministic mutation classifier for AltrQL v0.4."""
 
 from __future__ import annotations
 

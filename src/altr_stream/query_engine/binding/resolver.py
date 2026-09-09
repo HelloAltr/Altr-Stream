@@ -1,4 +1,4 @@
-"""Schema resolver for AltrQL v0.1.
+"""Schema resolver for AltrQL v0.4.
 
 Resolves logical query entity names and field paths against an in-memory SourceSchema snapshot.
 """

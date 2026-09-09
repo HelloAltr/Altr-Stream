@@ -1,4 +1,4 @@
-"""Strongly-typed Physical Query representation for AltrQL v0.1.
+"""Strongly-typed Physical Query representation for AltrQL v0.4.
 
 Contains the database-specific executable query string and parameterized values
 produced by lowering a schema-bound BoundAltrQueryIR.

@@ -1,4 +1,4 @@
-"""Integration tests for AltrQL v0.3 advanced conditional logic endpoints across parse, bind, and execute."""
+"""Integration tests for AltrQL v0.4 advanced conditional logic endpoints across parse, bind, and execute."""
 
 from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient

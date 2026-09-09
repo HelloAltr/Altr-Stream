@@ -1,4 +1,4 @@
-"""Unit tests for pure deterministic AltrQL v0.2 mutation classification."""
+"""Unit tests for pure deterministic AltrQL v0.4 mutation classification."""
 
 from datetime import datetime, timezone
 import pytest
@@ -78,10 +78,14 @@ def test_classify_constrained_update_query(test_schema: SourceSchema):
 
 
 def test_classify_mass_update_query(test_schema: SourceSchema):
-    """UPDATE without WHERE is classified as MASS with requires_confirmation=True."""
-    bound = bind_altrql(
-        parse_altrql('UPDATE users ( is_active: FALSE );'),
-        test_schema,
+    """UPDATE without WHERE in BoundAltrQueryIR is classified as MASS with requires_confirmation=True."""
+    from altr_stream.query_engine.domain.bound_ast import BoundAltrQueryIR, BoundEntity
+    bound = BoundAltrQueryIR(
+        operation=QueryOperation.UPDATE,
+        source_id="src_1",
+        source_name="Postgres",
+        entity=BoundEntity(name="users", namespace="public"),
+        where=None,
     )
     res = classify_query(bound)
 

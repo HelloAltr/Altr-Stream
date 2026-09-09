@@ -1,4 +1,4 @@
-"""Pure, deterministic schema binder for AltrQL v0.1.
+"""Pure, deterministic schema binder for AltrQL v0.4.
 
 Binds a canonical AltrQueryIR AST against a SourceSchema snapshot to produce a
 strongly-typed, schema-annotated BoundAltrQueryIR without side effects or database access.

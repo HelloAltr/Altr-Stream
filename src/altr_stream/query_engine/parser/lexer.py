@@ -1,4 +1,4 @@
-"""Strict, case-sensitive lexical analyzer (tokenizer) for AltrQL v0.1."""
+"""Strict, case-sensitive lexical analyzer (tokenizer) for AltrQL v0.4."""
 
 from __future__ import annotations
 

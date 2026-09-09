@@ -1,4 +1,4 @@
-"""Unit tests for AltrQL v0.3 Advanced Conditional Logic & Expression Grouping PostgreSQL Lowerer."""
+"""Unit tests for AltrQL v0.4 Advanced Conditional Logic & Expression Grouping PostgreSQL Lowerer."""
 
 import pytest
 

@@ -1,4 +1,4 @@
-"""Comprehensive test suite for AltrQL v0.1 Lexer, Parser, and AST / IR domain models."""
+"""Comprehensive test suite for AltrQL v0.4 Lexer, Parser, and AST / IR domain models."""
 
 import pytest
 

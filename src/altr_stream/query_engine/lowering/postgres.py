@@ -1,4 +1,4 @@
-"""PostgreSQL physical query lowerer for AltrQL v0.2.
+"""PostgreSQL physical query lowerer for AltrQL v0.4.
 
 Translates schema-bound BoundAltrQueryIR into deterministic, fully parameterized
 PostgreSQL SELECT, INSERT, UPDATE, and DELETE statements without performing database I/O or network calls.

@@ -72,15 +72,18 @@ def validate_ir(ir: AltrQueryIR) -> None:
     elif ir.operation == QueryOperation.UPDATE:
         if len(ir.assignments) < 1:
             raise AltrQuerySemanticError("UPDATE operation requires at least 1 field assignment.")
+        if len(ir.records) > 0:
+            raise AltrQuerySemanticError("Grouped records are not allowed on UPDATE operations.")
         _validate_mutation_assignments(ir.assignments)
+        if ir.where is None:
+            raise AltrQuerySemanticError("UPDATE operation requires a WHERE clause.")
         if len(ir.projection) > 0:
             raise AltrQuerySemanticError("Projection is not allowed on UPDATE operations.")
         if len(ir.sort) > 0 or ir.ranking is not None:
             raise AltrQuerySemanticError("SORT/ranking clauses are not allowed on UPDATE operations.")
         if ir.offset is not None:
             raise AltrQuerySemanticError("OFFSET clause is not allowed on UPDATE operations.")
-        if ir.where is not None:
-            _validate_expression(ir.where)
+        _validate_expression(ir.where)
 
     elif ir.operation == QueryOperation.DELETE:
         if len(ir.assignments) > 0:

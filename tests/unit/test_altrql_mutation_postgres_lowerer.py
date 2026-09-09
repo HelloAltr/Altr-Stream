@@ -1,4 +1,4 @@
-"""Unit tests for lowering AltrQL v0.2 mutations into physical PostgreSQL dialect."""
+"""Unit tests for lowering AltrQL v0.4 mutations into physical PostgreSQL dialect."""
 
 from datetime import datetime, timezone
 import pytest
@@ -69,9 +69,33 @@ def test_lower_constrained_update_mutation(lowerer: PostgreSQLLowerer, test_sche
 
 
 def test_lower_mass_update_mutation(lowerer: PostgreSQLLowerer, test_schema: SourceSchema):
-    """Mass UPDATE without WHERE lowers into UPDATE ... SET ... RETURNING *."""
-    ir = parse_altrql('UPDATE users ( is_active: FALSE );')
-    bound = bind_altrql(ir, test_schema)
+    """Mass UPDATE without WHERE in BoundAltrQueryIR lowers into UPDATE ... SET ... RETURNING *."""
+    from altr_stream.query_engine.domain.ast import BooleanLiteral, FieldPath, QueryOperation
+    from altr_stream.query_engine.domain.bound_ast import (
+        BoundAltrQueryIR,
+        BoundEntity,
+        BoundFieldPath,
+        BoundMutationAssignment,
+        LogicalTypeCategory,
+    )
+    bound = BoundAltrQueryIR(
+        operation=QueryOperation.UPDATE,
+        source_id="src_1",
+        source_name="Postgres DB",
+        entity=BoundEntity(name="users", namespace="public"),
+        assignments=[
+            BoundMutationAssignment(
+                field=BoundFieldPath(
+                    path=FieldPath(segments=["is_active"]),
+                    logical_category=LogicalTypeCategory.BOOLEAN,
+                    data_type=StandardDataType.BOOLEAN,
+                    native_type="bool",
+                ),
+                value=BooleanLiteral(value=False),
+            )
+        ],
+        where=None,
+    )
     physical = lowerer.lower(bound)
 
     assert physical.dialect == "postgresql"

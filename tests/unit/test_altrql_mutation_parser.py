@@ -1,4 +1,4 @@
-"""Unit tests for AltrQL v0.2 mutation parser."""
+"""Unit tests for AltrQL v0.4 mutation parser."""
 
 import pytest
 
@@ -47,16 +47,12 @@ def test_parse_update_with_where():
     assert ir.where is not None
 
 
-def test_parse_update_without_where():
-    """Test parsing a mass UPDATE statement without WHERE clause."""
+def test_parse_update_without_where_rejected():
+    """UPDATE without WHERE clause must be rejected by parser."""
     q = "UPDATE users ( is_active: FALSE );"
-    ir = parse_altrql(q)
-
-    assert ir.operation == QueryOperation.UPDATE
-    assert ir.entity == "users"
-    assert len(ir.assignments) == 1
-    assert ir.assignments[0] == MutationAssignment(field=FieldPath(segments=["is_active"]), value=BooleanLiteral(value=False))
-    assert ir.where is None
+    with pytest.raises(AltrQueryParseError) as exc_info:
+        parse_altrql(q)
+    assert "where" in exc_info.value.message.lower()
 
 
 def test_parse_delete_with_where():

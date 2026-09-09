@@ -89,16 +89,12 @@ CREATE users (
     email: "alice@example.com",
     age: 25
 );''',
-    'Update Constrained': '''// Update entity records with WHERE filter
+    'Update Entity': '''// Update entity records with WHERE filter
 UPDATE users (
     email: "updated@example.com"
 ) WHERE {
     id = 1
 };''',
-    'Update Mass': '''// Mass update all records in entity (requires confirmation)
-UPDATE users (
-    is_active: false
-);''',
     'Delete Constrained': '''// Delete specific entity record with WHERE filter
 DELETE users WHERE {
     id = 1

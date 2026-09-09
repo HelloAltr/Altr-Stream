@@ -1,4 +1,4 @@
-"""AST and IR normalizer for AltrQL v0.3.
+"""AST and IR normalizer for AltrQL v0.4.
 
 Performs deterministic structural canonicalization:
 - Recursively normalizes logical expressions and unary negations.

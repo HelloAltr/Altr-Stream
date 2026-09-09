@@ -1,4 +1,4 @@
-"""Recursive descent parser for AltrQL v0.1 producing typed Intermediate Representation (IR)."""
+"""Recursive descent parser for AltrQL v0.4 producing typed Intermediate Representation (IR)."""
 
 from __future__ import annotations
 
@@ -350,10 +350,10 @@ class Parser:
             self._error(f"Expected '(' starting mutation payload after entity '{entity_name}'.", expected=["("])
         assignments = self._parse_mutation_payload()
 
-        # 3. Optional WHERE Clause
-        where_clause: Optional[Expression] = None
-        if self._match(TokenType.WHERE):
-            where_clause = self._parse_where_block()
+        # 3. Mandatory WHERE Clause
+        if not self._match(TokenType.WHERE):
+            self._error("Expected 'WHERE' clause after mutation payload in 'UPDATE' operations.", expected=["WHERE"])
+        where_clause = self._parse_where_block()
 
         # 4. Disallowed clauses on UPDATE
         if self._check(TokenType.SORT) or self._check(TokenType.TOP) or self._check(TokenType.BOTTOM):
@@ -410,14 +410,8 @@ class Parser:
         if self._check(TokenType.RPAREN):
             self._error("Mutation payload cannot be empty.", expected=["field assignment"])
 
-        seen_fields: set[str] = set()
-
         while not self._check(TokenType.RPAREN) and not self._is_at_end():
             field = self._parse_field_path()
-            if field.full_path in seen_fields:
-                self._error(f"Duplicate assignment for field '{field.full_path}' in mutation payload.")
-            seen_fields.add(field.full_path)
-
             self._consume(TokenType.COLON, f"Expected ':' after field '{field.full_path}' in mutation assignment.", expected=[":"])
             value = self._parse_literal()
 
