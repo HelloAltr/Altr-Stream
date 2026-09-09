@@ -44,6 +44,7 @@ async def create_source(
             database_name=dto.database_name,
             username=dto.username,
             password=dto.password,
+            file_path=dto.file_path,
             test_first=dto.test_connection_first,
         )
         return SourceResponseDTO.from_domain(source)
@@ -74,6 +75,7 @@ async def test_adhoc_connection(
         database_name=dto.database_name,
         username=dto.username,
         password=dto.password,
+        file_path=dto.file_path,
     )
     result = await service.test_adhoc_connection(dto.type, config)
     return ConnectionTestResponseDTO(
@@ -114,6 +116,7 @@ async def update_source(
             database_name=dto.database_name,
             username=dto.username,
             password=dto.password,
+            file_path=dto.file_path,
         )
         return SourceResponseDTO.from_domain(source)
     except SourceNotFoundError as e:

@@ -53,14 +53,16 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
     return _session_factory
 
 
-async def init_db() -> None:
-    """Initialize database tables."""
-    engine = get_engine()
+async def init_db(engine: AsyncEngine | None = None) -> None:
+    """Initialize database tables and apply any pending schema migrations."""
+    target_engine = engine or get_engine()
     # Import models to ensure they are registered with Base metadata
     import altr_stream.infrastructure.database.models  # noqa: F401
+    from altr_stream.infrastructure.database.migrations import run_migrations
 
-    async with engine.begin() as conn:
+    async with target_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(run_migrations)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

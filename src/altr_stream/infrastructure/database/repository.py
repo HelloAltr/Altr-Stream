@@ -28,6 +28,7 @@ class SqliteSourceRepository:
             database_name=model.database_name,
             username=model.username,
             password=model.password,
+            file_path=model.file_path,
             status=SourceStatus(model.status),
             created_at=model.created_at,
             updated_at=model.updated_at,
@@ -44,6 +45,7 @@ class SqliteSourceRepository:
             database_name=source.database_name,
             username=source.username,
             password=source.password,
+            file_path=source.file_path,
             status=source.status.value,
             created_at=source.created_at,
             updated_at=source.updated_at,
@@ -89,6 +91,7 @@ class SqliteSourceRepository:
         model.username = source.username
         if source.password:
             model.password = source.password
+        model.file_path = source.file_path
         model.status = source.status.value
         model.updated_at = datetime.now(timezone.utc)
 

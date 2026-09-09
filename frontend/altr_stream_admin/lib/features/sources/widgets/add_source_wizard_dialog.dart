@@ -24,6 +24,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
 
   String _selectedType = 'POSTGRESQL';
   final _nameController = TextEditingController();
+  final _filePathController = TextEditingController(text: '/app/data/manual_test.db');
   final _hostController = TextEditingController(text: 'localhost');
   final _portController = TextEditingController(text: '5432');
   final _databaseController = TextEditingController(text: 'altr_test_db');
@@ -40,6 +41,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
   @override
   void dispose() {
     _nameController.dispose();
+    _filePathController.dispose();
     _hostController.dispose();
     _portController.dispose();
     _databaseController.dispose();
@@ -56,14 +58,22 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     });
 
     try {
-      final res = await widget.apiClient.testAdhocConnection(
-        type: _selectedType,
-        host: _hostController.text.trim(),
-        port: int.tryParse(_portController.text.trim()) ?? 5432,
-        databaseName: _databaseController.text.trim(),
-        username: _usernameController.text.trim(),
-        password: _passwordController.text,
-      );
+      final ConnectionTestResultModel res;
+      if (_selectedType == 'SQLITE') {
+        res = await widget.apiClient.testAdhocConnection(
+          type: _selectedType,
+          filePath: _filePathController.text.trim(),
+        );
+      } else {
+        res = await widget.apiClient.testAdhocConnection(
+          type: _selectedType,
+          host: _hostController.text.trim(),
+          port: int.tryParse(_portController.text.trim()) ?? 5432,
+          databaseName: _databaseController.text.trim(),
+          username: _usernameController.text.trim(),
+          password: _passwordController.text,
+        );
+      }
       if (mounted) {
         setState(() {
           _testResult = res;
@@ -93,16 +103,26 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     });
 
     try {
-      final source = await widget.apiClient.createSource(
-        name: _nameController.text.trim(),
-        type: _selectedType,
-        host: _hostController.text.trim(),
-        port: int.tryParse(_portController.text.trim()) ?? 5432,
-        databaseName: _databaseController.text.trim(),
-        username: _usernameController.text.trim(),
-        password: _passwordController.text,
-        testConnectionFirst: false,
-      );
+      final SourceModel source;
+      if (_selectedType == 'SQLITE') {
+        source = await widget.apiClient.createSource(
+          name: _nameController.text.trim(),
+          type: _selectedType,
+          filePath: _filePathController.text.trim(),
+          testConnectionFirst: false,
+        );
+      } else {
+        source = await widget.apiClient.createSource(
+          name: _nameController.text.trim(),
+          type: _selectedType,
+          host: _hostController.text.trim(),
+          port: int.tryParse(_portController.text.trim()) ?? 5432,
+          databaseName: _databaseController.text.trim(),
+          username: _usernameController.text.trim(),
+          password: _passwordController.text,
+          testConnectionFirst: false,
+        );
+      }
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -288,6 +308,15 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
         const SizedBox(height: 12),
         _buildConnectorOption(
           context: context,
+          type: 'SQLITE',
+          title: 'SQLite',
+          description: 'Supported file-based database connector with direct file introspection.',
+          icon: Icons.insert_drive_file_outlined,
+          isSupported: true,
+        ),
+        const SizedBox(height: 12),
+        _buildConnectorOption(
+          context: context,
           type: 'MYSQL',
           title: 'MySQL',
           description: 'Planned milestone connector for relational tables.',
@@ -310,7 +339,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
             ElevatedButton(
               onPressed: () {
                 if (_nameController.text.isEmpty) {
-                  _nameController.text = 'Production-Postgres';
+                  _nameController.text = _selectedType == 'SQLITE' ? 'Manual SQLite Test' : 'Production-Postgres';
                 }
                 setState(() => _currentStep = 1);
               },
@@ -424,98 +453,22 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
         children: [
           TextFormField(
             controller: _nameController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Source Name *',
-              hintText: 'e.g. College ERP Database',
+              hintText: _selectedType == 'SQLITE' ? 'e.g. Manual SQLite Test' : 'e.g. College ERP Database',
             ),
             validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter a source name' : null,
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: TextFormField(
-                  controller: _hostController,
-                  decoration: const InputDecoration(
-                    labelText: 'Host / IP *',
-                    hintText: 'e.g. localhost or postgres-test',
-                  ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Host is required' : null,
-                ),
+          if (_selectedType == 'SQLITE') ...[
+            TextFormField(
+              controller: _filePathController,
+              decoration: const InputDecoration(
+                labelText: 'Database File Path *',
+                hintText: 'e.g. /app/data/manual_test.db',
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 1,
-                child: TextFormField(
-                  controller: _portController,
-                  decoration: const InputDecoration(labelText: 'Port *'),
-                  keyboardType: TextInputType.number,
-                  validator: (v) => (v == null || int.tryParse(v.trim()) == null) ? 'Port required' : null,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _databaseController,
-            decoration: const InputDecoration(
-              labelText: 'Database Name *',
-              hintText: 'e.g. college_erp',
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Database file path is required' : null,
             ),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Database name is required' : null,
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(labelText: 'Username *'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Username required' : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password *',
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        size: 16,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Password required' : null,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          InkWell(
-            onTap: () => setState(() => _showAdvanced = !_showAdvanced),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _showAdvanced ? Icons.expand_less : Icons.expand_more,
-                  size: 16,
-                  color: colorScheme.primary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _showAdvanced ? 'Hide Advanced Configuration' : 'Show Advanced Configuration',
-                  style: TextStyle(fontSize: 12, color: colorScheme.primary, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ),
-          if (_showAdvanced) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -524,11 +477,120 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
               ),
-              child: Text(
-                'SSL Mode: Prefer • Connection Pool: 5 • Connection Timeout: 10s\n(Defaults automatically managed by Altr Stream driver)',
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, height: 1.4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Provide the absolute path to the SQLite file accessible by the Altr Stream node.\nFor Docker environments, use container paths like /app/data/manual_test.db.',
+                      style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, height: 1.4),
+                    ),
+                  ),
+                ],
               ),
             ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextFormField(
+                    controller: _hostController,
+                    decoration: const InputDecoration(
+                      labelText: 'Host / IP *',
+                      hintText: 'e.g. localhost or postgres-test',
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Host is required' : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 1,
+                  child: TextFormField(
+                    controller: _portController,
+                    decoration: const InputDecoration(labelText: 'Port *'),
+                    keyboardType: TextInputType.number,
+                    validator: (v) => (v == null || int.tryParse(v.trim()) == null) ? 'Port required' : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _databaseController,
+              decoration: const InputDecoration(
+                labelText: 'Database Name *',
+                hintText: 'e.g. college_erp',
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Database name is required' : null,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(labelText: 'Username *'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Username required' : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password *',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          size: 16,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
+                    ),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Password required' : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () => setState(() => _showAdvanced = !_showAdvanced),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _showAdvanced ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _showAdvanced ? 'Hide Advanced Configuration' : 'Show Advanced Configuration',
+                    style: TextStyle(fontSize: 12, color: colorScheme.primary, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            if (_showAdvanced) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainer,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                ),
+                child: Text(
+                  'SSL Mode: Prefer • Connection Pool: 5 • Connection Timeout: 10s\n(Defaults automatically managed by Altr Stream driver)',
+                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, height: 1.4),
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 24),
           Row(
@@ -583,7 +645,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Pinging database host and verifying credentials',
+                  _selectedType == 'SQLITE'
+                      ? 'Verifying SQLite database file access and readability'
+                      : 'Pinging database host and verifying credentials',
                   style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                 ),
               ],
@@ -725,11 +789,15 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               _buildReviewDivider(context),
               _buildReviewRow(context, 'Database Type', _selectedType),
               _buildReviewDivider(context),
-              _buildReviewRow(context, 'Connection Endpoint', '${_hostController.text.trim()}:${_portController.text.trim()}'),
-              _buildReviewDivider(context),
-              _buildReviewRow(context, 'Database Name', _databaseController.text.trim()),
-              _buildReviewDivider(context),
-              _buildReviewRow(context, 'Username', _usernameController.text.trim()),
+              if (_selectedType == 'SQLITE') ...[
+                _buildReviewRow(context, 'Database File Path', _filePathController.text.trim()),
+              ] else ...[
+                _buildReviewRow(context, 'Connection Endpoint', '${_hostController.text.trim()}:${_portController.text.trim()}'),
+                _buildReviewDivider(context),
+                _buildReviewRow(context, 'Database Name', _databaseController.text.trim()),
+                _buildReviewDivider(context),
+                _buildReviewRow(context, 'Username', _usernameController.text.trim()),
+              ],
             ],
           ),
         ),

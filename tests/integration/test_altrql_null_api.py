@@ -251,12 +251,19 @@ async def test_postgres_live_json_null_semantics(client: AsyncClient):
     disc_res = await client.post(f"/api/v1/sources/{source_id}/schema/discover")
     assert disc_res.status_code == 200
 
-    # Clean up any leftover test user
+    # Clean up any leftover test user and ensure pristine state for bob
     await client.post(
         "/api/v1/queries/execute",
         json={
             "source_id": source_id,
             "query": "DELETE FROM users WHERE email = 'json_null_user@example.com';",
+        },
+    )
+    await client.post(
+        "/api/v1/queries/execute",
+        json={
+            "source_id": source_id,
+            "query": "UPDATE users SET metadata = '{\"department\": \"Analytics\", \"tier\": \"silver\"}'::jsonb WHERE email = 'bob@example.com';",
         },
     )
 

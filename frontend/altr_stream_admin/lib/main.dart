@@ -159,10 +159,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       builder: (ctx) => AddSourceWizardDialog(
         apiClient: _apiClient,
         onSourceCreated: (newSource) {
+          final endpointDesc = newSource.type == 'SQLITE'
+              ? (newSource.filePath ?? 'Local File')
+              : '${newSource.host ?? ""}:${newSource.port ?? ""}';
           _logActivity(
             type: ActivityType.sourceRegistered,
             title: 'Source Registered',
-            description: 'Registered "${newSource.name}" (${newSource.type} on ${newSource.host}:${newSource.port})',
+            description: 'Registered "${newSource.name}" (${newSource.type} on $endpointDesc)',
             sourceId: newSource.id,
             sourceName: newSource.name,
           );

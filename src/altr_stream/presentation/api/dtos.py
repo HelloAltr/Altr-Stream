@@ -12,11 +12,12 @@ class SourceCreateDTO(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255, description="Unique human-readable source name")
     type: SourceType = Field(default=SourceType.POSTGRESQL, description="Database connector type")
-    host: str = Field(..., min_length=1, description="Database server hostname or IP")
-    port: int = Field(default=5432, ge=1, le=65535, description="Port number")
-    database_name: str = Field(..., min_length=1, description="Target database name")
-    username: str = Field(..., min_length=1, description="Database user name")
-    password: str = Field(..., description="Database user password")
+    host: str | None = Field(default=None, description="Database server hostname or IP")
+    port: int | None = Field(default=None, ge=1, le=65535, description="Port number")
+    database_name: str | None = Field(default=None, description="Target database name")
+    username: str | None = Field(default=None, description="Database user name")
+    password: str | None = Field(default=None, description="Database user password")
+    file_path: str | None = Field(default=None, description="Local or absolute file path for file-based databases")
     test_connection_first: bool = Field(default=False, description="Test connection prior to saving")
 
 
@@ -29,6 +30,7 @@ class SourceUpdateDTO(BaseModel):
     database_name: str | None = None
     username: str | None = None
     password: str | None = None
+    file_path: str | None = None
 
 
 class SourceResponseDTO(BaseModel):
@@ -37,10 +39,11 @@ class SourceResponseDTO(BaseModel):
     id: str
     name: str
     type: SourceType
-    host: str
-    port: int
-    database_name: str
-    username: str
+    host: str | None = None
+    port: int | None = None
+    database_name: str | None = None
+    username: str | None = None
+    file_path: str | None = None
     status: SourceStatus
     created_at: datetime
     updated_at: datetime
@@ -56,6 +59,7 @@ class SourceResponseDTO(BaseModel):
             port=source.port,
             database_name=source.database_name,
             username=source.username,
+            file_path=source.file_path,
             status=source.status,
             created_at=source.created_at,
             updated_at=source.updated_at,
@@ -67,11 +71,12 @@ class ConnectionTestRequestDTO(BaseModel):
     """Payload for testing connection without persisting a source."""
 
     type: SourceType = SourceType.POSTGRESQL
-    host: str
-    port: int = 5432
-    database_name: str
-    username: str
-    password: str
+    host: str | None = None
+    port: int | None = 5432
+    database_name: str | None = None
+    username: str | None = None
+    password: str | None = None
+    file_path: str | None = None
 
 
 class ConnectionTestResponseDTO(BaseModel):

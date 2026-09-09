@@ -12,6 +12,7 @@ import asyncpg
 from altr_stream.domain.connector import (
     BaseConnector,
     ConnectionTestResult,
+    ParameterStyle,
     SourceCapabilities,
 )
 from altr_stream.domain.errors import (
@@ -68,10 +69,41 @@ def _parse_affected_rows(status: str) -> int | None:
 
 @ConnectorFactory.register(SourceType.POSTGRESQL)
 class PostgreSQLConnector(BaseConnector):
-    """PostgreSQL database connector implementation."""
+    """PostgreSQL database connector implementation with connection pooling."""
 
     def __init__(self, config: ConnectionConfig, timeout_sec: float = 5.0):
         super().__init__(config, timeout_sec=timeout_sec)
+        self._pool: asyncpg.Pool | None = None
+
+    async def initialize(self) -> None:
+        """Initialize asyncpg connection pool."""
+        if self._pool is None:
+            try:
+                self._pool = await asyncpg.create_pool(
+                    host=self.config.host,
+                    port=self.config.port,
+                    database=self.config.database_name,
+                    user=self.config.username,
+                    password=self.config.password,
+                    min_size=1,
+                    max_size=10,
+                    timeout=self.timeout_sec,
+                    command_timeout=self.timeout_sec,
+                )
+            except Exception:
+                # If pool creation fails during initial probe, fallback to direct per-call connections
+                pass
+        self._is_initialized = True
+
+    async def close(self) -> None:
+        """Clean up connection pools and resources."""
+        if self._pool is not None:
+            try:
+                await self._pool.close()
+            except Exception:
+                pass
+            self._pool = None
+        self._is_initialized = False
 
     def _sanitize_error(self, err: Exception) -> str:
         """Sanitize error messages to prevent leaking internal password or raw URIs."""
@@ -91,12 +123,35 @@ class PostgreSQLConnector(BaseConnector):
             timeout=self.timeout_sec,
         )
 
+    async def _acquire_connection(self) -> tuple[asyncpg.Connection, bool]:
+        """Acquire a connection from pool if available, otherwise direct connection.
+        Returns (connection, is_from_pool).
+        """
+        if self._pool is not None and not self._pool._closed:
+            conn = await self._pool.acquire()
+            return conn, True
+        conn = await self._get_connection()
+        return conn, False
+
+    async def _release_connection(self, conn: asyncpg.Connection | None, is_from_pool: bool) -> None:
+        """Release a connection back to the pool or close it."""
+        if not conn:
+            return
+        try:
+            if is_from_pool and self._pool is not None and not self._pool._closed:
+                await self._pool.release(conn)
+            else:
+                await conn.close()
+        except Exception:
+            pass
+
     async def test_connection(self) -> ConnectionTestResult:
         """Test reachability and authentication with the PostgreSQL server."""
         start_time = time_module.perf_counter()
         conn = None
+        is_from_pool = False
         try:
-            conn = await self._get_connection()
+            conn, is_from_pool = await self._acquire_connection()
             version = await conn.fetchval("SELECT version();")
             latency_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
             return ConnectionTestResult(
@@ -124,17 +179,14 @@ class PostgreSQLConnector(BaseConnector):
                 error_details=sanitized,
             )
         finally:
-            if conn:
-                try:
-                    await conn.close()
-                except Exception:
-                    pass
+            await self._release_connection(conn, is_from_pool)
 
     async def discover_schema(self, source_id: str, source_name: str) -> SourceSchema:
         """Introspect tables, columns, primary keys, and foreign keys from PostgreSQL."""
         conn = None
+        is_from_pool = False
         try:
-            conn = await self._get_connection()
+            conn, is_from_pool = await self._acquire_connection()
 
             # Execute catalog queries
             tables_records = await conn.fetch(TABLES_QUERY)
@@ -168,19 +220,16 @@ class PostgreSQLConnector(BaseConnector):
                 details=sanitized,
             ) from e
         finally:
-            if conn:
-                try:
-                    await conn.close()
-                except Exception:
-                    pass
+            await self._release_connection(conn, is_from_pool)
 
     async def execute_query(self, query: str, parameters: list[Any] | None = None) -> QueryResult:
         """Execute a native query (result-returning or command) against PostgreSQL and return normalized QueryResult."""
         start_time = time_module.perf_counter()
         conn = None
+        is_from_pool = False
         params = parameters or []
         try:
-            conn = await self._get_connection()
+            conn, is_from_pool = await self._acquire_connection()
             stmt = await conn.prepare(query)
             attributes = stmt.get_attributes()
 
@@ -227,23 +276,20 @@ class PostgreSQLConnector(BaseConnector):
                 details=sanitized,
             ) from e
         finally:
-            if conn:
-                try:
-                    await conn.close()
-                except Exception:
-                    pass
+            await self._release_connection(conn, is_from_pool)
 
     async def execute_batch(self, queries: list[tuple[str, list[Any] | None]]) -> QueryResult:
         """Execute multiple queries sequentially within a single transaction and return aggregated results."""
         start_time = time_module.perf_counter()
         conn = None
+        is_from_pool = False
         all_rows: list[dict[str, Any]] = []
         all_columns: list[str] = []
         total_affected: int | None = None
         status_msgs: list[str] = []
 
         try:
-            conn = await self._get_connection()
+            conn, is_from_pool = await self._acquire_connection()
             async with conn.transaction():
                 for query_str, params in queries:
                     q_params = params or []
@@ -291,11 +337,7 @@ class PostgreSQLConnector(BaseConnector):
                 details=sanitized,
             ) from e
         finally:
-            if conn:
-                try:
-                    await conn.close()
-                except Exception:
-                    pass
+            await self._release_connection(conn, is_from_pool)
 
     def get_capabilities(self) -> SourceCapabilities:
         """Report capabilities for the PostgreSQL connector."""
@@ -307,6 +349,12 @@ class PostgreSQLConnector(BaseConnector):
             batch_execution=True,
             streaming=False,
             custom_query=True,
+            supports_transactions=True,
+            supports_returning=True,
+            supports_date_only_equality=True,
+            parameter_style=ParameterStyle.POSITIONAL_NUMERIC,
+            max_batch_size=1000,
             entity_types=["TABLE", "VIEW"],
             supported_operations=["SELECT", "INSERT", "UPDATE", "DELETE", "SCHEMA_DISCOVERY"],
         )
+

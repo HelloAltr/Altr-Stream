@@ -2,14 +2,16 @@
 
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 import uuid
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field
 
 
 class SourceType(str, Enum):
     """Supported source connector types."""
 
     POSTGRESQL = "POSTGRESQL"
+    SQLITE = "SQLITE"
     MYSQL = "MYSQL"
     MONGODB = "MONGODB"
 
@@ -25,24 +27,34 @@ class SourceStatus(str, Enum):
 
 
 class ConnectionConfig(BaseModel):
-    """Connection parameters for physical data sources."""
+    """Connection parameters for physical data sources (relational network, file-based, or document)."""
 
-    host: str
-    port: int
-    database_name: str
-    username: str
-    password: str
-    options: dict[str, str] = Field(default_factory=dict)
+    host: str | None = None
+    port: int | None = None
+    database_name: str | None = None
+    username: str | None = None
+    password: str | None = None
+    file_path: str | None = None
+    options: dict[str, Any] = Field(default_factory=dict)
 
-    def masked_dict(self) -> dict[str, str | int]:
+    def masked_dict(self) -> dict[str, Any]:
         """Return parameters with password masked."""
-        return {
-            "host": self.host,
-            "port": self.port,
-            "database_name": self.database_name,
-            "username": self.username,
-            "password": "••••••••",
-        }
+        res: dict[str, Any] = {}
+        if self.host is not None:
+            res["host"] = self.host
+        if self.port is not None:
+            res["port"] = self.port
+        if self.database_name is not None:
+            res["database_name"] = self.database_name
+        if self.username is not None:
+            res["username"] = self.username
+        if self.password is not None:
+            res["password"] = "••••••••" if self.password else ""
+        if self.file_path is not None:
+            res["file_path"] = self.file_path
+        if self.options:
+            res["options"] = self.options
+        return res
 
 
 class Source(BaseModel):
@@ -51,11 +63,12 @@ class Source(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     type: SourceType = SourceType.POSTGRESQL
-    host: str
-    port: int
-    database_name: str
-    username: str
-    password: str
+    host: str | None = None
+    port: int | None = None
+    database_name: str | None = None
+    username: str | None = None
+    password: str | None = None
+    file_path: str | None = None
     status: SourceStatus = SourceStatus.UNKNOWN
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -68,7 +81,8 @@ class Source(BaseModel):
             port=self.port,
             database_name=self.database_name,
             username=self.username,
-            password=self.password,
+            password=self.password or "",
+            file_path=self.file_path,
         )
 
     def to_safe_dict(self) -> dict:
@@ -76,3 +90,4 @@ class Source(BaseModel):
         data = self.model_dump(exclude={"password"})
         data["password_masked"] = "••••••••" if self.password else ""
         return data
+

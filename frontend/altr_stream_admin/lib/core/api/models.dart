@@ -2,10 +2,11 @@ class SourceModel {
   final String id;
   final String name;
   final String type;
-  final String host;
-  final int port;
-  final String databaseName;
-  final String username;
+  final String? host;
+  final int? port;
+  final String? databaseName;
+  final String? username;
+  final String? filePath;
   final String status;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -15,10 +16,11 @@ class SourceModel {
     required this.id,
     required this.name,
     required this.type,
-    required this.host,
-    required this.port,
-    required this.databaseName,
-    required this.username,
+    this.host,
+    this.port,
+    this.databaseName,
+    this.username,
+    this.filePath,
     required this.status,
     required this.createdAt,
     required this.updatedAt,
@@ -30,10 +32,11 @@ class SourceModel {
       id: json['id'] as String,
       name: json['name'] as String,
       type: json['type'] as String,
-      host: json['host'] as String,
-      port: (json['port'] as num).toInt(),
-      databaseName: json['database_name'] as String,
-      username: json['username'] as String,
+      host: json['host'] as String?,
+      port: (json['port'] as num?)?.toInt(),
+      databaseName: json['database_name'] as String?,
+      username: json['username'] as String?,
+      filePath: json['file_path'] as String?,
       status: (json['status'] as String?) ?? 'UNKNOWN',
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),

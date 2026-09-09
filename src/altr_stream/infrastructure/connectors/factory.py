@@ -53,3 +53,4 @@ class ConnectorFactory:
 
 # Ensure built-in connectors are registered upon module loading
 from altr_stream.infrastructure.connectors.postgres import connector as _pg_connector  # noqa: E402, F401
+from altr_stream.infrastructure.connectors.sqlite import connector as _sqlite_connector  # noqa: E402, F401

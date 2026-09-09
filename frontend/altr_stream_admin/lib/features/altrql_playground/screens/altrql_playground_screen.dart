@@ -1,4 +1,4 @@
-import 'dart:convert';
+ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -654,55 +654,97 @@ DELETE users;''',
                               'Target Source:',
                               style: TextStyle(
                                 fontSize: 12,
+                                fontWeight: FontWeight.w500,
                                 color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            DropdownButtonHideUnderline(
-                              child: DropdownButton<SourceModel>(
-                                value: _selectedSource,
-                                isDense: true,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerLow,
                                 borderRadius: BorderRadius.circular(8),
-                                items: widget.sources.map((src) {
-                                  return DropdownMenuItem<SourceModel>(
-                                    value: src,
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          src.name,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
+                                border: Border.all(
+                                  color: colorScheme.outlineVariant.withValues(
+                                    alpha: 0.8,
+                                  ),
+                                  width: 1.0,
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<SourceModel>(
+                                  value: _selectedSource,
+                                  isDense: true,
+                                  dropdownColor:
+                                      colorScheme.surfaceContainerHighest,
+                                  icon: Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    size: 20,
+                                    color: colorScheme.primary,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                  items: widget.sources.map((src) {
+                                    return DropdownMenuItem<SourceModel>(
+                                      value: src,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            src.type == 'SQLITE'
+                                                ? Icons.insert_drive_file_outlined
+                                                : Icons.storage_rounded,
+                                            size: 14,
+                                            color: colorScheme.primary,
                                           ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 1,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: colorScheme
-                                                .surfaceContainerHighest,
-                                            borderRadius: BorderRadius.circular(
-                                              3,
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            src.name,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: colorScheme.onSurface,
                                             ),
                                           ),
-                                          child: Text(
-                                            src.type,
-                                            style: const TextStyle(fontSize: 9),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 5,
+                                              vertical: 1,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: colorScheme
+                                                  .surfaceContainerHigh,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: colorScheme
+                                                    .outlineVariant
+                                                    .withValues(alpha: 0.5),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              src.type,
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w500,
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setState(() => _selectedSource = val);
-                                  }
-                                },
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setState(() => _selectedSource = val);
+                                    }
+                                  },
+                                ),
                               ),
                             ),
                           ],

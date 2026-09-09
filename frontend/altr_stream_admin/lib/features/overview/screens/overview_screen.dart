@@ -186,7 +186,7 @@ class OverviewScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${sources.length} ${sources.length == 1 ? "source" : "sources"} connected • PostgreSQL connector active',
+                            '${sources.length} ${sources.length == 1 ? "source" : "sources"} connected • Active data federation node',
                             style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                           ),
                         ],
@@ -224,7 +224,11 @@ class OverviewScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                               ),
-                              child: Icon(Icons.storage, color: colorScheme.primary, size: 16),
+                              child: Icon(
+                                source.type == 'SQLITE' ? Icons.insert_drive_file_outlined : Icons.storage,
+                                color: colorScheme.primary,
+                                size: 16,
+                              ),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -241,7 +245,9 @@ class OverviewScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${source.type} • ${source.host}:${source.port}/${source.databaseName}',
+                                    source.type == 'SQLITE'
+                                        ? '${source.type} • ${source.filePath ?? "Local File"}'
+                                        : '${source.type} • ${source.host ?? ""}:${source.port ?? ""}/${source.databaseName ?? ""}',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontFamily: 'monospace',

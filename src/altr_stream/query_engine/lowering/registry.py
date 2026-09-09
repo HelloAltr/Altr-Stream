@@ -12,6 +12,7 @@ from altr_stream.domain.source import SourceType
 from altr_stream.query_engine.domain.errors import UnsupportedDialectError
 from altr_stream.query_engine.lowering.base import QueryLowerer
 from altr_stream.query_engine.lowering.postgres import PostgreSQLLowerer
+from altr_stream.query_engine.lowering.sqlite import SQLiteLowerer
 
 
 class LowererRegistry:
@@ -21,6 +22,7 @@ class LowererRegistry:
         self._registry: Dict[str, Type[QueryLowerer]] = {}
         # Pre-register built-in dialects
         self.register(SourceType.POSTGRESQL, PostgreSQLLowerer)
+        self.register(SourceType.SQLITE, SQLiteLowerer)
 
     def register(
         self,

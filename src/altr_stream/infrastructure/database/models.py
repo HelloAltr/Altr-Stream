@@ -16,11 +16,12 @@ class SourceModel(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     type: Mapped[str] = mapped_column(String(50), nullable=False)
-    host: Mapped[str] = mapped_column(String(255), nullable=False)
-    port: Mapped[int] = mapped_column(Integer, nullable=False)
-    database_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    username: Mapped[str] = mapped_column(String(255), nullable=False)
-    password: Mapped[str] = mapped_column(String(255), nullable=False)
+    host: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    port: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    database_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    password: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True, default=None)
     status: Mapped[str] = mapped_column(String(50), default="UNKNOWN", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False

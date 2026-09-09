@@ -17,11 +17,12 @@ class SourceService:
         self,
         name: str,
         source_type: SourceType,
-        host: str,
-        port: int,
-        database_name: str,
-        username: str,
-        password: str,
+        host: str | None = None,
+        port: int | None = None,
+        database_name: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        file_path: str | None = None,
         test_first: bool = False,
     ) -> tuple[Source, ConnectionTestResult | None]:
         """Register a new data source."""
@@ -34,7 +35,8 @@ class SourceService:
             port=port,
             database_name=database_name,
             username=username,
-            password=password,
+            password=password or "",
+            file_path=file_path,
         )
 
         test_result: ConnectionTestResult | None = None
@@ -54,6 +56,7 @@ class SourceService:
             database_name=database_name,
             username=username,
             password=password,
+            file_path=file_path,
             status=status,
         )
 
@@ -80,6 +83,7 @@ class SourceService:
         database_name: str | None = None,
         username: str | None = None,
         password: str | None = None,
+        file_path: str | None = None,
     ) -> Source:
         """Update source properties."""
         source = await self.get_source(source_id)
@@ -100,6 +104,8 @@ class SourceService:
             source.username = username
         if password is not None and password.strip():
             source.password = password
+        if file_path is not None:
+            source.file_path = file_path
 
         return await self.repository.update(source)
 

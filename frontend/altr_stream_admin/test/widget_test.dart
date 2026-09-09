@@ -24,6 +24,11 @@ class MockTestApiClient extends ApiClient {
   final AltrQLParseResponseModel? altrqlParseResponseToReturn;
   final AltrQLBindResponseModel? altrqlBindResponseToReturn;
   final AltrQLExecuteResponseModel? altrqlExecuteResponseToReturn;
+  final ConnectionTestResultModel? connectionTestResultToReturn;
+  final SourceModel? sourceToReturnOnCreate;
+
+  Map<String, dynamic>? lastTestAdhocParams;
+  Map<String, dynamic>? lastCreateSourceParams;
 
   MockTestApiClient({
     this.schemaToReturn,
@@ -31,7 +36,76 @@ class MockTestApiClient extends ApiClient {
     this.altrqlParseResponseToReturn,
     this.altrqlBindResponseToReturn,
     this.altrqlExecuteResponseToReturn,
+    this.connectionTestResultToReturn,
+    this.sourceToReturnOnCreate,
   });
+
+  @override
+  Future<ConnectionTestResultModel> testAdhocConnection({
+    required String type,
+    String? host,
+    int? port,
+    String? databaseName,
+    String? username,
+    String? password,
+    String? filePath,
+  }) async {
+    lastTestAdhocParams = {
+      'type': type,
+      'host': host,
+      'port': port,
+      'database_name': databaseName,
+      'username': username,
+      'password': password,
+      'file_path': filePath,
+    };
+    return connectionTestResultToReturn ??
+        ConnectionTestResultModel(
+          success: true,
+          message: 'Connection successful',
+          latencyMs: 1.2,
+          serverVersion: '3.40.1',
+        );
+  }
+
+  @override
+  Future<SourceModel> createSource({
+    required String name,
+    required String type,
+    String? host,
+    int? port,
+    String? databaseName,
+    String? username,
+    String? password,
+    String? filePath,
+    bool testConnectionFirst = false,
+  }) async {
+    lastCreateSourceParams = {
+      'name': name,
+      'type': type,
+      'host': host,
+      'port': port,
+      'database_name': databaseName,
+      'username': username,
+      'password': password,
+      'file_path': filePath,
+      'test_connection_first': testConnectionFirst,
+    };
+    return sourceToReturnOnCreate ??
+        SourceModel(
+          id: 'mock_created_id',
+          name: name,
+          type: type,
+          host: host,
+          port: port,
+          databaseName: databaseName,
+          username: username,
+          filePath: filePath,
+          status: 'ACTIVE',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+  }
 
   @override
   Future<AltrQLParseResponseModel> parseAltrQL(String query) async {
@@ -1680,6 +1754,355 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Mass DELETE Confirmation Required'), findsNothing);
+  });
+
+  testWidgets('AddSourceWizardDialog renders SQLite connector as supported alongside PostgreSQL, and MySQL/MongoDB as Future Milestone', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: AddSourceWizardDialog(
+            apiClient: mockClient,
+            onSourceCreated: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Step 1 of 4: Choose database connector'), findsOneWidget);
+    expect(find.text('PostgreSQL'), findsOneWidget);
+    expect(find.text('SQLite'), findsOneWidget);
+    expect(find.text('MySQL'), findsOneWidget);
+    expect(find.text('MongoDB'), findsOneWidget);
+
+    // Verify Future Milestone badges on MySQL and MongoDB
+    expect(find.text('Future Milestone'), findsNWidgets(2));
+
+    // Tap SQLite to select it
+    await tester.tap(find.text('SQLite'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('AddSourceWizardDialog SQLite configuration step shows only Source Name and Database File Path without network fields', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: AddSourceWizardDialog(
+            apiClient: mockClient,
+            onSourceCreated: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Select SQLite
+    await tester.tap(find.text('SQLite'));
+    await tester.pumpAndSettle();
+
+    // Tap Continue to Step 2
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Step 2 of 4: Configure connection parameters'), findsOneWidget);
+    expect(find.text('Source Name *'), findsOneWidget);
+    expect(find.text('Database File Path *'), findsOneWidget);
+
+    // Verify network fields are NOT present
+    expect(find.text('Host / IP *'), findsNothing);
+    expect(find.text('Port *'), findsNothing);
+    expect(find.text('Username *'), findsNothing);
+    expect(find.text('Password *'), findsNothing);
+  });
+
+  testWidgets('AddSourceWizardDialog SQLite test connection and registration generates correct SQLite payload', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient(
+      connectionTestResultToReturn: ConnectionTestResultModel(
+        success: true,
+        message: 'Successfully opened SQLite database file',
+        latencyMs: 0.8,
+        serverVersion: '3.45.1',
+      ),
+    );
+
+    SourceModel? createdSource;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: AddSourceWizardDialog(
+            apiClient: mockClient,
+            onSourceCreated: (s) => createdSource = s,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Select SQLite & Continue
+    await tester.tap(find.text('SQLite'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    // 2. Configure fields
+    final nameField = find.widgetWithText(TextFormField, 'Source Name *');
+    final pathField = find.widgetWithText(TextFormField, 'Database File Path *');
+
+    await tester.enterText(nameField, 'Manual SQLite Test');
+    await tester.enterText(pathField, '/app/data/manual_test.db');
+    await tester.pump();
+
+    // Tap Continue to Test
+    await tester.tap(find.text('Continue to Test'));
+    await tester.pumpAndSettle();
+
+    // Verify testAdhocConnection was called with SQLite parameters
+    expect(mockClient.lastTestAdhocParams?['type'], 'SQLITE');
+    expect(mockClient.lastTestAdhocParams?['file_path'], '/app/data/manual_test.db');
+    expect(mockClient.lastTestAdhocParams?['host'], isNull);
+    expect(mockClient.lastTestAdhocParams?['port'], isNull);
+
+    // Verify test connection success result
+    expect(find.text('✓ Successfully Connected'), findsOneWidget);
+    expect(find.text('Successfully opened SQLite database file'), findsOneWidget);
+    expect(find.text('Server Version: 3.45.1'), findsOneWidget);
+
+    // 3. Continue to Review & Register
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Step 4 of 4: Review and register source'), findsOneWidget);
+    expect(find.text('Manual SQLite Test'), findsOneWidget);
+    expect(find.text('SQLITE'), findsOneWidget);
+    expect(find.text('/app/data/manual_test.db'), findsOneWidget);
+    expect(find.text('Connection Endpoint'), findsNothing);
+
+    // 4. Click Register Source
+    await tester.tap(find.text('Register Source'));
+    await tester.pumpAndSettle();
+
+    // Verify createSource payload
+    expect(mockClient.lastCreateSourceParams?['name'], 'Manual SQLite Test');
+    expect(mockClient.lastCreateSourceParams?['type'], 'SQLITE');
+    expect(mockClient.lastCreateSourceParams?['file_path'], '/app/data/manual_test.db');
+    expect(mockClient.lastCreateSourceParams?['host'], isNull);
+    expect(createdSource?.name, 'Manual SQLite Test');
+    expect(createdSource?.type, 'SQLITE');
+    expect(createdSource?.filePath, '/app/data/manual_test.db');
+  });
+
+  testWidgets('SourceDetailScreen renders SQLite source parameters and file path correctly', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_sqlite_1',
+      name: 'Manual SQLite Test',
+      type: 'SQLITE',
+      filePath: '/app/data/manual_test.db',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourceDetailScreen(
+            source: mockSource,
+            apiClient: mockClient,
+            onBack: () {},
+            onDelete: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Header checks
+    expect(find.text('Manual SQLite Test'), findsOneWidget);
+    expect(find.text('File: /app/data/manual_test.db'), findsOneWidget);
+
+    // Overview Tab checks
+    expect(find.text('SQLite (File Database)'), findsOneWidget);
+    expect(find.text('/app/data/manual_test.db'), findsOneWidget);
+
+    // Switch to Connection Parameters tab
+    await tester.tap(find.text('Connection Parameters'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Database File Path'), findsOneWidget);
+    expect(find.text('Storage Mode'), findsOneWidget);
+    expect(find.text('Local / Embedded File'), findsOneWidget);
+    expect(find.text('Host / IP Address'), findsNothing);
+  });
+
+  testWidgets('SourcesScreen and OverviewScreen render both PostgreSQL and SQLite sources simultaneously', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'pg_1',
+        name: 'Postgre Test',
+        type: 'POSTGRESQL',
+        host: 'altr-postgres-test',
+        port: 5432,
+        databaseName: 'altr_test_db',
+        username: 'altr_test_user',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      SourceModel(
+        id: 'sqlite_1',
+        name: 'Manual SQLite Test',
+        type: 'SQLITE',
+        filePath: '/app/data/manual_test.db',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    // 1. Test SourcesScreen
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourcesScreen(
+            sources: mockSources,
+            isLoading: false,
+            onRefresh: () {},
+            onAddSource: () {},
+            onSelectSource: (_) {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Postgre Test'), findsOneWidget);
+    expect(find.text('altr-postgres-test:5432 • altr_test_db'), findsOneWidget);
+    expect(find.text('Manual SQLite Test'), findsOneWidget);
+    expect(find.text('/app/data/manual_test.db'), findsOneWidget);
+
+    // 2. Test OverviewScreen
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: OverviewScreen(
+            sources: mockSources,
+            activities: [],
+            isLoading: false,
+            onRefresh: () {},
+            onAddSource: () {},
+            onSelectSource: (_) {},
+            onViewAllSources: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Postgre Test'), findsOneWidget);
+    expect(find.text('POSTGRESQL • altr-postgres-test:5432/altr_test_db'), findsOneWidget);
+    expect(find.text('Manual SQLite Test'), findsOneWidget);
+    expect(find.text('SQLITE • /app/data/manual_test.db'), findsOneWidget);
+    expect(find.text('2/2 Healthy'), findsOneWidget);
+  });
+
+  testWidgets('AddSourceWizardDialog PostgreSQL flow regression test', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: AddSourceWizardDialog(
+            apiClient: mockClient,
+            onSourceCreated: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // PostgreSQL is default selected -> Continue to Configure
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Host / IP *'), findsOneWidget);
+    expect(find.text('Port *'), findsOneWidget);
+    expect(find.text('Database Name *'), findsOneWidget);
+    expect(find.text('Username *'), findsOneWidget);
+    expect(find.text('Password *'), findsOneWidget);
+
+    // Continue to Test
+    await tester.tap(find.text('Continue to Test'));
+    await tester.pumpAndSettle();
+
+    // Verify testAdhocConnection received PostgreSQL parameters
+    expect(mockClient.lastTestAdhocParams?['type'], 'POSTGRESQL');
+    expect(mockClient.lastTestAdhocParams?['host'], 'localhost');
+    expect(mockClient.lastTestAdhocParams?['port'], 5432);
+    expect(mockClient.lastTestAdhocParams?['database_name'], 'altr_test_db');
+    expect(mockClient.lastTestAdhocParams?['file_path'], isNull);
+
+    // Continue to Review
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Connection Endpoint'), findsOneWidget);
+    expect(find.text('localhost:5432'), findsOneWidget);
+
+    // Register Source
+    await tester.tap(find.text('Register Source'));
+    await tester.pumpAndSettle();
+
+    expect(mockClient.lastCreateSourceParams?['type'], 'POSTGRESQL');
+    expect(mockClient.lastCreateSourceParams?['host'], 'localhost');
+    expect(mockClient.lastCreateSourceParams?['port'], 5432);
+    expect(mockClient.lastCreateSourceParams?['file_path'], isNull);
   });
 }
 

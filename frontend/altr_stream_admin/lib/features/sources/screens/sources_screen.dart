@@ -39,8 +39,9 @@ class _SourcesScreenState extends State<SourcesScreen> {
     final filteredSources = widget.sources.where((s) {
       final matchesQuery = _searchQuery.isEmpty ||
           s.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.host.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.databaseName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          (s.host?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
+          (s.databaseName?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
+          (s.filePath?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
           s.type.toLowerCase().contains(_searchQuery.toLowerCase());
 
       final matchesStatus = _filterStatus == 'ALL' ||
@@ -252,7 +253,11 @@ class _SourcesScreenState extends State<SourcesScreen> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                 ),
-                child: Icon(Icons.storage_rounded, color: colorScheme.primary, size: 22),
+                child: Icon(
+                  source.type == 'SQLITE' ? Icons.insert_drive_file_outlined : Icons.storage_rounded,
+                  color: colorScheme.primary,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 16),
 
@@ -281,7 +286,9 @@ class _SourcesScreenState extends State<SourcesScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${source.host}:${source.port} • ${source.databaseName}',
+                      source.type == 'SQLITE'
+                          ? (source.filePath ?? 'Local File')
+                          : '${source.host ?? "localhost"}:${source.port ?? 5432} • ${source.databaseName ?? ""}',
                       style: TextStyle(
                         fontSize: 12,
                         fontFamily: 'monospace',

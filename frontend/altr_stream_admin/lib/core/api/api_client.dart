@@ -91,25 +91,27 @@ class ApiClient {
   Future<SourceModel> createSource({
     required String name,
     required String type,
-    required String host,
-    required int port,
-    required String databaseName,
-    required String username,
-    required String password,
+    String? host,
+    int? port,
+    String? databaseName,
+    String? username,
+    String? password,
+    String? filePath,
     bool testConnectionFirst = false,
   }) async {
-    final body = jsonEncode({
+    final payload = <String, dynamic>{
       'name': name,
       'type': type,
-      'host': host,
-      'port': port,
-      'database_name': databaseName,
-      'username': username,
-      'password': password,
       'test_connection_first': testConnectionFirst,
-    });
+    };
+    if (host != null) payload['host'] = host;
+    if (port != null) payload['port'] = port;
+    if (databaseName != null) payload['database_name'] = databaseName;
+    if (username != null) payload['username'] = username;
+    if (password != null) payload['password'] = password;
+    if (filePath != null) payload['file_path'] = filePath;
 
-    final res = await _client.post(_uri('/sources'), headers: _headers, body: body);
+    final res = await _client.post(_uri('/sources'), headers: _headers, body: jsonEncode(payload));
     return SourceModel.fromJson(_processResponse(res) as Map<String, dynamic>);
   }
 
@@ -122,6 +124,7 @@ class ApiClient {
     String? databaseName,
     String? username,
     String? password,
+    String? filePath,
   }) async {
     final payload = <String, dynamic>{};
     if (name != null) payload['name'] = name;
@@ -130,6 +133,7 @@ class ApiClient {
     if (databaseName != null) payload['database_name'] = databaseName;
     if (username != null) payload['username'] = username;
     if (password != null && password.isNotEmpty) payload['password'] = password;
+    if (filePath != null) payload['file_path'] = filePath;
 
     final res = await _client.put(
       _uri('/sources/$id'),
@@ -148,22 +152,24 @@ class ApiClient {
   /// Test ad-hoc connection parameters before saving
   Future<ConnectionTestResultModel> testAdhocConnection({
     required String type,
-    required String host,
-    required int port,
-    required String databaseName,
-    required String username,
-    required String password,
+    String? host,
+    int? port,
+    String? databaseName,
+    String? username,
+    String? password,
+    String? filePath,
   }) async {
-    final body = jsonEncode({
+    final payload = <String, dynamic>{
       'type': type,
-      'host': host,
-      'port': port,
-      'database_name': databaseName,
-      'username': username,
-      'password': password,
-    });
+    };
+    if (host != null) payload['host'] = host;
+    if (port != null) payload['port'] = port;
+    if (databaseName != null) payload['database_name'] = databaseName;
+    if (username != null) payload['username'] = username;
+    if (password != null) payload['password'] = password;
+    if (filePath != null) payload['file_path'] = filePath;
 
-    final res = await _client.post(_uri('/sources/test'), headers: _headers, body: body);
+    final res = await _client.post(_uri('/sources/test'), headers: _headers, body: jsonEncode(payload));
     return ConnectionTestResultModel.fromJson(_processResponse(res) as Map<String, dynamic>);
   }
 

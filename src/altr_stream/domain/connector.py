@@ -1,12 +1,21 @@
 """Connector contract and capabilities interface."""
 
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any
 from pydantic import BaseModel, Field
 
 from altr_stream.domain.query import QueryResult
 from altr_stream.domain.schema import SourceSchema
 from altr_stream.domain.source import ConnectionConfig
+
+
+class ParameterStyle(str, Enum):
+    """Parameter binding style supported by a physical database dialect."""
+
+    POSITIONAL_NUMERIC = "POSITIONAL_NUMERIC"  # e.g. $1, $2 (PostgreSQL)
+    POSITIONAL_QMARK = "POSITIONAL_QMARK"      # e.g. ?, ? (SQLite, MySQL)
+    NAMED = "NAMED"                            # e.g. :param (Oracle, SQLite named)
 
 
 class SourceCapabilities(BaseModel):
@@ -19,6 +28,11 @@ class SourceCapabilities(BaseModel):
     batch_execution: bool = True
     streaming: bool = False
     custom_query: bool = False
+    supports_transactions: bool = True
+    supports_returning: bool = True
+    supports_date_only_equality: bool = True
+    parameter_style: ParameterStyle = ParameterStyle.POSITIONAL_NUMERIC
+    max_batch_size: int | None = 1000
     entity_types: list[str] = Field(
         default_factory=list,
         description="Types of entities exposed by this source (e.g. TABLE, VIEW, COLLECTION)",
@@ -40,11 +54,20 @@ class ConnectionTestResult(BaseModel):
 
 
 class BaseConnector(ABC):
-    """Abstract base connector interface for all physical data sources."""
+    """Abstract base connector interface for all physical data sources with managed lifecycle."""
 
     def __init__(self, config: ConnectionConfig, timeout_sec: float = 5.0):
         self.config = config
         self.timeout_sec = timeout_sec
+        self._is_initialized: bool = False
+
+    async def initialize(self) -> None:
+        """Initialize connection pools or persistent resources."""
+        self._is_initialized = True
+
+    async def close(self) -> None:
+        """Clean up connection pools and resources."""
+        self._is_initialized = False
 
     @abstractmethod
     async def test_connection(self) -> ConnectionTestResult:
@@ -70,12 +93,11 @@ class BaseConnector(ABC):
         """Execute a sequence of native queries atomically and return combined results."""
         raise NotImplementedError("Batch query execution is not supported by this connector.")
 
-    async def close(self) -> None:
-        """Clean up connection pools and resources."""
-        pass
-
     async def __aenter__(self) -> "BaseConnector":
+        if not self._is_initialized:
+            await self.initialize()
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         await self.close()
+
