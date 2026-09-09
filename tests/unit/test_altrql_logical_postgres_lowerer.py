@@ -111,7 +111,7 @@ def test_lower_dedicated_not_has(user_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE "tags" NOT LIKE $1;'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("tags" NOT LIKE $1 OR "tags" IS NULL);'
     assert pq.parameters == ["%banned%"]
 
 

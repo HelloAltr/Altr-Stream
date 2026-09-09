@@ -284,13 +284,20 @@ async def test_bind_altrql_api_type_compatibility_error(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_bind_altrql_api_null_rejected(client: AsyncClient):
     source_id = await _setup_test_source_and_schema(client)
-    payload = {"query": "GET users WHERE { age = NULL };", "source_id": source_id}
-    res = await client.post("/api/v1/altrql/bind", json=payload)
-    assert res.status_code == 200
-    data = res.json()
+    # v0.5: NULL equality is allowed
+    payload_valid = {"query": "GET users WHERE { age = NULL };", "source_id": source_id}
+    res_valid = await client.post("/api/v1/altrql/bind", json=payload_valid)
+    assert res_valid.status_code == 200
+    assert res_valid.json()["success"] is True
+
+    # v0.5: NULL with ordering operators is rejected
+    payload_invalid = {"query": "GET users WHERE { age > NULL };", "source_id": source_id}
+    res_invalid = await client.post("/api/v1/altrql/bind", json=payload_invalid)
+    assert res_invalid.status_code == 200
+    data = res_invalid.json()
     assert data["success"] is False
     assert data["error"]["type"] == "TypeCompatibilityError"
-    assert "NULL" in data["error"]["message"]
+    assert "Ordering operator '>' is not supported with NULL" in data["error"]["message"]
 
 
 @pytest.mark.asyncio

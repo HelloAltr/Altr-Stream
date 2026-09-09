@@ -5,6 +5,7 @@ import pytest
 from altr_stream.domain.schema import StandardDataType
 from altr_stream.query_engine.binding.type_validator import (
     to_logical_category,
+    validate_assignment_value,
     validate_field_operator_and_operand,
 )
 from altr_stream.query_engine.domain.ast import (
@@ -165,17 +166,27 @@ def test_numeric_field_rejects_temporal_iso_date_literal():
 # --- Strict NULL Semantics Tests ---
 
 
-def test_null_literal_rejected_regardless_of_nullability():
+def test_null_literal_allowed_for_equality_and_inequality():
     nullable_field = create_bound_field("optional_val", StandardDataType.STRING, nullable=True)
     non_nullable_field = create_bound_field("required_val", StandardDataType.STRING, nullable=False)
 
-    with pytest.raises(TypeCompatibilityError) as exc_info:
-        validate_field_operator_and_operand(nullable_field, ComparisonOperator.EQ, NullLiteral())
-    assert "NULL" in str(exc_info.value)
+    # EQ and NEQ with NULL are valid on any field
+    validate_field_operator_and_operand(nullable_field, ComparisonOperator.EQ, NullLiteral())
+    validate_field_operator_and_operand(non_nullable_field, ComparisonOperator.NEQ, NullLiteral())
+    validate_field_operator_and_operand(non_nullable_field, ComparisonOperator.EQ, NullLiteral())
 
-    with pytest.raises(TypeCompatibilityError) as exc_info:
-        validate_field_operator_and_operand(non_nullable_field, ComparisonOperator.NEQ, NullLiteral())
-    assert "NULL" in str(exc_info.value)
+
+def test_null_literal_rejected_with_ordering_and_string_operators():
+    field = create_bound_field("age", StandardDataType.INTEGER, nullable=True)
+    str_field = create_bound_field("name", StandardDataType.STRING, nullable=True)
+
+    with pytest.raises(TypeCompatibilityError) as exc_info1:
+        validate_field_operator_and_operand(field, ComparisonOperator.GT, NullLiteral())
+    assert "Ordering operator '>' is not supported with NULL" in str(exc_info1.value)
+
+    with pytest.raises(TypeCompatibilityError) as exc_info2:
+        validate_field_operator_and_operand(str_field, StringOperator.HAS, NullLiteral())
+    assert "requires STRING literal operand" in str(exc_info2.value)
 
 
 # --- Range & ValueSet Tests ---
@@ -193,7 +204,7 @@ def test_invalid_range_type_for_field():
 
     with pytest.raises(TypeCompatibilityError) as exc_info:
         validate_field_operator_and_operand(field, ComparisonOperator.EQ, invalid_range)
-    assert "STRING" in str(exc_info.value)
+    assert "string" in str(exc_info.value)
     assert "NUMERIC" in str(exc_info.value)
 
 
@@ -232,3 +243,63 @@ def test_compound_and_constraint_validation():
         ]
     )
     validate_field_operator_and_operand(field, ComparisonOperator.EQ, compound)
+
+
+# --- JSON & Unknown Category NULL Tests ---
+
+
+def test_json_field_allows_null_equality_and_inequality():
+    json_field = create_bound_field("metadata", StandardDataType.JSON, nullable=True)
+
+    # Both EQ and NEQ with NullLiteral must succeed
+    validate_field_operator_and_operand(json_field, ComparisonOperator.EQ, NullLiteral())
+    validate_field_operator_and_operand(json_field, ComparisonOperator.NEQ, NullLiteral())
+
+
+def test_json_field_rejects_null_with_ordering_or_string_operators():
+    json_field = create_bound_field("metadata", StandardDataType.JSON, nullable=True)
+
+    with pytest.raises(TypeCompatibilityError) as exc_info1:
+        validate_field_operator_and_operand(json_field, ComparisonOperator.GT, NullLiteral())
+    assert "Ordering operator '>' is not supported with NULL" in str(exc_info1.value)
+
+    with pytest.raises(TypeCompatibilityError) as exc_info2:
+        validate_field_operator_and_operand(json_field, StringOperator.HAS, NullLiteral())
+    assert "Operator 'HAS' requires STRING literal operand, got 'NullLiteral'" in str(exc_info2.value)
+
+
+def test_json_field_rejects_non_null_comparisons():
+    json_field = create_bound_field("metadata", StandardDataType.JSON, nullable=True)
+
+    with pytest.raises(TypeCompatibilityError) as exc_info1:
+        validate_field_operator_and_operand(json_field, ComparisonOperator.EQ, StringLiteral(value="{}"))
+    assert "unsupported AltrQL comparison type 'JSON'" in str(exc_info1.value)
+
+    with pytest.raises(TypeCompatibilityError) as exc_info2:
+        validate_field_operator_and_operand(json_field, ComparisonOperator.EQ, IntegerLiteral(value=42))
+    assert "unsupported AltrQL comparison type 'JSON'" in str(exc_info2.value)
+
+
+def test_json_field_allows_null_assignment_when_nullable():
+    json_field = create_bound_field("metadata", StandardDataType.JSON, nullable=True)
+    validate_assignment_value(json_field, NullLiteral())
+
+
+def test_json_field_rejects_null_assignment_when_non_nullable():
+    non_null_json = create_bound_field("metadata", StandardDataType.JSON, nullable=False)
+    with pytest.raises(TypeCompatibilityError) as exc_info:
+        validate_assignment_value(non_null_json, NullLiteral())
+    assert "Cannot assign NULL to non-nullable field 'metadata'" in str(exc_info.value)
+
+
+def test_json_field_rejects_non_null_assignment():
+    json_field = create_bound_field("metadata", StandardDataType.JSON, nullable=True)
+
+    with pytest.raises(TypeCompatibilityError) as exc_info1:
+        validate_assignment_value(json_field, StringLiteral(value="{}"))
+    assert "unsupported AltrQL mutation type 'JSON'" in str(exc_info1.value)
+
+    with pytest.raises(TypeCompatibilityError) as exc_info2:
+        validate_assignment_value(json_field, IntegerLiteral(value=100))
+    assert "unsupported AltrQL mutation type 'JSON'" in str(exc_info2.value)
+

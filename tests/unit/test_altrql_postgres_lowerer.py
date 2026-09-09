@@ -93,7 +93,7 @@ def test_lower_string_operators(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ((("username" LIKE $1 AND "email" LIKE $2) AND "username" LIKE $3) AND "username" NOT LIKE $4);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ((("username" LIKE $1 AND "email" LIKE $2) AND "username" LIKE $3) AND ("username" NOT LIKE $4 OR "username" IS NULL));'
     assert pq.parameters == ["San%", "%@test.com", "%tho%", "%admin%"]
 
 

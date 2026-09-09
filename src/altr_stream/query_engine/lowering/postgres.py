@@ -79,6 +79,19 @@ def _parse_date_only_range(value: str) -> tuple[datetime.datetime, datetime.date
     return start_dt, end_dt
 
 
+def _invert_operator(op: ComparisonOperator) -> ComparisonOperator:
+    """Return the boolean negation of a comparison operator."""
+    inversion_map = {
+        ComparisonOperator.EQ: ComparisonOperator.NEQ,
+        ComparisonOperator.NEQ: ComparisonOperator.EQ,
+        ComparisonOperator.GT: ComparisonOperator.LTE,
+        ComparisonOperator.LT: ComparisonOperator.GTE,
+        ComparisonOperator.GTE: ComparisonOperator.LT,
+        ComparisonOperator.LTE: ComparisonOperator.GT,
+    }
+    return inversion_map[op]
+
+
 class PostgreSQLLowerer(QueryLowerer):
     """Deterministic physical query compiler for PostgreSQL dialect."""
 
@@ -206,10 +219,18 @@ class PostgreSQLLowerer(QueryLowerer):
                 if op == StringOperator.HAS:
                     return f"{col} LIKE {add_param(f'%{val_str}%')}"
                 if op == StringOperator.NOT_HAS:
-                    return f"{col} NOT LIKE {add_param(f'%{val_str}%')}"
+                    return f"({col} NOT LIKE {add_param(f'%{val_str}%')} OR {col} IS NULL)"
 
             # Comparison operators (=, !=, >, <, >=, <=)
             if isinstance(op, ComparisonOperator):
+                # NullLiteral direct operand
+                if isinstance(operand, NullLiteral):
+                    if op == ComparisonOperator.EQ:
+                        return f"{col} IS NULL"
+                    if op == ComparisonOperator.NEQ:
+                        return f"{col} IS NOT NULL"
+                    return f"{col} {op.value} NULL"
+
                 # Range operand: BETWEEN start AND end
                 if isinstance(operand, Range):
                     start_str = lower_literal(operand.start)
@@ -223,6 +244,13 @@ class PostgreSQLLowerer(QueryLowerer):
 
                 # ComparisonConstraint operand
                 if isinstance(operand, ComparisonConstraint):
+                    if isinstance(operand.value, NullLiteral):
+                        if operand.operator == ComparisonOperator.EQ:
+                            return f"{col} IS NULL"
+                        if operand.operator == ComparisonOperator.NEQ:
+                            return f"{col} IS NOT NULL"
+                        return f"{col} {operand.operator.value} NULL"
+
                     if (
                         operand.operator == ComparisonOperator.EQ
                         and is_timestamp_field
@@ -236,58 +264,125 @@ class PostgreSQLLowerer(QueryLowerer):
 
                 # ValueSet operand
                 if isinstance(operand, ValueSet):
-                    has_date_only_temporals = any(_is_date_only_literal(elem) for elem in operand.elements)
+                    null_elems = [el for el in operand.elements if isinstance(el, NullLiteral)]
+                    non_null_elems = [el for el in operand.elements if not isinstance(el, NullLiteral)]
+                    has_null = len(null_elems) > 0
 
-                    # Check if all elements are simple literal values (not Range/Constraints/Temporal Keywords)
-                    all_simple_literals = all(
+                    has_date_only_temporals = any(_is_date_only_literal(elem) for elem in non_null_elems)
+                    all_simple_non_null = all(
                         isinstance(elem, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral))
                         or (isinstance(elem, TemporalLiteral) and elem.keyword is None and elem.value is not None)
-                        for elem in operand.elements
+                        for elem in non_null_elems
                     )
-                    if all_simple_literals and len(operand.elements) > 0 and not (is_timestamp_field and has_date_only_temporals):
-                        placeholders = [lower_literal(elem) for elem in operand.elements]  # type: ignore[arg-type]
-                        return f"{col} IN ({', '.join(placeholders)})"
 
-                    # Complex / mixed ValueSet: OR together element conditions
-                    elem_preds: List[str] = []
-                    for elem in operand.elements:
-                        if isinstance(elem, Range):
-                            elem_preds.append(f"{col} BETWEEN {lower_literal(elem.start)} AND {lower_literal(elem.end)}")
-                        elif isinstance(elem, ComparisonConstraint):
-                            if (
-                                elem.operator == ComparisonOperator.EQ
-                                and is_timestamp_field
-                                and _is_date_only_literal(elem.value)
-                            ):
-                                start_dt, end_dt = _parse_date_only_range(elem.value.value)  # type: ignore[arg-type]
-                                p1 = add_param(start_dt)
-                                p2 = add_param(end_dt)
-                                elem_preds.append(f"({col} >= {p1} AND {col} < {p2})")
-                            else:
-                                elem_preds.append(f"{col} {elem.operator.value} {lower_literal(elem.value)}")
-                        elif isinstance(elem, CompoundAndConstraint):
-                            c_preds = [f"{col} {c.operator.value} {lower_literal(c.value)}" for c in elem.constraints]
-                            elem_preds.append(f"({' AND '.join(c_preds)})")
-                        elif isinstance(elem, TemporalLiteral):
-                            if elem.keyword == TemporalKeyword.TODAY:
-                                elem_preds.append(f"{col} = CURRENT_DATE")
-                            elif elem.keyword == TemporalKeyword.NOW:
-                                elem_preds.append(f"{col} = CURRENT_TIMESTAMP")
-                            elif is_timestamp_field and _is_date_only_literal(elem):
-                                start_dt, end_dt = _parse_date_only_range(elem.value)  # type: ignore[arg-type]
-                                p1 = add_param(start_dt)
-                                p2 = add_param(end_dt)
-                                elem_preds.append(f"({col} >= {p1} AND {col} < {p2})")
-                            else:
+                    # -------------------------------------------------------
+                    # ValueSet with Equality (=)
+                    # -------------------------------------------------------
+                    if op == ComparisonOperator.EQ:
+                        if all_simple_non_null and not (is_timestamp_field and has_date_only_temporals):
+                            if has_null and len(non_null_elems) == 0:
+                                return f"{col} IS NULL"
+                            if has_null and len(non_null_elems) == 1:
+                                p = lower_literal(non_null_elems[0])
+                                return f"({col} = {p} OR {col} IS NULL)"
+                            if has_null and len(non_null_elems) > 1:
+                                placeholders = [lower_literal(elem) for elem in non_null_elems]
+                                return f"({col} IN ({', '.join(placeholders)}) OR {col} IS NULL)"
+                            if not has_null and len(non_null_elems) > 0:
+                                placeholders = [lower_literal(elem) for elem in non_null_elems]
+                                return f"{col} IN ({', '.join(placeholders)})"
+
+                        # Complex / mixed ValueSet with EQ
+                        elem_preds: List[str] = []
+                        for elem in operand.elements:
+                            if isinstance(elem, NullLiteral):
+                                elem_preds.append(f"{col} IS NULL")
+                            elif isinstance(elem, Range):
+                                elem_preds.append(f"{col} BETWEEN {lower_literal(elem.start)} AND {lower_literal(elem.end)}")
+                            elif isinstance(elem, ComparisonConstraint):
+                                if isinstance(elem.value, NullLiteral):
+                                    if elem.operator == ComparisonOperator.EQ:
+                                        elem_preds.append(f"{col} IS NULL")
+                                    elif elem.operator == ComparisonOperator.NEQ:
+                                        elem_preds.append(f"{col} IS NOT NULL")
+                                    else:
+                                        elem_preds.append(f"{col} {elem.operator.value} NULL")
+                                elif (
+                                    elem.operator == ComparisonOperator.EQ
+                                    and is_timestamp_field
+                                    and _is_date_only_literal(elem.value)
+                                ):
+                                    start_dt, end_dt = _parse_date_only_range(elem.value.value)  # type: ignore[arg-type]
+                                    p1 = add_param(start_dt)
+                                    p2 = add_param(end_dt)
+                                    elem_preds.append(f"({col} >= {p1} AND {col} < {p2})")
+                                else:
+                                    elem_preds.append(f"{col} {elem.operator.value} {lower_literal(elem.value)}")
+                            elif isinstance(elem, CompoundAndConstraint):
+                                c_preds = [f"{col} {c.operator.value} {lower_literal(c.value)}" for c in elem.constraints]
+                                elem_preds.append(f"({' AND '.join(c_preds)})")
+                            elif isinstance(elem, TemporalLiteral):
+                                if elem.keyword == TemporalKeyword.TODAY:
+                                    elem_preds.append(f"{col} = CURRENT_DATE")
+                                elif elem.keyword == TemporalKeyword.NOW:
+                                    elem_preds.append(f"{col} = CURRENT_TIMESTAMP")
+                                elif is_timestamp_field and _is_date_only_literal(elem):
+                                    start_dt, end_dt = _parse_date_only_range(elem.value)  # type: ignore[arg-type]
+                                    p1 = add_param(start_dt)
+                                    p2 = add_param(end_dt)
+                                    elem_preds.append(f"({col} >= {p1} AND {col} < {p2})")
+                                else:
+                                    elem_preds.append(f"{col} = {lower_literal(elem)}")
+                            elif isinstance(elem, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral)):
                                 elem_preds.append(f"{col} = {lower_literal(elem)}")
-                        elif isinstance(elem, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral)):
-                            elem_preds.append(f"{col} = {lower_literal(elem)}")
 
-                    if not elem_preds:
-                        return "1=1"
-                    if len(elem_preds) == 1:
-                        return elem_preds[0]
-                    return f"({' OR '.join(elem_preds)})"
+                        if not elem_preds:
+                            return "1=1"
+                        if len(elem_preds) == 1:
+                            return elem_preds[0]
+                        return f"({' OR '.join(elem_preds)})"
+
+                    # -------------------------------------------------------
+                    # ValueSet with Inequality (!=)
+                    # -------------------------------------------------------
+                    if op == ComparisonOperator.NEQ:
+                        if all_simple_non_null and not (is_timestamp_field and has_date_only_temporals):
+                            if has_null and len(non_null_elems) == 0:
+                                return f"{col} IS NOT NULL"
+                            if has_null and len(non_null_elems) == 1:
+                                p = lower_literal(non_null_elems[0])
+                                return f"({col} != {p} AND {col} IS NOT NULL)"
+                            if has_null and len(non_null_elems) > 1:
+                                placeholders = [lower_literal(elem) for elem in non_null_elems]
+                                return f"({col} NOT IN ({', '.join(placeholders)}) AND {col} IS NOT NULL)"
+                            if not has_null and len(non_null_elems) > 0:
+                                placeholders = [lower_literal(elem) for elem in non_null_elems]
+                                return f"({col} NOT IN ({', '.join(placeholders)}) OR {col} IS NULL)"
+
+                        # Complex / mixed ValueSet with NEQ
+                        elem_preds = []
+                        for elem in operand.elements:
+                            if isinstance(elem, NullLiteral):
+                                elem_preds.append(f"{col} IS NOT NULL")
+                            elif isinstance(elem, Range):
+                                elem_preds.append(f"({col} < {lower_literal(elem.start)} OR {col} > {lower_literal(elem.end)} OR {col} IS NULL)")
+                            elif isinstance(elem, ComparisonConstraint):
+                                if isinstance(elem.value, NullLiteral):
+                                    if elem.operator == ComparisonOperator.EQ:
+                                        elem_preds.append(f"{col} IS NOT NULL")
+                                    elif elem.operator == ComparisonOperator.NEQ:
+                                        elem_preds.append(f"{col} IS NULL")
+                                else:
+                                    neg_op = _invert_operator(elem.operator)
+                                    elem_preds.append(f"({col} {neg_op.value} {lower_literal(elem.value)} OR {col} IS NULL)")
+                            elif isinstance(elem, (IntegerLiteral, FloatLiteral, StringLiteral, BooleanLiteral, TemporalLiteral)):
+                                elem_preds.append(f"({col} != {lower_literal(elem)} OR {col} IS NULL)")
+
+                        if not elem_preds:
+                            return "1=1"
+                        if len(elem_preds) == 1:
+                            return elem_preds[0]
+                        return f"({' AND '.join(elem_preds)})"
 
                 # Direct LiteralValue operand
                 if isinstance(operand, TemporalLiteral):

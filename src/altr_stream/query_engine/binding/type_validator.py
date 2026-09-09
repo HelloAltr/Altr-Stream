@@ -69,16 +69,28 @@ def validate_field_operator_and_operand(
     Raises:
         TypeCompatibilityError: If operator or operand types are incompatible with the field type.
     """
-    # 1. Reject unsupported schema types (e.g. JSON, ARRAY, BINARY)
+    # 1. NULL with Operators (valid for all field types with EQ/NEQ)
+    if isinstance(operand, NullLiteral):
+        if isinstance(operator, StringOperator):
+            raise TypeCompatibilityError(
+                f"Operator '{operator.value}' requires STRING literal operand, got 'NullLiteral'."
+            )
+        if operator in (
+            ComparisonOperator.GT,
+            ComparisonOperator.LT,
+            ComparisonOperator.GTE,
+            ComparisonOperator.LTE,
+        ):
+            raise TypeCompatibilityError(
+                f"Ordering operator '{operator.value}' is not supported with NULL on field '{field.full_path}'."
+            )
+        # ComparisonOperator.EQ and ComparisonOperator.NEQ with NullLiteral are valid for all field types
+        return
+
+    # 2. Reject unsupported schema types for non-NULL operations (e.g. JSON, ARRAY, BINARY)
     if field.logical_category == LogicalTypeCategory.UNKNOWN:
         raise TypeCompatibilityError(
             f"Field '{field.full_path}' has unsupported AltrQL comparison type '{field.data_type.value}'."
-        )
-
-    # 2. Strict rejection of NULL with comparison operators in v0.1
-    if isinstance(operand, NullLiteral):
-        raise TypeCompatibilityError(
-            f"Field '{field.full_path}' cannot be compared with NULL. Dedicated NULL predicates are deferred to a future AltrQL phase."
         )
 
     # 3. String Operators (STARTS, ENDS, HAS, NOT HAS)
@@ -139,24 +151,26 @@ def validate_field_operator_and_operand(
 
 def _validate_range(field: BoundFieldPath, rng: Range) -> None:
     """Ensure range bounds match the field's logical type category."""
-    if field.logical_category == LogicalTypeCategory.BOOLEAN:
-        raise TypeCompatibilityError(
-            f"Range expressions are not supported on BOOLEAN field '{field.full_path}'."
-        )
-
     start = rng.start
     end = rng.end
+
+    if field.logical_category == LogicalTypeCategory.BOOLEAN:
+        raise TypeCompatibilityError(
+            f"Ranges are not supported on BOOLEAN field '{field.full_path}'."
+        )
 
     if field.logical_category == LogicalTypeCategory.NUMERIC:
         if not (isinstance(start, (IntegerLiteral, FloatLiteral)) and isinstance(end, (IntegerLiteral, FloatLiteral))):
             raise TypeCompatibilityError(
-                f"Range on NUMERIC field '{field.full_path}' must have numeric bounds, got '{start.kind.upper()}'..'{end.kind.upper()}'."
+                f"Range on NUMERIC field '{field.full_path}' must have numeric bounds, got '{start.kind}'..'{end.kind}'."
             )
+
     elif field.logical_category == LogicalTypeCategory.STRING:
         if not (isinstance(start, StringLiteral) and isinstance(end, StringLiteral)):
             raise TypeCompatibilityError(
-                f"Range on STRING field '{field.full_path}' must have string bounds, got '{start.kind.upper()}'..'{end.kind.upper()}'."
+                f"Range on STRING field '{field.full_path}' must have string bounds, got '{start.kind}'..'{end.kind}'."
             )
+
     elif field.logical_category == LogicalTypeCategory.TEMPORAL:
         if not (isinstance(start, TemporalLiteral) and isinstance(end, TemporalLiteral)):
             raise TypeCompatibilityError(
@@ -168,9 +182,7 @@ def _validate_value_set(field: BoundFieldPath, vs: ValueSet) -> None:
     """Ensure all elements of a ValueSet match the field's logical type category."""
     for el in vs.elements:
         if isinstance(el, NullLiteral):
-            raise TypeCompatibilityError(
-                f"ValueSet on field '{field.full_path}' cannot contain NULL. Dedicated NULL predicates are deferred to a future AltrQL phase."
-            )
+            continue
         elif isinstance(el, Range):
             _validate_range(field, el)
         elif isinstance(el, ComparisonConstraint):
@@ -220,9 +232,11 @@ def _validate_comparison_constraint(field: BoundFieldPath, constraint: Compariso
 
     val = constraint.value
     if isinstance(val, NullLiteral):
-        raise TypeCompatibilityError(
-            f"Constraint on field '{field.full_path}' cannot compare with NULL. Dedicated NULL predicates are deferred to a future AltrQL phase."
-        )
+        if is_ordering:
+            raise TypeCompatibilityError(
+                f"Ordering operator '{constraint.operator.value}' is not supported with NULL on field '{field.full_path}'."
+            )
+        return
     elif isinstance(val, (IntegerLiteral, FloatLiteral)):
         if field.logical_category != LogicalTypeCategory.NUMERIC:
             raise TypeCompatibilityError(
@@ -252,18 +266,19 @@ def validate_assignment_value(field: BoundFieldPath, value: LiteralValue) -> Non
     Raises:
         TypeCompatibilityError: If the literal value is incompatible with the field's schema data type.
     """
-    if field.logical_category == LogicalTypeCategory.UNKNOWN:
-        raise TypeCompatibilityError(
-            f"Field '{field.full_path}' has unsupported AltrQL mutation type '{field.data_type.value}'."
-        )
-
-    # NULL assignment is valid for nullable fields
+    # 1. NULL assignment is valid for nullable fields (including JSON/UNKNOWN)
     if isinstance(value, NullLiteral):
         if not field.nullable:
             raise TypeCompatibilityError(
                 f"Cannot assign NULL to non-nullable field '{field.full_path}'."
             )
         return
+
+    # 2. Reject unsupported schema types for non-NULL mutations (e.g. JSON, ARRAY, BINARY)
+    if field.logical_category == LogicalTypeCategory.UNKNOWN:
+        raise TypeCompatibilityError(
+            f"Field '{field.full_path}' has unsupported AltrQL mutation type '{field.data_type.value}'."
+        )
 
     # NUMERIC fields (INTEGER, FLOAT, BIGINT, SMALLINT, DECIMAL)
     if field.logical_category == LogicalTypeCategory.NUMERIC:

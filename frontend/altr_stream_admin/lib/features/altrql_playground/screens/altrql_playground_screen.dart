@@ -83,6 +83,15 @@ GET users (
     username,
     age
 ) TOP 10 BY age OFFSET 20;''',
+    'NULL Predicates': '''// Logical read with NULL equality & ValueSets
+GET categories (
+    id,
+    code,
+    name,
+    description
+) WHERE {
+    description = NULL
+};''',
     'Create Entity': '''// Insert a new record into entity
 CREATE users (
     username: "alice",

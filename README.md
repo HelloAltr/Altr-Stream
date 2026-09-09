@@ -31,7 +31,7 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │               altr-stream-app (Port 8000)                   │
 │                   FastAPI Backend Service                   │
 │        - Source registration & lifecycle management         │
-│        - AltrQL v0.4 Query Engine & Compiler Pipeline       │
+│        - AltrQL v0.5 Query Engine & Compiler Pipeline       │
 │        - PostgreSQL connector (asyncpg)                     │
 │        - Schema catalog introspection & normalizer          │
 │        - SQLite metadata store (aiosqlite)                  │
@@ -46,7 +46,7 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 
 ---
 
-## ⚡ AltrQL Query Engine (v0.4)
+## ⚡ AltrQL Query Engine (v0.5)
 
 AltrQL is a declarative, database-neutral logical query and mutation language designed for the Altr platform. The query engine compiles AltrQL queries through pure, isolated compiler phases into 100% parameterized dialect-specific SQL:
 
@@ -71,7 +71,7 @@ Normalized Query Result (`QueryResult`)
 
 ### Supported Operations & Syntax
 
-#### 1. `GET` (Logical Retrieval)
+#### 1. `GET` (Logical Retrieval & Two-Valued Logic)
 ```altrql
 GET users (
     id,
@@ -80,23 +80,32 @@ GET users (
 ) WHERE {
     age = {18..65},
     created_at = @2026-09-06,
-    status = {"ACTIVE", "PENDING"}
+    status = {"ACTIVE", "PENDING", NULL},
+    metadata = NULL
 } TOP 10 BY created_at OFFSET 20;
 ```
 - **Projections**: Field selections with optional aliases (`id AS user_id`).
 - **Expressions**: Rich logical boolean tree (`AND`, `,`, `OR`, `NOT`, `{ ... }`).
+- **Strict Two-Valued NULL Semantics**: Predicates resolve strictly to `TRUE` or `FALSE` (no SQL `UNKNOWN` in AST/IR):
+  - `field = NULL` compiles to `"field" IS NULL`.
+  - `field != NULL` compiles to `"field" IS NOT NULL`.
+  - `field = {A, B, NULL}` compiles to `((field = $1 OR field = $2) OR field IS NULL)`.
+  - `field != {A, B, NULL}` compiles to `((field NOT IN ($1, $2)) AND field IS NOT NULL)`.
+  - `field != {A, B}` (without NULL) compiles to `((field NOT IN ($1, $2)) OR field IS NULL)`.
+  - `field NOT HAS "sub"` evaluates to `TRUE` for `NULL` column values (`("field" NOT LIKE $1 OR "field" IS NULL)`).
 - **Operators**: Equality (`=`), inequality (`!=`), range (`18..65`), compound bounds (`>=18 & <=65`), value sets (`{"A", "B"}`), and string pattern matchers (`STARTS`, `ENDS`, `HAS`, `NOT HAS`).
 - **Precision-Aware Temporal Comparisons**: Comparing a date-only literal (`@YYYY-MM-DD`) against a `TIMESTAMP`/`TIMESTAMPTZ` field rewrites into a half-open day range `("created_at" >= $1 AND "created_at" < $2)` covering the entire calendar day `[00:00:00, 24:00:00)`.
 
-#### 2. `CREATE` (Single & Batch Insertions)
-- **Single-Record Syntax** (Backward-compatible):
+#### 2. `CREATE` (Single & Batch Insertions, Explicit NULL vs Omission)
+- **Single-Record Syntax**:
   ```altrql
   CREATE users (
       username: "alice",
       email: "alice@example.com",
-      age: 28
+      metadata: NULL
   );
   ```
+- **Explicit NULL vs Omission**: Assigning `field: NULL` inserts an explicit `NULL` into nullable columns. Omitted columns are excluded from `INSERT`, allowing database column defaults to apply. Non-nullable fields assigned `NULL` fail validation at schema-binding time (`TypeCompatibilityError`).
 - **Batch / Grouped Syntax**:
   ```altrql
   CREATE users (
@@ -107,24 +116,26 @@ GET users (
 - **Consecutive-Only Grouping**: Homogeneous records lower into a single multi-row `INSERT INTO ... VALUES ($1, $2), ($3, $4) RETURNING *;`. Heterogeneous records with differing column shapes (e.g. `[A, A, B, A]`) are grouped only across adjacent matching shapes (`[A, A]`, `[B]`, `[A]`), preserving exact logical record order and emitting a `PhysicalQueryBatch`.
 - **Atomic Batch Execution**: `execute_batch()` executes statements sequentially inside an explicit transaction (`async with conn.transaction():`), ensuring complete rollback on any record failure.
 
-#### 3. `UPDATE` (Set-Based with Mandatory WHERE)
+#### 3. `UPDATE` (Set-Based with Mandatory WHERE & NULL Support)
 ```altrql
 UPDATE users (
     full_name: "Alice Updated",
-    is_active: TRUE
+    metadata: NULL
 ) WHERE {
     email = "alice@example.com"
 };
 ```
 - **Mandatory WHERE**: Full-table mutations without a `WHERE` clause are rejected at parse and validation time as a language-level safety invariant.
+- **NULL Assignments**: Explicitly assigning `field: NULL` sets the column to `NULL` for nullable fields; non-nullable fields are rejected at binding time.
 - **Single PhysicalQuery**: UPDATE is strictly set-based and always compiles to a single `PhysicalQuery`.
-- **Deterministic Parameter Ordering**: Mutation assignment parameters precede condition parameters (`$1, $2` for SET, `$3` for WHERE).
+- **Deterministic Parameter Ordering**: Mutation assignment parameters precede condition parameters (`$1` for SET, `$2` for WHERE).
 
 #### 4. `DELETE` (Constrained & Mass Mutations)
 - **Constrained DELETE**:
   ```altrql
-  DELETE users WHERE { id = 42 };
+  DELETE users WHERE { metadata = NULL };
   ```
+  Deleting with a predicate (including `field = NULL` or `field != NULL`) is classified as `CONSTRAINED`.
 - **Mass DELETE (Safety Gated)**:
   ```altrql
   DELETE users;
@@ -184,7 +195,7 @@ uv pip install -e ".[dev]"
 # Run FastAPI backend with hot reload
 uvicorn altr_stream.main:app --reload --host 0.0.0.0 --port 8000
 
-# Run backend test suite (397 tests)
+# Run backend test suite (422 tests)
 pytest tests/ -v
 ```
 
@@ -198,7 +209,7 @@ flutter pub get
 # Run Flutter Web development server with Chrome
 flutter run -d chrome
 
-# Run multi-viewport Flutter tests
+# Run multi-viewport Flutter tests (25 tests)
 flutter test
 
 # Run Flutter static analysis
@@ -234,7 +245,7 @@ Altr-Stream/
 ├── src/
 │   └── altr_stream/             # FastAPI Backend Service
 │       ├── domain/              # Source, Schema, Connector Contracts
-│       ├── query_engine/        # AltrQL v0.4 Compiler (Parser, Semantic Validator, Binder, Lowerer)
+│       ├── query_engine/        # AltrQL v0.5 Compiler (Parser, Semantic Validator, Binder, Lowerer)
 │       │   ├── binding/         # Schema resolution & type compatibility validation
 │       │   ├── classification/  # Pure deterministic mutation classification & safety scoping
 │       │   ├── domain/          # Canonical AST, Bound AST, PhysicalQuery models

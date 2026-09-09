@@ -104,8 +104,8 @@ Altr Stream provides a clean separation between **Native Database Playgrounds** 
 ### 4.1 AltrQL Console & Interactive Multi-View Execution Inspector (`/altrql`)
 Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or navigation header:
 
-1. **Language Operations & Syntax (AltrQL v0.4)**:
-   - **`GET` (Logical Retrieval)**:
+1. **Language Operations & Syntax (AltrQL v0.5)**:
+   - **`GET` (Logical Retrieval & Two-Valued Logic)**:
      ```altrql
      GET users (
          id,
@@ -114,21 +114,30 @@ Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or n
      ) WHERE {
          age = {18..65},
          created_at = @2026-09-06,
-         status = {"ACTIVE", "PENDING"}
+         status = {"ACTIVE", "PENDING", NULL},
+         metadata = NULL
      } TOP 10 BY created_at OFFSET 20;
      ```
      - Projections with optional aliases (`id AS user_id`).
      - Rich boolean logic (`AND`, `,`, `OR`, `NOT`, `{ ... }`), ranges (`18..65`), compound bounds (`>=18 & <=65`), value sets (`{"A", "B"}`), and string pattern matchers (`STARTS`, `ENDS`, `HAS`, `NOT HAS`).
+     - **Strict Two-Valued NULL Semantics**: Predicates resolve strictly to `TRUE` or `FALSE` (no SQL `UNKNOWN` in AST/IR):
+       - `field = NULL` compiles to `"field" IS NULL`.
+       - `field != NULL` compiles to `"field" IS NOT NULL`.
+       - `field = {A, B, NULL}` compiles to `((field = $1 OR field = $2) OR field IS NULL)`.
+       - `field != {A, B, NULL}` compiles to `((field NOT IN ($1, $2)) AND field IS NOT NULL)`.
+       - `field != {A, B}` (without NULL) compiles to `((field NOT IN ($1, $2)) OR field IS NULL)`.
+       - `field NOT HAS "sub"` evaluates to `TRUE` for `NULL` column values (`("field" NOT LIKE $1 OR "field" IS NULL)`).
      - **Precision-Aware Temporal Equality**: Comparing a date-only literal (`@YYYY-MM-DD`) against a `TIMESTAMP`/`TIMESTAMPTZ` field rewrites automatically into a half-open day range `("created_at" >= $1 AND "created_at" < $2)` covering the full calendar day `[00:00:00, 24:00:00)`.
-   - **`CREATE` (Single & Batch Insertions)**:
+   - **`CREATE` (Single & Batch Insertions, Explicit NULL vs Omission)**:
      - *Single-Record Syntax*:
        ```altrql
        CREATE users (
            username: "alice",
            email: "alice@example.com",
-           age: 28
+           metadata: NULL
        );
        ```
+     - *Explicit NULL vs Omission*: Assigning `field: NULL` inserts an explicit `NULL` into nullable columns. Omitted columns are excluded from `INSERT`, allowing database column defaults to apply. Non-nullable fields assigned `NULL` fail validation at schema-binding time (`TypeCompatibilityError`).
      - *Grouped / Batch Syntax*:
        ```altrql
        CREATE users (
@@ -138,21 +147,22 @@ Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or n
        ```
      - *Consecutive-Only Grouping Lowering*: Homogeneous batches merge into a single multi-row `INSERT INTO ... VALUES ($1, $2), ($3, $4) RETURNING *;`. Heterogeneous records with differing column shapes (e.g. `[A, A, B, A]`) group only across adjacent matching shapes (`[A, A]`, `[B]`, `[A]`), preserving exact logical record order and emitting a `PhysicalQueryBatch`.
      - *Atomic Batch Transaction*: `execute_batch()` runs statements sequentially inside an explicit database transaction (`async with conn.transaction():`), guaranteeing complete rollback on any error.
-   - **`UPDATE` (Set-Based Mutations)**:
+   - **`UPDATE` (Set-Based Mutations & NULL Support)**:
      ```altrql
      UPDATE users (
          full_name: "Alice Updated",
-         is_active: TRUE
+         metadata: NULL
      ) WHERE {
          email = "alice@example.com"
      };
      ```
      - *Mandatory WHERE*: Full-table mutations without a `WHERE` clause are rejected at parse and validation time as a language-level safety invariant.
+     - *NULL Assignments*: Explicitly assigning `field: NULL` sets the column to `NULL` for nullable fields; non-nullable fields are rejected at binding time.
      - *Validation*: Duplicate assignment fields are rejected during semantic validation via `_validate_mutation_assignments()`.
-     - *Lowering*: Compiles to a single `PhysicalQuery` with deterministic parameter ordering (`$1, $2` for SET assignments before `$3` for WHERE conditions) and `RETURNING *`.
+     - *Lowering*: Compiles to a single `PhysicalQuery` with deterministic parameter ordering (`$1` for SET assignments before `$2` for WHERE conditions) and `RETURNING *`.
      - *Execution*: Returns all affected rows. Updating zero matching rows succeeds cleanly, returning 0 rows.
    - **`DELETE` (Constrained & Mass Mutations)**:
-     - *Constrained DELETE*: `DELETE users WHERE { id = 42 };`
+     - *Constrained DELETE*: `DELETE users WHERE { metadata = NULL };` (any predicate, including `= NULL` or `!= NULL`, is safely classified as `CONSTRAINED`).
      - *Mass DELETE*: `DELETE users;` (requires explicit `confirm_mass_mutation=true` in execution request, otherwise raising `MassMutationConfirmationRequiredError`).
 
 2. **Compiler Pipeline & Multi-View Execution Inspector**:
@@ -175,7 +185,7 @@ Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or n
      - Syntax violations (`AltrQueryParseError`), semantic errors (`AltrQuerySemanticError`), schema binding errors (`AltrQueryBindingError`), lowering errors (`AltrQueryLoweringError`), mass mutation gates (`MassMutationConfirmationRequiredError`), and execution failures render diagnostic callouts with `Line N · Column M` indicators and dedicated **"Copy Error"** buttons.
      - Failed executions preserve pipeline artifacts (`ir`, `bound_ir`, `physical_query`) for rapid debugging.
    - **Template Selector**:
-     - One-click template insertion conforming to AltrQL v0.4 (`Simple Read`, `Range & Sets`, `String Patterns`, `Create Single Entity`, `Create Batch Entities`, `Update Entity`, `Constrained Delete`).
+     - One-click template insertion conforming to AltrQL v0.5 (`Simple Read`, `Range & Sets`, `String Patterns`, `NULL Predicates`, `Create Single Entity`, `Create Batch Entities`, `Update Entity`, `Constrained Delete`).
 
 ### 4.2 Source-Scoped Native Database Playground
 Accessible inside any Data Source detail page (`Data Sources → Select Source → Playground` tab):

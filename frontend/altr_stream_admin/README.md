@@ -1,12 +1,12 @@
 # Altr Stream Admin — Flutter Web Application
 
-Desktop-first administrative portal for managing physical data sources, connection lifecycle, schema catalog introspection, and the **AltrQL v0.4 Query Engine & Compiler** on an **Altr Stream** node.
+Desktop-first administrative portal for managing physical data sources, connection lifecycle, schema catalog introspection, and the **AltrQL v0.5 Query Engine & Compiler** on an **Altr Stream** node.
 
 ## Features
 
 - **Persistent Desktop Sidebar Navigation:** Overview, Data Sources, Activity, and Settings (`AppShell`).
 - **Global AltrQL Console & Compiler Inspector (`/altrql`):**
-  - **Interactive Editor & Templates:** Full support for AltrQL v0.4 operations (`GET`, `CREATE` single/batch, `UPDATE` set-based, `DELETE` constrained/mass) with one-click templates and keyboard shortcut (`⌘ + Enter` / `Ctrl + Enter`).
+  - **Interactive Editor & Templates:** Full support for AltrQL v0.5 operations (`GET`, `CREATE` single/batch, `UPDATE` set-based, `DELETE` constrained/mass, `NULL` equality/inequality & ValueSets) with one-click templates and keyboard shortcut (`⌘ + Enter` / `Ctrl + Enter`).
   - **Mutation Badges & Safety Scoping:** Visual classification badges (`READ`, `CREATE`, `UPDATE`, `DELETE`, `BATCH`) and confirmation modals for mass mutations.
   - **Multi-View Inspection Tabs:**
     - **Results:** Interactive tabular rendering with latency (`X ms`) and affected/returned row count badges.
