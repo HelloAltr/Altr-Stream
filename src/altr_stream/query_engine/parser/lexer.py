@@ -53,6 +53,7 @@ class TokenType(Enum):
     TOP = auto()
     BOTTOM = auto()
     BY = auto()
+    LIMIT = auto()
     OFFSET = auto()
     AS = auto()
     NOT = auto()
@@ -83,6 +84,7 @@ RESERVED_KEYWORDS = {
     "TOP": TokenType.TOP,
     "BOTTOM": TokenType.BOTTOM,
     "BY": TokenType.BY,
+    "LIMIT": TokenType.LIMIT,
     "OFFSET": TokenType.OFFSET,
     "AS": TokenType.AS,
     "NOT": TokenType.NOT,

@@ -161,7 +161,7 @@ def test_lower_null_equality(mock_schema: SourceSchema):
     bound = bind_altrql(parse_altrql("GET users WHERE { metadata = NULL };"), mock_schema)
     lowerer = PostgreSQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT * FROM "public"."users" WHERE "metadata" IS NULL;'
+    assert res.query == 'SELECT * FROM "public"."users" WHERE "metadata" IS NULL ORDER BY "id" ASC;'
     assert res.parameters == []
 
 
@@ -169,7 +169,7 @@ def test_lower_null_inequality(mock_schema: SourceSchema):
     bound = bind_altrql(parse_altrql("GET users WHERE { metadata != NULL };"), mock_schema)
     lowerer = PostgreSQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT * FROM "public"."users" WHERE "metadata" IS NOT NULL;'
+    assert res.query == 'SELECT * FROM "public"."users" WHERE "metadata" IS NOT NULL ORDER BY "id" ASC;'
     assert res.parameters == []
 
 
@@ -177,7 +177,7 @@ def test_lower_null_negation(mock_schema: SourceSchema):
     bound = bind_altrql(parse_altrql("GET users WHERE { NOT { metadata = NULL } };"), mock_schema)
     lowerer = PostgreSQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT * FROM "public"."users" WHERE NOT ("metadata" IS NULL);'
+    assert res.query == 'SELECT * FROM "public"."users" WHERE NOT ("metadata" IS NULL) ORDER BY "id" ASC;'
     assert res.parameters == []
 
 
@@ -185,7 +185,7 @@ def test_lower_valueset_with_null_equality(mock_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { status = {"ACTIVE", NULL} };'), mock_schema)
     lowerer = PostgreSQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT * FROM "public"."users" WHERE ("status" = $1 OR "status" IS NULL);'
+    assert res.query == 'SELECT * FROM "public"."users" WHERE ("status" = $1 OR "status" IS NULL) ORDER BY "id" ASC;'
     assert res.parameters == ["ACTIVE"]
 
 
@@ -193,7 +193,7 @@ def test_lower_valueset_with_null_inequality(mock_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { status != {"ACTIVE", NULL} };'), mock_schema)
     lowerer = PostgreSQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT * FROM "public"."users" WHERE ("status" != $1 AND "status" IS NOT NULL);'
+    assert res.query == 'SELECT * FROM "public"."users" WHERE ("status" != $1 AND "status" IS NOT NULL) ORDER BY "id" ASC;'
     assert res.parameters == ["ACTIVE"]
 
 
@@ -201,12 +201,12 @@ def test_lower_valueset_only_null(mock_schema: SourceSchema):
     bound_eq = bind_altrql(parse_altrql('GET users WHERE { status = {NULL} };'), mock_schema)
     lowerer = PostgreSQLLowerer()
     res_eq = lowerer.lower(bound_eq)
-    assert res_eq.query == 'SELECT * FROM "public"."users" WHERE "status" IS NULL;'
+    assert res_eq.query == 'SELECT * FROM "public"."users" WHERE "status" IS NULL ORDER BY "id" ASC;'
     assert res_eq.parameters == []
 
     bound_neq = bind_altrql(parse_altrql('GET users WHERE { status != {NULL} };'), mock_schema)
     res_neq = lowerer.lower(bound_neq)
-    assert res_neq.query == 'SELECT * FROM "public"."users" WHERE "status" IS NOT NULL;'
+    assert res_neq.query == 'SELECT * FROM "public"."users" WHERE "status" IS NOT NULL ORDER BY "id" ASC;'
     assert res_neq.parameters == []
 
 
@@ -214,7 +214,7 @@ def test_lower_not_has_with_null_handling(mock_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { status NOT HAS "act" };'), mock_schema)
     lowerer = PostgreSQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT * FROM "public"."users" WHERE ("status" NOT LIKE $1 OR "status" IS NULL);'
+    assert res.query == 'SELECT * FROM "public"."users" WHERE ("status" NOT LIKE $1 OR "status" IS NULL) ORDER BY "id" ASC;'
     assert res.parameters == ["%act%"]
 
 

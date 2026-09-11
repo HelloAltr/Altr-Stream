@@ -178,13 +178,25 @@ class Parser:
                 ranking_clause = self._parse_ranking_clause(direction_token)
                 has_ranking = True
 
-        # 5. Optional OFFSET n
+        # 5. Optional LIMIT n and OFFSET n (in flexible order)
+        limit_val: Optional[int] = None
         offset_val: Optional[int] = None
-        if self._match(TokenType.OFFSET):
-            if not self._check(TokenType.INTEGER):
-                self._error("Expected integer value after 'OFFSET'.", expected=["INTEGER"])
-            offset_token = self._advance()
-            offset_val = offset_token.value
+
+        while self._check(TokenType.LIMIT) or self._check(TokenType.OFFSET):
+            if self._match(TokenType.LIMIT):
+                if limit_val is not None:
+                    self._error("Duplicate 'LIMIT' clause in query.")
+                if not self._check(TokenType.INTEGER):
+                    self._error("Expected integer value after 'LIMIT'.", expected=["INTEGER"])
+                limit_token = self._advance()
+                limit_val = limit_token.value
+            elif self._match(TokenType.OFFSET):
+                if offset_val is not None:
+                    self._error("Duplicate 'OFFSET' clause in query.")
+                if not self._check(TokenType.INTEGER):
+                    self._error("Expected integer value after 'OFFSET'.", expected=["INTEGER"])
+                offset_token = self._advance()
+                offset_val = offset_token.value
 
         # 6. Mandatory Semicolon & EOF
         self._consume_terminating_semicolon()
@@ -196,6 +208,7 @@ class Parser:
             where=where_clause,
             sort=sort_clauses,
             ranking=ranking_clause,
+            limit=limit_val,
             offset=offset_val,
         )
 
@@ -216,6 +229,8 @@ class Parser:
             self._error("WHERE clause is not supported on 'CREATE' operations.")
         if self._check(TokenType.SORT) or self._check(TokenType.TOP) or self._check(TokenType.BOTTOM):
             self._error("SORT / ranking clauses are not supported on 'CREATE' operations.")
+        if self._check(TokenType.LIMIT):
+            self._error("LIMIT clause is not supported on 'CREATE' operations.")
         if self._check(TokenType.OFFSET):
             self._error("OFFSET clause is not supported on 'CREATE' operations.")
 
@@ -358,6 +373,8 @@ class Parser:
         # 4. Disallowed clauses on UPDATE
         if self._check(TokenType.SORT) or self._check(TokenType.TOP) or self._check(TokenType.BOTTOM):
             self._error("SORT / ranking clauses are not supported on 'UPDATE' operations.")
+        if self._check(TokenType.LIMIT):
+            self._error("LIMIT clause is not supported on 'UPDATE' operations.")
         if self._check(TokenType.OFFSET):
             self._error("OFFSET clause is not supported on 'UPDATE' operations.")
 
@@ -390,6 +407,8 @@ class Parser:
         # 4. Disallowed clauses on DELETE
         if self._check(TokenType.SORT) or self._check(TokenType.TOP) or self._check(TokenType.BOTTOM):
             self._error("SORT / ranking clauses are not supported on 'DELETE' operations.")
+        if self._check(TokenType.LIMIT):
+            self._error("LIMIT clause is not supported on 'DELETE' operations.")
         if self._check(TokenType.OFFSET):
             self._error("OFFSET clause is not supported on 'DELETE' operations.")
 
@@ -485,15 +504,26 @@ class Parser:
         if self._check(TokenType.RBRACE):
             self._error("WHERE block cannot be empty.", expected=["expression"])
 
-        expr = self._parse_or_expression()
+        expressions: List[Expression] = []
+        while not self._check(TokenType.RBRACE) and not self._is_at_end():
+            expr = self._parse_or_expression()
+            expressions.append(expr)
 
-        if self._match(TokenType.COMMA):
-            if self._check(TokenType.RBRACE):
-                self._error("Unexpected trailing comma in WHERE block.")
-            self._error("Unexpected ',' after expression in WHERE block.")
+            if self._match(TokenType.COMMA):
+                if self._check(TokenType.RBRACE):
+                    break
+                continue
+            elif self._check(TokenType.RBRACE):
+                break
 
         self._consume(TokenType.RBRACE, "Expected '}' closing WHERE block.", expected=["}"])
-        return expr
+        if not expressions:
+            self._error("WHERE block cannot be empty.", expected=["expression"])
+
+        combined = expressions[0]
+        for next_expr in expressions[1:]:
+            combined = LogicalExpression(operator=LogicalOperator.AND, left=combined, right=next_expr)
+        return combined
 
     def _parse_or_expression(self) -> Expression:
         expr = self._parse_and_expression()
@@ -567,11 +597,17 @@ class Parser:
             return StringOperator.ENDS, val
 
         if self._match(TokenType.HAS):
+            if self._match(TokenType.LBRACE):
+                val_set = self._parse_value_set()
+                return StringOperator.HAS, val_set
             val = self._parse_string_literal()
             return StringOperator.HAS, val
 
         if self._match(TokenType.NOT):
             self._consume(TokenType.HAS, "Expected 'HAS' after 'NOT'.", expected=["HAS"])
+            if self._match(TokenType.LBRACE):
+                val_set = self._parse_value_set()
+                return StringOperator.NOT_HAS, val_set
             val = self._parse_string_literal()
             return StringOperator.NOT_HAS, val
 
@@ -756,6 +792,8 @@ class Parser:
                 continue
             elif self._check(TokenType.RBRACE):
                 break
+            elif self._check(TokenType.IDENTIFIER):
+                continue
             else:
                 self._error("Expected ',' or '}' in SORT block.", expected=[",", "}"])
 

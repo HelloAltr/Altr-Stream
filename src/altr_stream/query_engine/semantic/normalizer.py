@@ -48,6 +48,7 @@ def normalize_ir(ir: AltrQueryIR) -> AltrQueryIR:
         records=normalized_records,
         sort=list(ir.sort),
         ranking=ir.ranking,
+        limit=ir.limit,
         offset=ir.offset,
     )
 

@@ -44,12 +44,15 @@ def resolve_field_path(field_path: FieldPath, entity: EntitySchema) -> FieldSche
             f"Unknown field '{field_name}' on entity '{entity.name}'."
         )
 
-    # Multi-segment nested path
+    # Multi-segment nested path: check for exact column name first, then check parent root object field
     direct_match = entity.get_field(field_path.full_path)
     if direct_match is not None:
         return direct_match
 
+    root_field = entity.get_field(field_path.root)
+    if root_field is not None:
+        return root_field
+
     raise UnknownFieldError(
-        f"Unknown field '{field_path.full_path}' on entity '{entity.name}'. "
-        f"Nested field structures are not supported on flat schema entity '{entity.name}'."
+        f"Unknown field '{field_path.full_path}' on entity '{entity.name}'."
     )

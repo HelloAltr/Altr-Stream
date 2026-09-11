@@ -85,6 +85,7 @@ class BoundEntity(ASTNode):
     namespace: str = "default"
     entity_type: str = "TABLE"
     comment: Optional[str] = None
+    primary_key: List[str] = Field(default_factory=list)
 
 
 class BoundFieldExpression(ASTNode):
@@ -148,6 +149,7 @@ class BoundAltrQueryIR(ASTNode):
     records: List[BoundCreateRecord] = Field(default_factory=list)
     sort: List[BoundSortClause] = Field(default_factory=list)
     ranking: Optional[BoundRankingClause] = None
+    limit: Optional[int] = None
     offset: Optional[int] = None
     source_id: str
     source_name: str

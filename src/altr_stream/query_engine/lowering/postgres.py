@@ -203,14 +203,73 @@ class PostgreSQLLowerer(QueryLowerer):
                 return add_param(_convert_literal_to_parameter(lit))
             return add_param(_convert_literal_to_parameter(lit))
 
+        # Field path lowering helper (with JSON nested path support)
+        def lower_field_path(field: BoundFieldPath) -> str:
+            if not field.path.is_nested:
+                return quote_ident(field.path.leaf)
+            root = quote_ident(field.path.segments[0])
+            keys = field.path.segments[1:]
+            if len(keys) == 1:
+                return f"{root}->>'{keys[0]}'"
+            chain = root
+            for k in keys[:-1]:
+                chain += f"->'{k}'"
+            chain += f"->>'{keys[-1]}'"
+            return chain
+
         def lower_field_expression(expr: BoundFieldExpression) -> str:
-            col = quote_ident(expr.field.path.leaf)
+            col = lower_field_path(expr.field)
             op = expr.operator
             operand = expr.operand
             is_timestamp_field = expr.field.data_type in (StandardDataType.TIMESTAMP, StandardDataType.TIMESTAMPTZ)
 
             # String operators: STARTS, ENDS, HAS, NOT HAS
             if isinstance(op, StringOperator):
+                if isinstance(operand, ValueSet):
+                    null_elems = [el for el in operand.elements if isinstance(el, NullLiteral)]
+                    non_null_elems = [el for el in operand.elements if not isinstance(el, NullLiteral)]
+                    has_null = len(null_elems) > 0
+
+                    if op == StringOperator.HAS:
+                        elem_preds: List[str] = []
+                        if has_null:
+                            elem_preds.append(f"{col} IS NULL")
+
+                        for elem in non_null_elems:
+                            if isinstance(elem, Range):
+                                elem_preds.append(f"{col} BETWEEN {lower_literal(elem.start)} AND {lower_literal(elem.end)}")
+                            else:
+                                val_str = str(getattr(elem, "value", ""))
+                                elem_preds.append(f"{col} LIKE {add_param(f'%{val_str}%')}")
+
+                        if not elem_preds:
+                            return "1=1"
+                        if len(elem_preds) == 1:
+                            return elem_preds[0]
+                        return f"({' OR '.join(elem_preds)})"
+
+                    if op == StringOperator.NOT_HAS:
+                        not_likes: List[str] = []
+                        for elem in non_null_elems:
+                            if isinstance(elem, Range):
+                                not_likes.append(f"({col} < {lower_literal(elem.start)} OR {col} > {lower_literal(elem.end)})")
+                            else:
+                                val_str = str(getattr(elem, "value", ""))
+                                not_likes.append(f"{col} NOT LIKE {add_param(f'%{val_str}%')}")
+
+                        if has_null:
+                            if not not_likes:
+                                return f"{col} IS NOT NULL"
+                            if len(not_likes) == 1:
+                                return f"({not_likes[0]} AND {col} IS NOT NULL)"
+                            return f"(({' AND '.join(not_likes)}) AND {col} IS NOT NULL)"
+                        else:
+                            if not not_likes:
+                                return f"{col} IS NULL"
+                            if len(not_likes) == 1:
+                                return f"({not_likes[0]} OR {col} IS NULL)"
+                            return f"(({' AND '.join(not_likes)}) OR {col} IS NULL)"
+
                 val_str = str(getattr(operand, "value", ""))
                 if op == StringOperator.STARTS:
                     return f"{col} LIKE {add_param(f'{val_str}%')}"
@@ -442,7 +501,7 @@ class PostgreSQLLowerer(QueryLowerer):
             else:
                 select_items: List[str] = []
                 for sel in query.projection:
-                    col_name = quote_ident(sel.field.path.leaf)
+                    col_name = lower_field_path(sel.field)
                     if sel.alias:
                         select_items.append(f"{col_name} AS {quote_ident(sel.alias)}")
                     else:
@@ -454,17 +513,22 @@ class PostgreSQLLowerer(QueryLowerer):
 
             order_by_items: List[str] = []
             if query.ranking:
-                rank_col = quote_ident(query.ranking.field.path.leaf)
+                rank_col = lower_field_path(query.ranking.field)
                 rank_dir = "DESC" if query.ranking.direction == RankingDirection.TOP else "ASC"
                 order_by_items.append(f"{rank_col} {rank_dir}")
 
             if query.sort:
                 for s in query.sort:
-                    sort_col = quote_ident(s.field.path.leaf)
+                    sort_col = lower_field_path(s.field)
                     order_by_items.append(f"{sort_col} {s.direction.value}")
 
+            if not query.ranking and not query.sort and query.entity.primary_key:
+                for pk_col in query.entity.primary_key:
+                    order_by_items.append(f"{quote_ident(pk_col)} ASC")
+
             order_by_clause = f"ORDER BY {', '.join(order_by_items)}" if order_by_items else None
-            limit_clause = f"LIMIT {query.ranking.count}" if query.ranking else None
+            limit_val = query.ranking.count if query.ranking else query.limit
+            limit_clause = f"LIMIT {limit_val}" if limit_val is not None else None
             offset_clause = f"OFFSET {query.offset}" if query.offset is not None else None
 
             query_parts = [select_clause, from_clause]

@@ -43,7 +43,7 @@ def test_sqlite_lower_read_simple(sqlite_schema: SourceSchema):
     lowerer = SQLiteLowerer()
     res = lowerer.lower(bound)
     assert res.dialect == "sqlite"
-    assert res.query == 'SELECT * FROM "users";'
+    assert res.query == 'SELECT * FROM "users" ORDER BY "id" ASC;'
     assert res.parameters == []
 
 
@@ -51,7 +51,7 @@ def test_sqlite_lower_read_with_filter_and_projection(sqlite_schema: SourceSchem
     bound = bind_altrql(parse_altrql('GET users (id, email) WHERE { status = "ACTIVE" };'), sqlite_schema)
     lowerer = SQLiteLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT "id", "email" FROM "users" WHERE "status" = ?;'
+    assert res.query == 'SELECT "id", "email" FROM "users" WHERE "status" = ? ORDER BY "id" ASC;'
     assert res.parameters == ["ACTIVE"]
 
 
@@ -59,12 +59,12 @@ def test_sqlite_lower_null_equality_and_inequality(sqlite_schema: SourceSchema):
     bound_eq = bind_altrql(parse_altrql("GET users WHERE { metadata = NULL };"), sqlite_schema)
     lowerer = SQLiteLowerer()
     res_eq = lowerer.lower(bound_eq)
-    assert res_eq.query == 'SELECT * FROM "users" WHERE "metadata" IS NULL;'
+    assert res_eq.query == 'SELECT * FROM "users" WHERE "metadata" IS NULL ORDER BY "id" ASC;'
     assert res_eq.parameters == []
 
     bound_neq = bind_altrql(parse_altrql("GET users WHERE { metadata != NULL };"), sqlite_schema)
     res_neq = lowerer.lower(bound_neq)
-    assert res_neq.query == 'SELECT * FROM "users" WHERE "metadata" IS NOT NULL;'
+    assert res_neq.query == 'SELECT * FROM "users" WHERE "metadata" IS NOT NULL ORDER BY "id" ASC;'
     assert res_neq.parameters == []
 
 
@@ -72,7 +72,7 @@ def test_sqlite_lower_valueset_with_null(sqlite_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { status = {"ACTIVE", "PENDING", NULL} };'), sqlite_schema)
     lowerer = SQLiteLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT * FROM "users" WHERE ("status" IS NULL OR "status" IN (?, ?));'
+    assert res.query == 'SELECT * FROM "users" WHERE ("status" IS NULL OR "status" IN (?, ?)) ORDER BY "id" ASC;'
     assert res.parameters == ["ACTIVE", "PENDING"]
 
 
@@ -80,12 +80,12 @@ def test_sqlite_lower_string_has_and_not_has(sqlite_schema: SourceSchema):
     bound_has = bind_altrql(parse_altrql('GET users WHERE { email HAS "example" };'), sqlite_schema)
     lowerer = SQLiteLowerer()
     res_has = lowerer.lower(bound_has)
-    assert res_has.query == 'SELECT * FROM "users" WHERE "email" LIKE ?;'
+    assert res_has.query == 'SELECT * FROM "users" WHERE "email" LIKE ? ORDER BY "id" ASC;'
     assert res_has.parameters == ["%example%"]
 
     bound_not_has = bind_altrql(parse_altrql('GET users WHERE { status NOT HAS "act" };'), sqlite_schema)
     res_not_has = lowerer.lower(bound_not_has)
-    assert res_not_has.query == 'SELECT * FROM "users" WHERE ("status" NOT LIKE ? OR "status" IS NULL);'
+    assert res_not_has.query == 'SELECT * FROM "users" WHERE ("status" NOT LIKE ? OR "status" IS NULL) ORDER BY "id" ASC;'
     assert res_not_has.parameters == ["%act%"]
 
 

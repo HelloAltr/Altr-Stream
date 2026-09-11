@@ -46,7 +46,7 @@ def test_lower_implicit_and_with_commas(user_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("is_active" = $1 AND "age" >= $2);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("is_active" = $1 AND "age" >= $2) ORDER BY "id" ASC;'
     assert pq.parameters == [True, 18]
 
 
@@ -67,7 +67,7 @@ def test_lower_nested_grouped_or(user_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE (("is_active" = $1 AND "age" >= $2) OR ("role" = $3 AND "verified" = $4));'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE (("is_active" = $1 AND "age" >= $2) OR ("role" = $3 AND "verified" = $4)) ORDER BY "id" ASC;'
     assert pq.parameters == [True, 18, "admin", True]
 
 
@@ -85,7 +85,7 @@ def test_lower_grouped_negation(user_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE NOT ("is_active" = $1 AND "verified" = $2);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE NOT ("is_active" = $1 AND "verified" = $2) ORDER BY "id" ASC;'
     assert pq.parameters == [False, False]
 
 
@@ -100,7 +100,7 @@ def test_lower_single_field_negation(user_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE NOT ("is_active" = $1);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE NOT ("is_active" = $1) ORDER BY "id" ASC;'
     assert pq.parameters == [False]
 
 
@@ -111,7 +111,7 @@ def test_lower_dedicated_not_has(user_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("tags" NOT LIKE $1 OR "tags" IS NULL);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("tags" NOT LIKE $1 OR "tags" IS NULL) ORDER BY "id" ASC;'
     assert pq.parameters == ["%banned%"]
 
 

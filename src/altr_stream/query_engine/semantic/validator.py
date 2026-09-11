@@ -45,6 +45,7 @@ def validate_ir(ir: AltrQueryIR) -> None:
             raise AltrQuerySemanticError("Mutation assignments are not allowed on READ queries.")
         _validate_projections(ir)
         _validate_ranking(ir)
+        _validate_limit(ir)
         _validate_offset(ir)
         _validate_sort_and_ranking_mutual_exclusion(ir)
         if ir.where is not None:
@@ -66,6 +67,8 @@ def validate_ir(ir: AltrQueryIR) -> None:
             raise AltrQuerySemanticError("WHERE clause is not allowed on CREATE operations.")
         if len(ir.sort) > 0 or ir.ranking is not None:
             raise AltrQuerySemanticError("SORT/ranking clauses are not allowed on CREATE operations.")
+        if ir.limit is not None:
+            raise AltrQuerySemanticError("LIMIT clause is not allowed on CREATE operations.")
         if ir.offset is not None:
             raise AltrQuerySemanticError("OFFSET clause is not allowed on CREATE operations.")
 
@@ -81,6 +84,8 @@ def validate_ir(ir: AltrQueryIR) -> None:
             raise AltrQuerySemanticError("Projection is not allowed on UPDATE operations.")
         if len(ir.sort) > 0 or ir.ranking is not None:
             raise AltrQuerySemanticError("SORT/ranking clauses are not allowed on UPDATE operations.")
+        if ir.limit is not None:
+            raise AltrQuerySemanticError("LIMIT clause is not allowed on UPDATE operations.")
         if ir.offset is not None:
             raise AltrQuerySemanticError("OFFSET clause is not allowed on UPDATE operations.")
         _validate_expression(ir.where)
@@ -92,6 +97,8 @@ def validate_ir(ir: AltrQueryIR) -> None:
             raise AltrQuerySemanticError("Projection is not allowed on DELETE operations.")
         if len(ir.sort) > 0 or ir.ranking is not None:
             raise AltrQuerySemanticError("SORT/ranking clauses are not allowed on DELETE operations.")
+        if ir.limit is not None:
+            raise AltrQuerySemanticError("LIMIT clause is not allowed on DELETE operations.")
         if ir.offset is not None:
             raise AltrQuerySemanticError("OFFSET clause is not allowed on DELETE operations.")
         if ir.where is not None:
@@ -128,6 +135,19 @@ def _validate_ranking(ir: AltrQueryIR) -> None:
         if ir.ranking.count <= 0:
             raise AltrQuerySemanticError(
                 f"Ranking count must be a positive integer greater than 0, got {ir.ranking.count}."
+            )
+
+
+def _validate_limit(ir: AltrQueryIR) -> None:
+    """Ensure LIMIT is strictly greater than zero and not conflicting with ranking."""
+    if ir.limit is not None:
+        if ir.limit <= 0:
+            raise AltrQuerySemanticError(
+                f"LIMIT must be a positive integer greater than 0, got {ir.limit}."
+            )
+        if ir.ranking is not None:
+            raise AltrQuerySemanticError(
+                "Cannot combine 'LIMIT' with 'TOP'/'BOTTOM' ranking clause."
             )
 
 

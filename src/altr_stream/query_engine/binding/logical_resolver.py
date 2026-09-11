@@ -154,5 +154,6 @@ def resolve_logical_ir(ir: AltrQueryIR, mapping: SourceMapping) -> AltrQueryIR:
         records=resolved_records,
         sort=resolved_sort,
         ranking=resolved_ranking,
+        limit=ir.limit,
         offset=ir.offset,
     )

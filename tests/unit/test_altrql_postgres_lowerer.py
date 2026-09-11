@@ -52,7 +52,7 @@ def test_lower_basic_query(test_schema: SourceSchema):
     pq = lowerer.lower(bound_ir)
 
     assert pq.dialect == "postgresql"
-    assert pq.query == 'SELECT * FROM "public"."users";'
+    assert pq.query == 'SELECT * FROM "public"."users" ORDER BY "id" ASC;'
     assert pq.parameters == []
     assert pq.source_id == "src_pg_01"
 
@@ -63,7 +63,7 @@ def test_lower_projections_with_aliases(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT "id", "username" AS "name", "age" FROM "public"."users";'
+    assert pq.query == 'SELECT "id", "username" AS "name", "age" FROM "public"."users" ORDER BY "id" ASC;'
     assert pq.parameters == []
 
 
@@ -73,7 +73,7 @@ def test_lower_numeric_comparisons(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("age" >= $1 AND "score" < $2);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("age" >= $1 AND "score" < $2) ORDER BY "id" ASC;'
     assert pq.parameters == [18, 95.5]
 
 
@@ -83,7 +83,7 @@ def test_lower_boolean_comparisons(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE "is_active" = $1;'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE "is_active" = $1 ORDER BY "id" ASC;'
     assert pq.parameters == [True]
 
 
@@ -93,7 +93,7 @@ def test_lower_string_operators(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ((("username" LIKE $1 AND "email" LIKE $2) AND "username" LIKE $3) AND ("username" NOT LIKE $4 OR "username" IS NULL));'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ((("username" LIKE $1 AND "email" LIKE $2) AND "username" LIKE $3) AND ("username" NOT LIKE $4 OR "username" IS NULL)) ORDER BY "id" ASC;'
     assert pq.parameters == ["San%", "%@test.com", "%tho%", "%admin%"]
 
 
@@ -103,7 +103,7 @@ def test_lower_temporal_keywords(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("created_at" >= CURRENT_DATE AND "created_at" <= CURRENT_TIMESTAMP);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("created_at" >= CURRENT_DATE AND "created_at" <= CURRENT_TIMESTAMP) ORDER BY "id" ASC;'
     assert pq.parameters == []
 
 
@@ -113,7 +113,7 @@ def test_lower_explicit_iso_date(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE "created_at" >= $1;'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE "created_at" >= $1 ORDER BY "id" ASC;'
     assert pq.parameters == [datetime.date(2026, 1, 1)]
     assert isinstance(pq.parameters[0], datetime.date)
 
@@ -124,7 +124,7 @@ def test_lower_timestamp_field_date_only_equality(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("created_at" >= $1 AND "created_at" < $2);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("created_at" >= $1 AND "created_at" < $2) ORDER BY "id" ASC;'
     assert pq.parameters == [
         datetime.datetime(2026, 9, 6, 0, 0, 0),
         datetime.datetime(2026, 9, 7, 0, 0, 0),
@@ -139,7 +139,7 @@ def test_lower_date_field_date_only_equality(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE "signup_date" = $1;'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE "signup_date" = $1 ORDER BY "id" ASC;'
     assert pq.parameters == [datetime.date(2026, 9, 6)]
     assert isinstance(pq.parameters[0], datetime.date)
 
@@ -150,7 +150,7 @@ def test_lower_multiple_temporal_parameters(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("created_at" >= $1 AND "created_at" <= $2);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("created_at" >= $1 AND "created_at" <= $2) ORDER BY "id" ASC;'
     assert pq.parameters == [datetime.date(2026, 9, 1), datetime.date(2026, 9, 30)]
     assert isinstance(pq.parameters[0], datetime.date)
     assert isinstance(pq.parameters[1], datetime.date)
@@ -173,7 +173,7 @@ def test_lower_nested_logical_expression_with_temporals(test_schema: SourceSchem
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert 'WHERE (NOT ("is_active" = $1 AND ("created_at" >= $2 AND "created_at" < $3)) OR ("is_active" = $4 AND ("created_at" >= $5 AND "created_at" < $6)));' in pq.query
+    assert 'WHERE (NOT ("is_active" = $1 AND ("created_at" >= $2 AND "created_at" < $3)) OR ("is_active" = $4 AND ("created_at" >= $5 AND "created_at" < $6))) ORDER BY "id" ASC;' in pq.query
     assert pq.parameters == [
         False,
         datetime.datetime(2026, 9, 6, 0, 0),
@@ -194,7 +194,7 @@ def test_lower_temporal_range(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE "created_at" BETWEEN $1 AND $2;'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE "created_at" BETWEEN $1 AND $2 ORDER BY "id" ASC;'
     assert pq.parameters == [datetime.date(2026, 1, 1), datetime.date(2026, 12, 31)]
 
 
@@ -204,7 +204,7 @@ def test_lower_temporal_value_set(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE (("created_at" >= $1 AND "created_at" < $2) OR ("created_at" >= $3 AND "created_at" < $4));'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE (("created_at" >= $1 AND "created_at" < $2) OR ("created_at" >= $3 AND "created_at" < $4)) ORDER BY "id" ASC;'
     assert pq.parameters == [
         datetime.datetime(2026, 1, 1, 0, 0),
         datetime.datetime(2026, 1, 2, 0, 0),
@@ -235,7 +235,7 @@ def test_lower_range(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE "age" BETWEEN $1 AND $2;'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE "age" BETWEEN $1 AND $2 ORDER BY "id" ASC;'
     assert pq.parameters == [20, 30]
 
 
@@ -245,7 +245,7 @@ def test_lower_simple_value_set(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE "age" IN ($1, $2, $3);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE "age" IN ($1, $2, $3) ORDER BY "id" ASC;'
     assert pq.parameters == [18, 21, 25]
 
 
@@ -255,7 +255,7 @@ def test_lower_complex_value_set(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("age" BETWEEN $1 AND $2 OR "age" >= $3);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("age" BETWEEN $1 AND $2 OR "age" >= $3) ORDER BY "id" ASC;'
     assert pq.parameters == [18, 25, 50]
 
 
@@ -265,7 +265,7 @@ def test_lower_compound_and_constraint(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("age" >= $1 AND "age" <= $2);'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("age" >= $1 AND "age" <= $2) ORDER BY "id" ASC;'
     assert pq.parameters == [18, 60]
 
 

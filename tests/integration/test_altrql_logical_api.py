@@ -160,7 +160,7 @@ async def test_api_execute_get_with_advanced_logical_where(client: AsyncClient):
         data = res.json()
         assert data["success"] is True
         assert len(data["rows"]) == 2
-        assert 'WHERE (("is_active" = $1 AND "age" >= $2) OR "role" = $3);' in data["physical_query"]["query"]
+        assert 'WHERE (("is_active" = $1 AND "age" >= $2) OR "role" = $3) ORDER BY "id" ASC;' in data["physical_query"]["query"]
         assert data["physical_query"]["parameters"] == [True, 18, "admin"]
         mock_exec.assert_called_once()
 

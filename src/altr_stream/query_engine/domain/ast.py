@@ -259,6 +259,7 @@ class AltrQueryIR(ASTNode):
     records: List[CreateRecord] = Field(default_factory=list)
     sort: List[SortClause] = Field(default_factory=list)
     ranking: Optional[RankingClause] = None
+    limit: Optional[int] = None
     offset: Optional[int] = None
 
     @property

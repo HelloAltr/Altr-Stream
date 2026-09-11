@@ -56,11 +56,15 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
     """
     # 1. Resolve Entity
     entity_schema = resolve_entity(ir.entity, schema)
+    entity_pk = entity_schema.primary_key if entity_schema.primary_key else [
+        f.name for f in entity_schema.fields if f.is_primary_key
+    ]
     bound_entity = BoundEntity(
         name=entity_schema.name,
         namespace=entity_schema.namespace,
         entity_type=entity_schema.entity_type,
         comment=entity_schema.comment,
+        primary_key=entity_pk,
     )
 
     # 2. Resolve Projections
@@ -184,6 +188,7 @@ def bind_altrql(ir: AltrQueryIR, schema: SourceSchema) -> BoundAltrQueryIR:
         records=bound_records,
         sort=bound_sort,
         ranking=bound_ranking,
+        limit=ir.limit,
         offset=ir.offset,
         source_id=schema.source_id,
         source_name=schema.source_name,

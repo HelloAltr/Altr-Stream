@@ -87,6 +87,14 @@ def validate_field_operator_and_operand(
         # ComparisonOperator.EQ and ComparisonOperator.NEQ with NullLiteral are valid for all field types
         return
 
+    # If nested JSON path, allow dynamic primitive comparisons
+    if field.path.is_nested:
+        if isinstance(operand, ValueSet):
+            return
+        if isinstance(operand, Range):
+            return
+        return
+
     # 2. Reject unsupported schema types for non-NULL operations (e.g. JSON, ARRAY, BINARY)
     if field.logical_category == LogicalTypeCategory.UNKNOWN:
         raise TypeCompatibilityError(
