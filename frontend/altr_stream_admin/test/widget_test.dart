@@ -15,8 +15,11 @@ import 'package:altr_stream_admin/features/source_playground/widgets/command_out
 import 'package:altr_stream_admin/features/source_playground/widgets/destructive_query_dialog.dart';
 import 'package:altr_stream_admin/features/source_playground/widgets/query_editor.dart';
 import 'package:altr_stream_admin/features/source_playground/widgets/query_result_table.dart';
+import 'package:altr_stream_admin/features/registry/screens/logical_model_detail_screen.dart';
+import 'package:altr_stream_admin/features/registry/screens/registry_screen.dart';
 import 'package:altr_stream_admin/features/settings/screens/settings_screen.dart';
 import 'package:altr_stream_admin/features/sources/widgets/add_source_wizard_dialog.dart';
+import 'package:altr_stream_admin/features/registry/widgets/add_mapping_dialog.dart';
 
 class MockTestApiClient extends ApiClient {
   final SourceSchemaModel? schemaToReturn;
@@ -26,9 +29,14 @@ class MockTestApiClient extends ApiClient {
   final AltrQLExecuteResponseModel? altrqlExecuteResponseToReturn;
   final ConnectionTestResultModel? connectionTestResultToReturn;
   final SourceModel? sourceToReturnOnCreate;
+  final List<SourceMappingModel>? mappingsToReturn;
+  final List<LogicalModelModel>? modelsToReturn;
 
   Map<String, dynamic>? lastTestAdhocParams;
   Map<String, dynamic>? lastCreateSourceParams;
+  Map<String, dynamic>? lastCreateMappingParams;
+  Map<String, dynamic>? lastUpdateMappingParams;
+  String? lastActivateMappingId;
 
   MockTestApiClient({
     this.schemaToReturn,
@@ -38,6 +46,8 @@ class MockTestApiClient extends ApiClient {
     this.altrqlExecuteResponseToReturn,
     this.connectionTestResultToReturn,
     this.sourceToReturnOnCreate,
+    this.mappingsToReturn,
+    this.modelsToReturn,
   });
 
   @override
@@ -127,6 +137,8 @@ class MockTestApiClient extends ApiClient {
   Future<AltrQLBindResponseModel> bindAltrQL({
     required String query,
     required String sourceId,
+    String? mappingId,
+    String? logicalModelId,
   }) async {
     return altrqlBindResponseToReturn ??
         AltrQLBindResponseModel(
@@ -156,6 +168,8 @@ class MockTestApiClient extends ApiClient {
   Future<AltrQLExecuteResponseModel> executeAltrQL({
     required String query,
     required String sourceId,
+    String? mappingId,
+    String? logicalModelId,
     bool confirmMassMutation = false,
   }) async {
     return altrqlExecuteResponseToReturn ??
@@ -198,6 +212,191 @@ class MockTestApiClient extends ApiClient {
         );
   }
 
+  @override
+  Future<RegistrySummaryModel> getRegistrySummary() async => RegistrySummaryModel(
+        totalModels: 1,
+        totalEntities: 2,
+        totalLogicalFields: 6,
+        totalSourceMappings: 1,
+        activeSourceMappings: 1,
+        draftSourceMappings: 0,
+        validatedSourceMappings: 0,
+        errorSourceMappings: 0,
+      );
+
+  @override
+  Future<List<LogicalModelModel>> listLogicalModels() async =>
+      modelsToReturn ??
+      [
+        LogicalModelModel(
+          id: 'mock-model-1',
+          name: 'CoreCommerce',
+          version: '1.0.0',
+          description: 'Mock commerce domain model',
+          entities: [
+            LogicalEntityModel(
+              id: 'mock-entity-1',
+              logicalModelId: 'mock-model-1',
+              name: 'Customer',
+              fields: [
+                LogicalFieldModel(
+                  id: 'mock-field-1',
+                  logicalEntityId: 'mock-entity-1',
+                  name: 'id',
+                  dataType: 'INTEGER',
+                  isPrimaryKey: true,
+                  nullable: false,
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                ),
+                LogicalFieldModel(
+                  id: 'mock-field-2',
+                  logicalEntityId: 'mock-entity-1',
+                  name: 'name',
+                  dataType: 'STRING',
+                  nullable: false,
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                ),
+              ],
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ];
+
+  @override
+  Future<LogicalModelModel> getLogicalModel(String modelId) async {
+    final list = await listLogicalModels();
+    return list.firstWhere(
+      (m) => m.id == modelId,
+      orElse: () => list.first,
+    );
+  }
+
+  @override
+  Future<List<SourceMappingModel>> listSourceMappings({String? modelId, String? sourceId, String? status}) async =>
+      mappingsToReturn ??
+      [
+        SourceMappingModel(
+          id: 'mock-mapping-1',
+          logicalModelId: 'mock-model-1',
+          sourceId: 'mock-src-1',
+          version: '1.0.0',
+          status: 'ACTIVE',
+          provenance: 'USER',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ];
+
+  @override
+  Future<SourceMappingModel> getSourceMapping(String mappingId) async =>
+      (mappingsToReturn ?? await listSourceMappings()).firstWhere(
+        (m) => m.id == mappingId,
+        orElse: () => (mappingsToReturn ?? [
+          SourceMappingModel(
+            id: mappingId,
+            logicalModelId: 'mock-model-1',
+            sourceId: 'mock-src-1',
+            version: '1.0.0',
+            status: 'ACTIVE',
+            provenance: 'USER',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        ]).first,
+      );
+
+  @override
+  Future<SourceMappingModel> createSourceMapping({
+    required String logicalModelId,
+    required String sourceId,
+    String version = '1.0.0',
+    String provenance = 'USER',
+    List<Map<String, dynamic>> entityMappings = const [],
+    Map<String, dynamic> metadata = const {},
+  }) async {
+    lastCreateMappingParams = {
+      'logical_model_id': logicalModelId,
+      'source_id': sourceId,
+      'version': version,
+      'provenance': provenance,
+      'entity_mappings': entityMappings,
+      'metadata': metadata,
+    };
+    return SourceMappingModel(
+      id: 'mock-created-mapping-id',
+      logicalModelId: logicalModelId,
+      sourceId: sourceId,
+      version: version,
+      status: 'DRAFT',
+      provenance: provenance,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<SourceMappingModel> updateSourceMapping(
+    String mappingId, {
+    String? version,
+    String? status,
+    String? provenance,
+    String? errorMessage,
+    List<Map<String, dynamic>>? entityMappings,
+  }) async {
+    lastUpdateMappingParams = {
+      'mapping_id': mappingId,
+      'version': version,
+      'status': status,
+      'provenance': provenance,
+      'error_message': errorMessage,
+      'entity_mappings': entityMappings,
+    };
+    return SourceMappingModel(
+      id: mappingId,
+      logicalModelId: 'mock-model-1',
+      sourceId: 'mock-src-1',
+      version: version ?? '1.0.0',
+      status: status ?? 'VALIDATED',
+      provenance: provenance ?? 'USER',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<SourceMappingModel> validateSourceMapping(String mappingId) async {
+    return SourceMappingModel(
+      id: mappingId,
+      logicalModelId: 'mock-model-1',
+      sourceId: 'mock-src-1',
+      version: '1.0.0',
+      status: 'VALIDATED',
+      provenance: 'USER',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<SourceMappingModel> activateSourceMapping(String mappingId) async {
+    lastActivateMappingId = mappingId;
+    return SourceMappingModel(
+      id: mappingId,
+      logicalModelId: 'mock-model-1',
+      sourceId: 'mock-src-1',
+      version: '1.0.0',
+      status: 'ACTIVE',
+      provenance: 'USER',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
 
   @override
   Future<SourceSchemaModel?> getLatestSchema(String id) async => schemaToReturn;
@@ -2104,6 +2303,1067 @@ void main() {
     expect(mockClient.lastCreateSourceParams?['port'], 5432);
     expect(mockClient.lastCreateSourceParams?['file_path'], isNull);
   });
+
+  testWidgets('RegistryScreen displays summary metrics and models list', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: RegistryScreen(
+            apiClient: mockClient,
+            sources: [],
+            onSelectModel: (_) {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mapping Registry'), findsWidgets);
+    expect(find.text('Logical Models'), findsOneWidget);
+    expect(find.text('CoreCommerce'), findsOneWidget);
+    expect(find.text('v1.0.0'), findsOneWidget);
+    expect(find.text('New Logical Model'), findsOneWidget);
+  });
+
+  testWidgets('LogicalModelDetailScreen displays schema and mappings tabs', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+    final model = (await mockClient.listLogicalModels()).first;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: LogicalModelDetailScreen(
+            model: model,
+            sources: [],
+            apiClient: mockClient,
+            onBack: () {},
+            onModelDeleted: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('CoreCommerce'), findsOneWidget);
+    expect(find.text('Customer'), findsOneWidget);
+    expect(find.text('Add Entity'), findsOneWidget);
+    expect(find.text('Map Source'), findsOneWidget);
+
+    // Switch to Source Mappings Tab
+    await tester.tap(find.text('Source Mappings (1 sources)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Active'), findsOneWidget);
+  });
+
+  testWidgets('LogicalModelDetailScreen opens Edit Model, Edit Entity, and Edit Field dialogs', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+    final model = (await mockClient.listLogicalModels()).first;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: LogicalModelDetailScreen(
+            model: model,
+            sources: [],
+            apiClient: mockClient,
+            onBack: () {},
+            onModelDeleted: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Open Edit Model Dialog
+    expect(find.byTooltip('Edit Model Details'), findsOneWidget);
+    await tester.tap(find.byTooltip('Edit Model Details'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Logical Data Model'), findsOneWidget);
+    expect(find.text('Save Changes'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // 2. Open Edit Entity Dialog
+    expect(find.byTooltip('Edit Entity'), findsOneWidget);
+    await tester.tap(find.byTooltip('Edit Entity'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Logical Entity'), findsOneWidget);
+    expect(find.text('Save Changes'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // 3. Open Edit Field Dialog
+    expect(find.byTooltip('Edit field').first, findsOneWidget);
+    await tester.tap(find.byTooltip('Edit field').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Logical Field'), findsOneWidget);
+    expect(find.text('Save Changes'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('AddMappingDialog renders initially unmapped fields with discovered public.users schema without nullability crash', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Postgre Test',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'altr_test_db',
+      username: 'altr_test_user',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockSchema = SourceSchemaModel(
+      sourceId: 'src_pg_1',
+      sourceName: 'Postgre Test',
+      version: '1.0.0',
+      discoveredAt: DateTime.now(),
+      entities: [
+        EntitySchemaModel(
+          name: 'users',
+          namespace: 'public',
+          entityType: 'TABLE',
+          fields: [
+            FieldSchemaModel(name: 'id', dataType: 'integer', nativeDataType: 'int4', nullable: false, isPrimaryKey: true, position: 1),
+            FieldSchemaModel(name: 'full_name', dataType: 'varchar', nativeDataType: 'varchar(255)', nullable: false, isPrimaryKey: false, position: 2),
+            FieldSchemaModel(name: 'email', dataType: 'varchar', nativeDataType: 'varchar(255)', nullable: false, isPrimaryKey: false, position: 3),
+            FieldSchemaModel(name: 'is_active', dataType: 'boolean', nativeDataType: 'bool', nullable: false, isPrimaryKey: false, position: 4),
+            FieldSchemaModel(name: 'metadata', dataType: 'jsonb', nativeDataType: 'jsonb', nullable: true, isPrimaryKey: false, position: 5),
+          ],
+          primaryKey: ['id'],
+          constraints: [],
+        ),
+      ],
+      metadata: {},
+    );
+
+    final logicalModel = LogicalModelModel(
+      id: 'model-users',
+      name: 'UserDomain',
+      version: '1.0.0',
+      description: 'Domain model for user data',
+      entities: [
+        LogicalEntityModel(
+          id: 'ent-student',
+          logicalModelId: 'model-users',
+          name: 'Student',
+          fields: [
+            LogicalFieldModel(
+              id: 'f-1',
+              logicalEntityId: 'ent-student',
+              name: 'id',
+              dataType: 'INTEGER',
+              isPrimaryKey: true,
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            LogicalFieldModel(
+              id: 'f-2',
+              logicalEntityId: 'ent-student',
+              name: 'fullName',
+              dataType: 'STRING',
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            LogicalFieldModel(
+              id: 'f-3',
+              logicalEntityId: 'ent-student',
+              name: 'unmappedField1',
+              dataType: 'STRING',
+              nullable: true,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient(schemaToReturn: mockSchema);
+    SourceMappingModel? createdMapping;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: AddMappingDialog(
+            apiClient: mockClient,
+            logicalModel: logicalModel,
+            sources: [mockSource],
+            onMappingCreated: (m) => createdMapping = m,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify wizard loaded discovered schema
+    expect(find.text('Map Physical Source to "UserDomain"'), findsOneWidget);
+    expect(find.text('Logical Entity: Student'), findsOneWidget);
+
+    // Select physical table 'public.users' (initially showing '(Not Mapped)')
+    await tester.tap(find.text('(Not Mapped)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('public.users').last);
+    await tester.pumpAndSettle();
+
+    // Verify fields are now visible
+    expect(find.text('id'), findsWidgets);
+    expect(find.text('fullName'), findsOneWidget);
+    expect(find.text('unmappedField1'), findsOneWidget);
+
+    // Verify unmapped field renders '(Unmapped)' using nullable String? value without throwing TypeError
+    expect(find.text('(Unmapped)'), findsOneWidget);
+
+    // Save and validate mapping
+    await tester.tap(find.text('Save & Validate Mapping'));
+    await tester.pumpAndSettle();
+
+    expect(createdMapping, isNotNull);
+    expect(mockClient.lastCreateMappingParams, isNotNull);
+    expect(mockClient.lastCreateMappingParams!['source_id'], 'src_pg_1');
+  });
+
+  testWidgets('LogicalModelDetailScreen displays Edit action on existing source mapping and updates existing record', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Postgre Test',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'altr_test_db',
+      username: 'altr_test_user',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockSchema = SourceSchemaModel(
+      sourceId: 'src_pg_1',
+      sourceName: 'Postgre Test',
+      version: '1.0.0',
+      discoveredAt: DateTime.now(),
+      entities: [
+        EntitySchemaModel(
+          name: 'users',
+          namespace: 'public',
+          entityType: 'TABLE',
+          fields: [
+            FieldSchemaModel(name: 'id', dataType: 'integer', nativeDataType: 'int4', nullable: false, isPrimaryKey: true, position: 1),
+            FieldSchemaModel(name: 'full_name', dataType: 'varchar', nativeDataType: 'varchar(255)', nullable: false, isPrimaryKey: false, position: 2),
+            FieldSchemaModel(name: 'email', dataType: 'varchar', nativeDataType: 'varchar(255)', nullable: false, isPrimaryKey: false, position: 3),
+          ],
+          primaryKey: ['id'],
+          constraints: [],
+        ),
+      ],
+      metadata: {},
+    );
+
+    final logicalModel = LogicalModelModel(
+      id: 'model-1',
+      name: 'CoreCommerce',
+      version: '1.0.0',
+      description: 'Domain model',
+      entities: [
+        LogicalEntityModel(
+          id: 'ent-1',
+          logicalModelId: 'model-1',
+          name: 'Customer',
+          fields: [
+            LogicalFieldModel(
+              id: 'f-1',
+              logicalEntityId: 'ent-1',
+              name: 'id',
+              dataType: 'INTEGER',
+              isPrimaryKey: true,
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            LogicalFieldModel(
+              id: 'f-2',
+              logicalEntityId: 'ent-1',
+              name: 'fullName',
+              dataType: 'STRING',
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final existingMapping = SourceMappingModel(
+      id: 'mapping-existing-123',
+      logicalModelId: 'model-1',
+      sourceId: 'src_pg_1',
+      version: '1.0.0',
+      status: 'ACTIVE',
+      provenance: 'USER',
+      entityMappings: [
+        EntityMappingModel(
+          id: 'em-1',
+          sourceMappingId: 'mapping-existing-123',
+          logicalEntityId: 'ent-1',
+          logicalEntityName: 'Customer',
+          physicalEntityName: 'users',
+          physicalNamespace: 'public',
+          fieldMappings: [
+            FieldMappingModel(
+              id: 'fm-1',
+              entityMappingId: 'em-1',
+              logicalFieldId: 'f-1',
+              logicalFieldName: 'id',
+              physicalFieldName: 'id',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            FieldMappingModel(
+              id: 'fm-2',
+              entityMappingId: 'em-1',
+              logicalFieldId: 'f-2',
+              logicalFieldName: 'fullName',
+              physicalFieldName: 'full_name',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient(
+      schemaToReturn: mockSchema,
+      mappingsToReturn: [existingMapping],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: LogicalModelDetailScreen(
+            model: logicalModel,
+            sources: [mockSource],
+            apiClient: mockClient,
+            onBack: () {},
+            onModelDeleted: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Switch to Source Mappings Tab
+    await tester.tap(find.text('Source Mappings (1 sources)'));
+    await tester.pumpAndSettle();
+
+    // Verify existing mapping details
+    expect(find.text('Postgre Test'), findsOneWidget);
+    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('Entity: Customer'), findsOneWidget);
+    expect(find.text('public.users'), findsOneWidget);
+    expect(find.text('LOGICAL FIELD'), findsOneWidget);
+    expect(find.text('PHYSICAL FIELD'), findsOneWidget);
+
+    // Verify Edit button is present on the mapping card
+    final editButton = find.widgetWithText(OutlinedButton, 'Edit');
+    expect(editButton, findsOneWidget);
+
+    // Tap Edit button
+    await tester.tap(editButton);
+    await tester.pumpAndSettle();
+
+    // Verify inline editing mode is activated
+    expect(find.text('EDITING'), findsOneWidget);
+    expect(find.text('Save Changes'), findsOneWidget);
+
+    // Submit edit update
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    // Confirm it updated the existing mapping ID instead of creating a new mapping
+    expect(mockClient.lastUpdateMappingParams, isNotNull);
+    expect(mockClient.lastUpdateMappingParams!['mapping_id'], 'mapping-existing-123');
+    expect(mockClient.lastCreateMappingParams, isNull);
+  });
+
+  test('SourceMappingModel and FieldMappingModel correctly parse backend DTO structures', () {
+    final validationPayload = {
+      'is_valid': true,
+      'error': null,
+      'mapping': {
+        'id': 'sm-1',
+        'logical_model_id': 'lm-1',
+        'source_id': 'src-1',
+        'version': '1.0.0',
+        'status': 'VALIDATED',
+        'provenance': 'USER',
+        'error_message': null,
+        'entity_mappings': [
+          {
+            'id': 'em-1',
+            'source_mapping_id': 'sm-1',
+            'logical_entity_id': 'le-1',
+            'logical_entity_name': 'Student',
+            'physical_entity_name': 'users',
+            'physical_namespace': 'public',
+            'field_mappings': [
+              {
+                'id': 'fm-1',
+                'entity_mapping_id': 'em-1',
+                'logical_field_id': 'lf-1',
+                'logical_field_name': 'id',
+                'physical_field_name': 'id',
+                'transformation_rule': 'DIRECT_ALIAS',
+                'created_at': '2026-09-10T06:35:13.655Z',
+                'updated_at': '2026-09-10T06:35:13.655Z',
+              }
+            ],
+            'created_at': '2026-09-10T06:35:13.654Z',
+            'updated_at': '2026-09-10T06:35:13.654Z',
+          }
+        ],
+        'created_at': '2026-09-10T06:35:13.650Z',
+        'updated_at': '2026-09-10T06:35:13.650Z',
+      }
+    };
+
+    final mappingMap = validationPayload['mapping'] as Map<String, dynamic>;
+    final model = SourceMappingModel.fromJson(mappingMap);
+    expect(model.id, 'sm-1');
+    expect(model.isValidated, isTrue);
+    expect(model.entityMappings.length, 1);
+    expect(model.entityMappings.first.fieldMappings.length, 1);
+    expect(model.entityMappings.first.fieldMappings.first.transformationRule, 'DIRECT_ALIAS');
+  });
+
+  testWidgets('Source mapping lifecycle UI enforcement: DRAFT and ERROR disable Activate button, VALIDATED enables Activate', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Postgre Test',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'altr_test_db',
+      username: 'altr_test_user',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final logicalModel = LogicalModelModel(
+      id: 'model-lifecycle',
+      name: 'LifecycleDomain',
+      version: '1.0.0',
+      description: 'Domain model for lifecycle testing',
+      entities: [
+        LogicalEntityModel(
+          id: 'ent-1',
+          logicalModelId: 'model-lifecycle',
+          name: 'Account',
+          fields: [
+            LogicalFieldModel(
+              id: 'f-1',
+              logicalEntityId: 'ent-1',
+              name: 'id',
+              dataType: 'INTEGER',
+              isPrimaryKey: true,
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    // 1. DRAFT mapping - Activate button should be disabled
+    final draftMapping = SourceMappingModel(
+      id: 'mapping-draft-1',
+      logicalModelId: 'model-lifecycle',
+      sourceId: 'src_pg_1',
+      version: '1.0.0',
+      status: 'DRAFT',
+      provenance: 'USER',
+      entityMappings: [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    var mockClient = MockTestApiClient(
+      mappingsToReturn: [draftMapping],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: LogicalModelDetailScreen(
+            key: const ValueKey('draft-screen'),
+            model: logicalModel,
+            sources: [mockSource],
+            apiClient: mockClient,
+            onBack: () {},
+            onModelDeleted: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Switch to Source Mappings Tab
+    await tester.tap(find.text('Source Mappings (1 sources)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Draft'), findsOneWidget);
+    // In DRAFT status, the Activate button exists but its onPressed is null (disabled)
+    final activateButtonDraft = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('Activate'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(activateButtonDraft.onPressed, isNull);
+
+    // 2. VALIDATED mapping - Activate button should be enabled
+    final validatedMapping = SourceMappingModel(
+      id: 'mapping-validated-1',
+      logicalModelId: 'model-lifecycle',
+      sourceId: 'src_pg_1',
+      version: '1.0.0',
+      status: 'VALIDATED',
+      provenance: 'USER',
+      entityMappings: [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    mockClient = MockTestApiClient(
+      mappingsToReturn: [validatedMapping],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: LogicalModelDetailScreen(
+            key: const ValueKey('validated-screen'),
+            model: logicalModel,
+            sources: [mockSource],
+            apiClient: mockClient,
+            onBack: () {},
+            onModelDeleted: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Source Mappings (1 sources)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Validated'), findsOneWidget);
+    final activateButtonValidated = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('Activate'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(activateButtonValidated.onPressed, isNotNull);
+
+    // Tap Activate
+    await tester.tap(find.text('Activate'));
+    await tester.pumpAndSettle();
+
+    expect(mockClient.lastActivateMappingId, 'mapping-validated-1');
+  });
+
+  testWidgets('AddMappingDialog in Edit mode can set fields to (Unmapped) and save/validate successfully', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Postgre Test',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'altr_test_db',
+      username: 'altr_test_user',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockSchema = SourceSchemaModel(
+      sourceId: 'src_pg_1',
+      sourceName: 'Postgre Test',
+      version: '1.0.0',
+      discoveredAt: DateTime.now(),
+      entities: [
+        EntitySchemaModel(
+          name: 'users',
+          namespace: 'public',
+          entityType: 'TABLE',
+          fields: [
+            FieldSchemaModel(name: 'id', dataType: 'integer', nativeDataType: 'int4', nullable: false, isPrimaryKey: true, position: 1),
+            FieldSchemaModel(name: 'full_name', dataType: 'varchar', nativeDataType: 'varchar(255)', nullable: false, isPrimaryKey: false, position: 2),
+            FieldSchemaModel(name: 'email', dataType: 'varchar', nativeDataType: 'varchar(255)', nullable: false, isPrimaryKey: false, position: 3),
+          ],
+          primaryKey: ['id'],
+          constraints: [],
+        ),
+      ],
+      metadata: {},
+    );
+
+    final logicalModel = LogicalModelModel(
+      id: 'model-users',
+      name: 'UniversityDomain',
+      version: '1.0.0',
+      description: 'Domain model for university',
+      entities: [
+        LogicalEntityModel(
+          id: 'ent-user',
+          logicalModelId: 'model-users',
+          name: 'User',
+          fields: [
+            LogicalFieldModel(
+              id: 'f-id',
+              logicalEntityId: 'ent-user',
+              name: 'id',
+              dataType: 'INTEGER',
+              isPrimaryKey: true,
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            LogicalFieldModel(
+              id: 'f-fullName',
+              logicalEntityId: 'ent-user',
+              name: 'fullName',
+              dataType: 'STRING',
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            LogicalFieldModel(
+              id: 'f-emailAddress',
+              logicalEntityId: 'ent-user',
+              name: 'emailAddress',
+              dataType: 'STRING',
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final existingMapping = SourceMappingModel(
+      id: 'sm-univ-1',
+      logicalModelId: 'model-users',
+      sourceId: 'src_pg_1',
+      version: '1.0.0',
+      status: 'VALIDATED',
+      provenance: 'USER',
+      entityMappings: [
+        EntityMappingModel(
+          id: 'em-1',
+          sourceMappingId: 'sm-univ-1',
+          logicalEntityId: 'ent-user',
+          logicalEntityName: 'User',
+          physicalEntityName: 'users',
+          physicalNamespace: 'public',
+          fieldMappings: [
+            FieldMappingModel(
+              id: 'fm-1',
+              entityMappingId: 'em-1',
+              logicalFieldId: 'f-id',
+              logicalFieldName: 'id',
+              physicalFieldName: 'id',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            FieldMappingModel(
+              id: 'fm-2',
+              entityMappingId: 'em-1',
+              logicalFieldId: 'f-fullName',
+              logicalFieldName: 'fullName',
+              physicalFieldName: 'full_name',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            FieldMappingModel(
+              id: 'fm-3',
+              entityMappingId: 'em-1',
+              logicalFieldId: 'f-emailAddress',
+              logicalFieldName: 'emailAddress',
+              physicalFieldName: 'email',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient(
+      schemaToReturn: mockSchema,
+    );
+
+    SourceMappingModel? updatedMapping;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: AddMappingDialog(
+            apiClient: mockClient,
+            logicalModel: logicalModel,
+            sources: [mockSource],
+            existingMapping: existingMapping,
+            onMappingCreated: (m) => updatedMapping = m,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify existing mappings are pre-populated
+    expect(find.text('Edit Mapping for "UniversityDomain"'), findsOneWidget);
+    expect(find.text('fullName'), findsOneWidget);
+    expect(find.text('emailAddress'), findsOneWidget);
+
+    // Save and validate update
+    await tester.tap(find.text('Update & Validate Mapping'));
+    await tester.pumpAndSettle();
+
+    expect(mockClient.lastUpdateMappingParams, isNotNull);
+    expect(mockClient.lastUpdateMappingParams!['mapping_id'], 'sm-univ-1');
+    expect(updatedMapping, isNotNull);
+    expect(updatedMapping?.id, 'sm-univ-1');
+  });
+
+  group('Datatype Compatibility Matrix (Frontend)', () {
+    test('exact and alias matches are compatible', () {
+      expect(areDataTypesCompatible('INTEGER', 'INTEGER'), isTrue);
+      expect(areDataTypesCompatible('INTEGER', 'INT'), isTrue);
+      expect(areDataTypesCompatible('INTEGER', 'BIGINT'), isTrue);
+      expect(areDataTypesCompatible('INTEGER', 'SMALLINT'), isTrue);
+      expect(areDataTypesCompatible('INTEGER', 'SERIAL'), isTrue);
+
+      expect(areDataTypesCompatible('FLOAT', 'FLOAT'), isTrue);
+      expect(areDataTypesCompatible('FLOAT', 'DOUBLE'), isTrue);
+      expect(areDataTypesCompatible('FLOAT', 'REAL'), isTrue);
+      expect(areDataTypesCompatible('FLOAT', 'INTEGER'), isTrue);
+      expect(areDataTypesCompatible('FLOAT', 'BIGINT'), isTrue);
+
+      expect(areDataTypesCompatible('STRING', 'STRING'), isTrue);
+      expect(areDataTypesCompatible('STRING', 'VARCHAR'), isTrue);
+      expect(areDataTypesCompatible('STRING', 'TEXT'), isTrue);
+      expect(areDataTypesCompatible('STRING', 'CHAR'), isTrue);
+
+      expect(areDataTypesCompatible('BOOLEAN', 'BOOLEAN'), isTrue);
+      expect(areDataTypesCompatible('BOOLEAN', 'BOOL'), isTrue);
+
+      expect(areDataTypesCompatible('JSON', 'JSON'), isTrue);
+      expect(areDataTypesCompatible('JSON', 'JSONB'), isTrue);
+
+      expect(areDataTypesCompatible('DATE', 'DATE'), isTrue);
+      expect(areDataTypesCompatible('TIMESTAMP', 'TIMESTAMPTZ'), isTrue);
+      expect(areDataTypesCompatible('DATETIME', 'TIMESTAMP'), isTrue);
+    });
+
+    test('incompatible datatypes are rejected', () {
+      expect(areDataTypesCompatible('BOOLEAN', 'STRING'), isFalse);
+      expect(areDataTypesCompatible('BOOLEAN', 'VARCHAR'), isFalse);
+      expect(areDataTypesCompatible('BOOLEAN', 'TEXT'), isFalse);
+      expect(areDataTypesCompatible('STRING', 'BOOLEAN'), isFalse);
+      expect(areDataTypesCompatible('INTEGER', 'STRING'), isFalse);
+      expect(areDataTypesCompatible('INTEGER', 'VARCHAR'), isFalse);
+      expect(areDataTypesCompatible('STRING', 'INTEGER'), isFalse);
+      expect(areDataTypesCompatible('JSON', 'BOOLEAN'), isFalse);
+      expect(areDataTypesCompatible('JSON', 'INTEGER'), isFalse);
+      expect(areDataTypesCompatible('ARRAY', 'INTEGER'), isFalse);
+      expect(areDataTypesCompatible('BOOLEAN', null), isFalse);
+      expect(areDataTypesCompatible(null, 'INTEGER'), isFalse);
+    });
+  });
+
+  testWidgets('LogicalModelDetailScreen renders inline mapping table with status badges and supports edit flow',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_compat',
+      name: 'PostgreSQL DB',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'shop_db',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockSchema = SourceSchemaModel(
+      sourceId: 'src_pg_compat',
+      sourceName: 'PostgreSQL DB',
+      version: '1.0.0',
+      discoveredAt: DateTime.now(),
+      entities: [
+        EntitySchemaModel(
+          name: 'users',
+          namespace: 'public',
+          entityType: 'TABLE',
+          fields: [
+            FieldSchemaModel(
+              name: 'id',
+              dataType: 'INT',
+              nativeDataType: 'integer',
+              nullable: false,
+              isPrimaryKey: true,
+              position: 1,
+            ),
+            FieldSchemaModel(
+              name: 'is_active',
+              dataType: 'VARCHAR',
+              nativeDataType: 'varchar(255)',
+              nullable: false,
+              isPrimaryKey: false,
+              position: 2,
+            ),
+          ],
+          primaryKey: ['id'],
+          constraints: [],
+        ),
+      ],
+      metadata: {},
+    );
+
+    final logicalModel = LogicalModelModel(
+      id: 'model-compat-test',
+      name: 'UserDomain',
+      version: '1.0.0',
+      entities: [
+        LogicalEntityModel(
+          id: 'ent-user-1',
+          logicalModelId: 'model-compat-test',
+          name: 'User',
+          fields: [
+            LogicalFieldModel(
+              id: 'f-id',
+              logicalEntityId: 'ent-user-1',
+              name: 'id',
+              dataType: 'INTEGER',
+              isPrimaryKey: true,
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            LogicalFieldModel(
+              id: 'f-active',
+              logicalEntityId: 'ent-user-1',
+              name: 'is_active',
+              dataType: 'BOOLEAN',
+              isPrimaryKey: false,
+              nullable: false,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockMapping = SourceMappingModel(
+      id: 'sm-compat-1',
+      logicalModelId: 'model-compat-test',
+      sourceId: 'src_pg_compat',
+      version: '1.0.0',
+      status: 'DRAFT',
+      provenance: 'USER',
+      entityMappings: [
+        EntityMappingModel(
+          id: 'em-1',
+          sourceMappingId: 'sm-compat-1',
+          logicalEntityId: 'ent-user-1',
+          logicalEntityName: 'User',
+          physicalEntityName: 'users',
+          physicalNamespace: 'public',
+          fieldMappings: [
+            FieldMappingModel(
+              id: 'fm-1',
+              entityMappingId: 'em-1',
+              logicalFieldId: 'f-id',
+              logicalFieldName: 'id',
+              physicalFieldName: 'id',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            FieldMappingModel(
+              id: 'fm-2',
+              entityMappingId: 'em-1',
+              logicalFieldId: 'f-active',
+              logicalFieldName: 'is_active',
+              physicalFieldName: 'is_active',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      ],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient(
+      schemaToReturn: mockSchema,
+      mappingsToReturn: [mockMapping],
+      modelsToReturn: [logicalModel],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: LogicalModelDetailScreen(
+            model: logicalModel,
+            sources: [mockSource],
+            apiClient: mockClient,
+            onBack: () {},
+            onModelDeleted: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Switch to Source Mappings tab
+    await tester.tap(find.textContaining('Source Mappings'));
+    await tester.pumpAndSettle();
+
+    // Verify Table Headers are rendered
+    expect(find.text('LOGICAL FIELD'), findsOneWidget);
+    expect(find.text('LOGICAL TYPE'), findsOneWidget);
+    expect(find.text('PHYSICAL FIELD'), findsOneWidget);
+    expect(find.text('PHYSICAL TYPE'), findsOneWidget);
+    expect(find.text('STATUS'), findsOneWidget);
+
+    // Verify Valid status for INTEGER -> INT
+    expect(find.text('Valid'), findsOneWidget);
+
+    // Verify Type Mismatch status for BOOLEAN -> VARCHAR
+    expect(find.text('Type Mismatch'), findsOneWidget);
+
+    // Enter Edit Mode
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    // Verify inline edit controls appear
+    expect(find.text('EDITING'), findsOneWidget);
+    expect(find.text('Auto-Match'), findsOneWidget);
+    expect(find.text('Save Changes'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+
+    // Cancel edit mode
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Should return to View Mode
+    expect(find.text('EDITING'), findsNothing);
+    expect(find.text('Edit'), findsOneWidget);
+  });
 }
+
 
 

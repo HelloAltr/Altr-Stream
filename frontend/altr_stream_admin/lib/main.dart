@@ -5,6 +5,8 @@ import 'core/theme/app_theme.dart';
 import 'features/activity/screens/activity_screen.dart';
 import 'features/altrql_playground/screens/altrql_playground_screen.dart';
 import 'features/overview/screens/overview_screen.dart';
+import 'features/registry/screens/logical_model_detail_screen.dart';
+import 'features/registry/screens/registry_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
 import 'features/sources/screens/source_detail_screen.dart';
 import 'features/sources/screens/sources_screen.dart';
@@ -71,6 +73,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   String _activeRoute = '/';
   String? _previousRoute;
   SourceModel? _selectedSource;
+  LogicalModelModel? _selectedLogicalModel;
   String _nodeStatus = 'ACTIVE';
 
   @override
@@ -309,6 +312,36 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       );
     }
 
+    if (_activeRoute == '/registry/detail' && _selectedLogicalModel != null) {
+      return LogicalModelDetailScreen(
+        model: _selectedLogicalModel!,
+        sources: _sources,
+        apiClient: _apiClient,
+        nodeStatus: _nodeStatus,
+        onNodeStatusTap: _showNodeStatusDialog,
+        onBack: () => setState(() => _activeRoute = '/registry'),
+        onModelDeleted: () => setState(() {
+          _selectedLogicalModel = null;
+          _activeRoute = '/registry';
+        }),
+      );
+    }
+
+    if (_activeRoute == '/registry' || (_activeRoute == '/registry/detail' && _selectedLogicalModel == null)) {
+      return RegistryScreen(
+        apiClient: _apiClient,
+        sources: _sources,
+        nodeStatus: _nodeStatus,
+        onNodeStatusTap: _showNodeStatusDialog,
+        onSelectModel: (m) {
+          setState(() {
+            _selectedLogicalModel = m;
+            _activeRoute = '/registry/detail';
+          });
+        },
+      );
+    }
+
     if (_activeRoute == '/altrql' || _activeRoute == '/playground') {
       return AltrQLPlaygroundScreen(
         sources: _sources,
@@ -344,6 +377,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         });
       },
       onViewAllSources: () => setState(() => _activeRoute = '/sources'),
+      onNavigateToRegistry: () => setState(() => _activeRoute = '/registry'),
     );
   }
 

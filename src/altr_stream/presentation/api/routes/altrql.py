@@ -3,11 +3,13 @@
 from fastapi import APIRouter, Depends, status
 
 from altr_stream.application.query_service import QueryService
+from altr_stream.application.registry_service import RegistryService
 from altr_stream.application.schema_service import SchemaService
 from altr_stream.application.source_service import SourceService
-from altr_stream.domain.errors import SourceNotFoundError
+from altr_stream.domain.errors import AltrStreamError, SourceNotFoundError
 from altr_stream.presentation.api.dependencies import (
     get_query_service,
+    get_registry_service,
     get_schema_service,
     get_source_service,
 )
@@ -25,12 +27,14 @@ from altr_stream.presentation.api.dtos import (
     QueryMetadataDTO,
 )
 from altr_stream.query_engine.binding import bind_altrql
+from altr_stream.query_engine.binding.logical_resolver import resolve_logical_ir
 from altr_stream.query_engine.classification import classify_query
 from altr_stream.query_engine.domain.ast import QueryOperation
 from altr_stream.query_engine.domain.errors import AltrQueryError
 from altr_stream.query_engine.domain.physical_query import PhysicalQueryBatch
 from altr_stream.query_engine.lowering import get_lowerer
 from altr_stream.query_engine.parser import parse_altrql
+
 
 router = APIRouter(prefix="/altrql", tags=["AltrQL"])
 
@@ -68,6 +72,7 @@ async def parse_altrql_query(
 async def bind_altrql_query(
     dto: AltrQLBindRequestDTO,
     schema_service: SchemaService = Depends(get_schema_service),
+    registry_service: RegistryService = Depends(get_registry_service),
 ) -> AltrQLBindResponseDTO:
     """Bind a parsed AltrQL query against a registered data source's discovered schema snapshot.
 
@@ -90,6 +95,35 @@ async def bind_altrql_query(
                 column=e.column,
             ),
         )
+
+    # 1.1 Optional Logical Resolution
+    if dto.mapping_id or dto.logical_model_id:
+        try:
+            mapping = None
+            if dto.mapping_id:
+                mapping = await registry_service.get_source_mapping(dto.mapping_id)
+            elif dto.logical_model_id:
+                mappings = await registry_service.list_source_mappings(
+                    logical_model_id=dto.logical_model_id, source_id=dto.source_id
+                )
+                if mappings:
+                    mapping = mappings[0]
+
+            if mapping:
+                ir = resolve_logical_ir(ir, mapping)
+        except AltrStreamError as e:
+            return AltrQLBindResponseDTO(
+                success=False,
+                ir=ir.to_dict(),
+                bound_ir=None,
+                classification=None,
+                error=AltrQLErrorDetailDTO(
+                    type=e.__class__.__name__,
+                    message=e.message,
+                    line=1,
+                    column=1,
+                ),
+            )
 
     # 2. Retrieve discovered schema snapshot from repository
     try:
@@ -157,6 +191,7 @@ async def execute_altrql_query(
     source_service: SourceService = Depends(get_source_service),
     schema_service: SchemaService = Depends(get_schema_service),
     query_service: QueryService = Depends(get_query_service),
+    registry_service: RegistryService = Depends(get_registry_service),
 ) -> AltrQLExecuteResponseDTO:
     """Execute an AltrQL query against a registered data source.
 
@@ -181,6 +216,36 @@ async def execute_altrql_query(
                 column=e.column,
             ),
         )
+
+    # 1.1 Optional Logical Resolution
+    if dto.mapping_id or dto.logical_model_id:
+        try:
+            mapping = None
+            if dto.mapping_id:
+                mapping = await registry_service.get_source_mapping(dto.mapping_id)
+            elif dto.logical_model_id:
+                mappings = await registry_service.list_source_mappings(
+                    logical_model_id=dto.logical_model_id, source_id=dto.source_id
+                )
+                if mappings:
+                    mapping = mappings[0]
+
+            if mapping:
+                ir = resolve_logical_ir(ir, mapping)
+        except AltrStreamError as e:
+            return AltrQLExecuteResponseDTO(
+                success=False,
+                ir=ir.to_dict(),
+                bound_ir=None,
+                classification=None,
+                physical_query=None,
+                error=AltrQLErrorDetailDTO(
+                    type=e.__class__.__name__,
+                    message=e.message,
+                    line=1,
+                    column=1,
+                ),
+            )
 
     # 2. Retrieve source
     try:
@@ -212,6 +277,7 @@ async def execute_altrql_query(
                 message=f"No schema snapshot discovered yet for source '{dto.source_id}'. Run schema discovery first.",
             ),
         )
+
 
     # 4. Pure schema binding & type validation
     try:

@@ -29,18 +29,18 @@ class SourceModel {
 
   factory SourceModel.fromJson(Map<String, dynamic> json) {
     return SourceModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      type: json['type'] as String,
-      host: json['host'] as String?,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      type: json['type']?.toString() ?? '',
+      host: json['host']?.toString(),
       port: (json['port'] as num?)?.toInt(),
-      databaseName: json['database_name'] as String?,
-      username: json['username'] as String?,
-      filePath: json['file_path'] as String?,
-      status: (json['status'] as String?) ?? 'UNKNOWN',
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
-      passwordMasked: (json['password_masked'] as String?) ?? '••••••••',
+      databaseName: json['database_name']?.toString(),
+      username: json['username']?.toString(),
+      filePath: json['file_path']?.toString(),
+      status: json['status']?.toString() ?? 'UNKNOWN',
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+      passwordMasked: json['password_masked']?.toString() ?? '••••••••',
     );
   }
 
@@ -66,11 +66,11 @@ class ConnectionTestResultModel {
 
   factory ConnectionTestResultModel.fromJson(Map<String, dynamic> json) {
     return ConnectionTestResultModel(
-      success: json['success'] as bool,
-      message: json['message'] as String,
+      success: json['success'] as bool? ?? false,
+      message: json['message']?.toString() ?? '',
       latencyMs: (json['latency_ms'] as num?)?.toDouble(),
-      serverVersion: json['server_version'] as String?,
-      errorDetails: json['error_details'] as String?,
+      serverVersion: json['server_version']?.toString(),
+      errorDetails: json['error_details']?.toString(),
     );
   }
 }
@@ -128,12 +128,12 @@ class FieldSchemaModel {
 
   factory FieldSchemaModel.fromJson(Map<String, dynamic> json) {
     return FieldSchemaModel(
-      name: json['name'] as String,
-      dataType: json['data_type'] as String,
-      nativeDataType: json['native_data_type'] as String,
+      name: json['name']?.toString() ?? '',
+      dataType: json['data_type']?.toString() ?? 'STRING',
+      nativeDataType: json['native_data_type']?.toString() ?? '',
       nullable: json['nullable'] as bool? ?? true,
       isPrimaryKey: json['is_primary_key'] as bool? ?? false,
-      defaultValue: json['default_value'] as String?,
+      defaultValue: json['default_value']?.toString(),
       position: (json['position'] as num?)?.toInt() ?? 0,
     );
   }
@@ -156,10 +156,10 @@ class ConstraintSchemaModel {
 
   factory ConstraintSchemaModel.fromJson(Map<String, dynamic> json) {
     return ConstraintSchemaModel(
-      name: json['name'] as String,
-      constraintType: json['constraint_type'] as String,
+      name: json['name']?.toString() ?? '',
+      constraintType: json['constraint_type']?.toString() ?? '',
       fields: (json['fields'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      referencedEntity: json['referenced_entity'] as String?,
+      referencedEntity: json['referenced_entity']?.toString(),
       referencedFields:
           (json['referenced_fields'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
     );
@@ -185,17 +185,17 @@ class EntitySchemaModel {
 
   factory EntitySchemaModel.fromJson(Map<String, dynamic> json) {
     return EntitySchemaModel(
-      name: json['name'] as String,
-      namespace: json['namespace'] as String? ?? 'public',
-      entityType: json['entity_type'] as String? ?? 'TABLE',
+      name: json['name']?.toString() ?? '',
+      namespace: json['namespace']?.toString() ?? 'public',
+      entityType: json['entity_type']?.toString() ?? 'TABLE',
       fields: (json['fields'] as List<dynamic>?)
-              ?.map((e) => FieldSchemaModel.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => FieldSchemaModel.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           [],
       primaryKey:
           (json['primary_key'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       constraints: (json['constraints'] as List<dynamic>?)
-              ?.map((e) => ConstraintSchemaModel.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => ConstraintSchemaModel.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           [],
     );
@@ -223,15 +223,15 @@ class SourceSchemaModel {
 
   factory SourceSchemaModel.fromJson(Map<String, dynamic> json) {
     return SourceSchemaModel(
-      sourceId: json['source_id'] as String,
-      sourceName: json['source_name'] as String,
-      version: json['version'] as String? ?? '1.0.0',
-      discoveredAt: DateTime.parse(json['discovered_at'] as String),
+      sourceId: json['source_id']?.toString() ?? '',
+      sourceName: json['source_name']?.toString() ?? '',
+      version: json['version']?.toString() ?? '1.0.0',
+      discoveredAt: json['discovered_at'] != null ? DateTime.parse(json['discovered_at'].toString()) : DateTime.now(),
       entities: (json['entities'] as List<dynamic>?)
-              ?.map((e) => EntitySchemaModel.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => EntitySchemaModel.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           [],
-      metadata: (json['metadata'] as Map<String, dynamic>?) ?? {},
+      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
     );
   }
 
@@ -518,5 +518,393 @@ class AltrQLExecuteResponseModel {
   }
 }
 
+// ==========================================
+// Schema & Mapping Registry Models (v0.7.0)
+// ==========================================
 
+class LogicalFieldModel {
+  final String id;
+  final String logicalEntityId;
+  final String name;
+  final String dataType;
+  final bool nullable;
+  final bool isPrimaryKey;
+  final String? description;
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  LogicalFieldModel({
+    required this.id,
+    required this.logicalEntityId,
+    required this.name,
+    required this.dataType,
+    this.nullable = true,
+    this.isPrimaryKey = false,
+    this.description,
+    this.metadata = const {},
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory LogicalFieldModel.fromJson(Map<String, dynamic> json) {
+    return LogicalFieldModel(
+      id: json['id']?.toString() ?? '',
+      logicalEntityId: json['logical_entity_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      dataType: json['data_type']?.toString() ?? 'STRING',
+      nullable: json['nullable'] as bool? ?? true,
+      isPrimaryKey: json['is_primary_key'] as bool? ?? false,
+      description: json['description']?.toString(),
+      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'data_type': dataType,
+        'nullable': nullable,
+        'is_primary_key': isPrimaryKey,
+        'description': description,
+        'metadata': metadata,
+      };
+}
+
+class LogicalEntityModel {
+  final String id;
+  final String logicalModelId;
+  final String name;
+  final String? description;
+  final List<LogicalFieldModel> fields;
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  LogicalEntityModel({
+    required this.id,
+    required this.logicalModelId,
+    required this.name,
+    this.description,
+    this.fields = const [],
+    this.metadata = const {},
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory LogicalEntityModel.fromJson(Map<String, dynamic> json) {
+    return LogicalEntityModel(
+      id: json['id']?.toString() ?? '',
+      logicalModelId: json['logical_model_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString(),
+      fields: (json['fields'] as List<dynamic>?)
+              ?.map((e) => LogicalFieldModel.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          [],
+      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+    );
+  }
+
+  int get fieldCount => fields.length;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'fields': fields.map((f) => f.toJson()).toList(),
+        'metadata': metadata,
+      };
+}
+
+class LogicalModelModel {
+  final String id;
+  final String name;
+  final String version;
+  final String? description;
+  final List<LogicalEntityModel> entities;
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  LogicalModelModel({
+    required this.id,
+    required this.name,
+    this.version = '1.0.0',
+    this.description,
+    this.entities = const [],
+    this.metadata = const {},
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory LogicalModelModel.fromJson(Map<String, dynamic> json) {
+    return LogicalModelModel(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      version: json['version']?.toString() ?? '1.0.0',
+      description: json['description']?.toString(),
+      entities: (json['entities'] as List<dynamic>?)
+              ?.map((e) => LogicalEntityModel.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          [],
+      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+    );
+  }
+
+  int get entityCount => entities.length;
+  int get totalFieldCount => entities.fold<int>(0, (prev, e) => prev + e.fields.length);
+}
+
+class FieldMappingModel {
+  final String id;
+  final String entityMappingId;
+  final String logicalFieldId;
+  final String logicalFieldName;
+  final String physicalFieldName;
+  final String? transformationRule;
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  FieldMappingModel({
+    required this.id,
+    required this.entityMappingId,
+    required this.logicalFieldId,
+    required this.logicalFieldName,
+    required this.physicalFieldName,
+    this.transformationRule,
+    this.metadata = const {},
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory FieldMappingModel.fromJson(Map<String, dynamic> json) {
+    return FieldMappingModel(
+      id: json['id']?.toString() ?? '',
+      entityMappingId: json['entity_mapping_id']?.toString() ?? '',
+      logicalFieldId: json['logical_field_id']?.toString() ?? '',
+      logicalFieldName: json['logical_field_name']?.toString() ?? '',
+      physicalFieldName: json['physical_field_name']?.toString() ?? '',
+      transformationRule: json['transformation_rule']?.toString(),
+      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'logical_field_id': logicalFieldId,
+        'logical_field_name': logicalFieldName,
+        'physical_field_name': physicalFieldName,
+        'transformation_rule': transformationRule,
+        'metadata': metadata,
+      };
+}
+
+class EntityMappingModel {
+  final String id;
+  final String sourceMappingId;
+  final String logicalEntityId;
+  final String logicalEntityName;
+  final String physicalEntityName;
+  final String physicalNamespace;
+  final List<FieldMappingModel> fieldMappings;
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  EntityMappingModel({
+    required this.id,
+    required this.sourceMappingId,
+    required this.logicalEntityId,
+    required this.logicalEntityName,
+    required this.physicalEntityName,
+    this.physicalNamespace = 'public',
+    this.fieldMappings = const [],
+    this.metadata = const {},
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory EntityMappingModel.fromJson(Map<String, dynamic> json) {
+    return EntityMappingModel(
+      id: json['id']?.toString() ?? '',
+      sourceMappingId: json['source_mapping_id']?.toString() ?? '',
+      logicalEntityId: json['logical_entity_id']?.toString() ?? '',
+      logicalEntityName: json['logical_entity_name']?.toString() ?? '',
+      physicalEntityName: json['physical_entity_name']?.toString() ?? '',
+      physicalNamespace: json['physical_namespace']?.toString() ?? 'public',
+      fieldMappings: (json['field_mappings'] as List<dynamic>?)
+              ?.map((e) => FieldMappingModel.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          [],
+      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+    );
+  }
+
+  int get fieldMappingCount => fieldMappings.length;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'logical_entity_id': logicalEntityId,
+        'logical_entity_name': logicalEntityName,
+        'physical_entity_name': physicalEntityName,
+        'physical_namespace': physicalNamespace,
+        'field_mappings': fieldMappings.map((f) => f.toJson()).toList(),
+        'metadata': metadata,
+      };
+}
+
+class SourceMappingModel {
+  final String id;
+  final String logicalModelId;
+  final String sourceId;
+  final String version;
+  final String status;
+  final String provenance;
+  final List<String> validationErrors;
+  final List<EntityMappingModel> entityMappings;
+  final Map<String, dynamic> metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  SourceMappingModel({
+    required this.id,
+    required this.logicalModelId,
+    required this.sourceId,
+    this.version = '1.0.0',
+    this.status = 'DRAFT',
+    this.provenance = 'USER',
+    this.validationErrors = const [],
+    this.entityMappings = const [],
+    this.metadata = const {},
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory SourceMappingModel.fromJson(Map<String, dynamic> json) {
+    final List<String> errs = [];
+    if (json['validation_errors'] is List) {
+      errs.addAll((json['validation_errors'] as List).map((e) => e.toString()));
+    }
+    if (json['error_message'] != null && json['error_message'].toString().isNotEmpty) {
+      final msg = json['error_message'].toString();
+      if (!errs.contains(msg)) {
+        errs.add(msg);
+      }
+    }
+
+    return SourceMappingModel(
+      id: json['id']?.toString() ?? '',
+      logicalModelId: json['logical_model_id']?.toString() ?? '',
+      sourceId: json['source_id']?.toString() ?? '',
+      version: json['version']?.toString() ?? '1.0.0',
+      status: json['status']?.toString() ?? 'DRAFT',
+      provenance: json['provenance']?.toString() ?? 'USER',
+      validationErrors: errs,
+      entityMappings: (json['entity_mappings'] as List<dynamic>?)
+              ?.map((e) => EntityMappingModel.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          [],
+      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+    );
+  }
+
+  bool get isActive => status.toUpperCase() == 'ACTIVE';
+  bool get isDraft => status.toUpperCase() == 'DRAFT';
+  bool get isValidated => status.toUpperCase() == 'VALIDATED';
+  bool get isError => status.toUpperCase() == 'ERROR';
+  int get entityMappingCount => entityMappings.length;
+}
+
+class RegistrySummaryModel {
+  final int totalModels;
+  final int totalEntities;
+  final int totalLogicalFields;
+  final int totalSourceMappings;
+  final int activeSourceMappings;
+  final int draftSourceMappings;
+  final int validatedSourceMappings;
+  final int errorSourceMappings;
+
+  RegistrySummaryModel({
+    required this.totalModels,
+    required this.totalEntities,
+    required this.totalLogicalFields,
+    required this.totalSourceMappings,
+    required this.activeSourceMappings,
+    required this.draftSourceMappings,
+    required this.validatedSourceMappings,
+    required this.errorSourceMappings,
+  });
+
+  factory RegistrySummaryModel.fromJson(Map<String, dynamic> json) {
+    return RegistrySummaryModel(
+      totalModels: (json['total_models'] as num?)?.toInt() ?? 0,
+      totalEntities: (json['total_entities'] as num?)?.toInt() ?? 0,
+      totalLogicalFields: (json['total_logical_fields'] as num?)?.toInt() ?? 0,
+      totalSourceMappings: (json['total_source_mappings'] as num?)?.toInt() ?? 0,
+      activeSourceMappings: (json['active_source_mappings'] as num?)?.toInt() ?? 0,
+      draftSourceMappings: (json['draft_source_mappings'] as num?)?.toInt() ?? 0,
+      validatedSourceMappings: (json['validated_source_mappings'] as num?)?.toInt() ?? 0,
+      errorSourceMappings: (json['error_source_mappings'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+const Set<String> _kIntegerTypes = {'INTEGER', 'BIGINT', 'SMALLINT', 'INT', 'INT2', 'INT4', 'INT8', 'SERIAL', 'BIGSERIAL', 'SMALLSERIAL'};
+const Set<String> _kFloatTypes = {'FLOAT', 'DECIMAL', 'REAL', 'DOUBLE', 'NUMERIC', 'FLOAT4', 'FLOAT8', 'DOUBLE PRECISION'};
+const Set<String> _kStringTypes = {'STRING', 'VARCHAR', 'TEXT', 'CHAR', 'CHARACTER', 'CHARACTER VARYING', 'CITEXT', 'UUID'};
+const Set<String> _kBooleanTypes = {'BOOLEAN', 'BOOL'};
+const Set<String> _kTemporalTypes = {'DATE', 'TIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'TIMETZ', 'DATETIME'};
+const Set<String> _kJsonTypes = {'JSON', 'JSONB'};
+const Set<String> _kBinaryTypes = {'BINARY', 'BYTEA', 'BLOB'};
+const Set<String> _kArrayTypes = {'ARRAY'};
+
+bool areDataTypesCompatible(String? logicalType, String? physicalType) {
+  if (logicalType == null || physicalType == null) return false;
+  final l = logicalType.toUpperCase().trim();
+  final p = physicalType.toUpperCase().trim();
+  if (l.isEmpty || p.isEmpty) return false;
+  if (l == p) return true;
+
+  if (_kIntegerTypes.contains(l)) {
+    return _kIntegerTypes.contains(p);
+  }
+  if (_kFloatTypes.contains(l)) {
+    return _kFloatTypes.contains(p) || _kIntegerTypes.contains(p);
+  }
+  if (_kStringTypes.contains(l)) {
+    return _kStringTypes.contains(p);
+  }
+  if (_kBooleanTypes.contains(l)) {
+    return _kBooleanTypes.contains(p);
+  }
+  if (_kTemporalTypes.contains(l)) {
+    return _kTemporalTypes.contains(p);
+  }
+  if (_kJsonTypes.contains(l)) {
+    return _kJsonTypes.contains(p);
+  }
+  if (_kBinaryTypes.contains(l)) {
+    return _kBinaryTypes.contains(p);
+  }
+  if (_kArrayTypes.contains(l)) {
+    return _kArrayTypes.contains(p);
+  }
+
+  return false;
+}
 

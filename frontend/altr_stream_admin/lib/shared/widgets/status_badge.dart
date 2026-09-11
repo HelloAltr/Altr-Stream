@@ -76,6 +76,18 @@ class StatusBadge extends StatelessWidget {
         textColor = dotColor;
         label = 'Active';
         break;
+      case 'VALIDATED':
+        dotColor = isDark ? Colors.tealAccent : Colors.teal.shade700;
+        bgColor = isDark ? Colors.teal.withValues(alpha: 0.2) : Colors.teal.shade50;
+        textColor = dotColor;
+        label = 'Validated';
+        break;
+      case 'DRAFT':
+        dotColor = isDark ? Colors.amberAccent : Colors.amber.shade800;
+        bgColor = isDark ? Colors.amber.withValues(alpha: 0.15) : Colors.amber.shade50;
+        textColor = dotColor;
+        label = 'Draft';
+        break;
       case 'UNREACHABLE':
         dotColor = isDark ? AppTheme.errorDark : AppTheme.errorLight;
         bgColor = AppTheme.errorBg(context);

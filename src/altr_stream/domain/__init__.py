@@ -4,8 +4,18 @@ from altr_stream.domain.errors import (
     AltrStreamError,
     ConnectionFailedError,
     ConnectorNotFoundError,
+    DuplicateMappingError,
+    LogicalEntityNotFoundError,
+    LogicalFieldNotFoundError,
+    LogicalModelAlreadyExistsError,
+    LogicalModelNotFoundError,
+    MappingValidationError,
+    QueryExecutionError,
+    QueryExecutionNotSupportedError,
+    ReadOnlyQueryRequiredError,
     SchemaDiscoveryError,
     SourceAlreadyExistsError,
+    SourceMappingNotFoundError,
     SourceNotFoundError,
 )
 from altr_stream.domain.source import (
@@ -27,6 +37,18 @@ from altr_stream.domain.connector import (
     ConnectionTestResult,
     SourceCapabilities,
 )
+from altr_stream.domain.logical import (
+    LogicalEntity,
+    LogicalField,
+    LogicalModel,
+)
+from altr_stream.domain.mapping import (
+    EntityMapping,
+    FieldMapping,
+    MappingProvenance,
+    MappingStatus,
+    SourceMapping,
+)
 
 __all__ = [
     "AltrStreamError",
@@ -35,6 +57,16 @@ __all__ = [
     "ConnectorNotFoundError",
     "ConnectionFailedError",
     "SchemaDiscoveryError",
+    "LogicalModelNotFoundError",
+    "LogicalModelAlreadyExistsError",
+    "LogicalEntityNotFoundError",
+    "LogicalFieldNotFoundError",
+    "SourceMappingNotFoundError",
+    "MappingValidationError",
+    "DuplicateMappingError",
+    "QueryExecutionError",
+    "QueryExecutionNotSupportedError",
+    "ReadOnlyQueryRequiredError",
     "Source",
     "SourceType",
     "SourceStatus",
@@ -48,4 +80,13 @@ __all__ = [
     "BaseConnector",
     "ConnectionTestResult",
     "SourceCapabilities",
+    "LogicalModel",
+    "LogicalEntity",
+    "LogicalField",
+    "SourceMapping",
+    "EntityMapping",
+    "FieldMapping",
+    "MappingStatus",
+    "MappingProvenance",
 ]
+

@@ -27,6 +27,103 @@ class StandardDataType(str, Enum):
     OTHER = "OTHER"
 
 
+INTEGER_TYPES: frozenset[StandardDataType] = frozenset({
+    StandardDataType.INTEGER,
+    StandardDataType.BIGINT,
+    StandardDataType.SMALLINT,
+})
+
+FLOAT_TYPES: frozenset[StandardDataType] = frozenset({
+    StandardDataType.FLOAT,
+    StandardDataType.DECIMAL,
+})
+
+STRING_TYPES: frozenset[StandardDataType] = frozenset({
+    StandardDataType.STRING,
+    StandardDataType.UUID,
+})
+
+BOOLEAN_TYPES: frozenset[StandardDataType] = frozenset({
+    StandardDataType.BOOLEAN,
+})
+
+TEMPORAL_TYPES: frozenset[StandardDataType] = frozenset({
+    StandardDataType.DATE,
+    StandardDataType.TIME,
+    StandardDataType.TIMESTAMP,
+    StandardDataType.TIMESTAMPTZ,
+})
+
+JSON_TYPES: frozenset[StandardDataType] = frozenset({
+    StandardDataType.JSON,
+})
+
+BINARY_TYPES: frozenset[StandardDataType] = frozenset({
+    StandardDataType.BINARY,
+})
+
+ARRAY_TYPES: frozenset[StandardDataType] = frozenset({
+    StandardDataType.ARRAY,
+})
+
+
+def are_datatypes_compatible(
+    logical_type: StandardDataType | str,
+    physical_type: StandardDataType | str,
+) -> bool:
+    """Check deterministic type compatibility between logical and physical data types.
+
+    Rules:
+    - INTEGER logical: physical must be INTEGER, BIGINT, or SMALLINT.
+    - FLOAT / DECIMAL logical: physical must be FLOAT, DECIMAL, or INTEGER/BIGINT/SMALLINT.
+    - STRING logical: physical must be STRING or UUID.
+    - BOOLEAN logical: physical must be BOOLEAN.
+    - TEMPORAL logical: physical must be DATE, TIME, TIMESTAMP, or TIMESTAMPTZ.
+    - JSON logical: physical must be JSON.
+    - BINARY logical: physical must be BINARY.
+    - ARRAY logical: physical must be ARRAY.
+    """
+    if isinstance(logical_type, str):
+        try:
+            logical_type = StandardDataType(logical_type.upper())
+        except ValueError:
+            return False
+    if isinstance(physical_type, str):
+        try:
+            physical_type = StandardDataType(physical_type.upper())
+        except ValueError:
+            return False
+
+    if logical_type == physical_type:
+        return True
+
+    if logical_type in INTEGER_TYPES:
+        return physical_type in INTEGER_TYPES
+
+    if logical_type in FLOAT_TYPES:
+        return physical_type in (FLOAT_TYPES | INTEGER_TYPES)
+
+    if logical_type in STRING_TYPES:
+        return physical_type in STRING_TYPES
+
+    if logical_type in BOOLEAN_TYPES:
+        return physical_type in BOOLEAN_TYPES
+
+    if logical_type in TEMPORAL_TYPES:
+        return physical_type in TEMPORAL_TYPES
+
+    if logical_type in JSON_TYPES:
+        return physical_type in JSON_TYPES
+
+    if logical_type in BINARY_TYPES:
+        return physical_type in BINARY_TYPES
+
+    if logical_type in ARRAY_TYPES:
+        return physical_type in ARRAY_TYPES
+
+    return False
+
+
 class ConstraintType(str, Enum):
     """Database constraint types."""
 

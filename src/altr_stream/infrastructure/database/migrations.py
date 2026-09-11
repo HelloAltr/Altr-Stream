@@ -12,7 +12,7 @@ def run_migrations(connection: Connection) -> None:
     inspector = inspect(connection)
     tables = inspector.get_table_names()
 
-    # Migration for 'sources' table
+    # Migration for 'sources' table (v0.5 -> v0.6 schema)
     if "sources" in tables:
         columns_info = {c["name"]: c for c in inspector.get_columns("sources")}
         has_file_path = "file_path" in columns_info
@@ -84,3 +84,15 @@ def run_migrations(connection: Connection) -> None:
 
             logger.info("Successfully migrated 'sources' table to v0.6 schema.")
 
+    # v0.7 Schema Migration: Verify Logical Model & Mapping Registry tables and indexes
+    # (Base.metadata.create_all creates them, but we ensure proper indexes here idempotently)
+    connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_logical_models_name ON logical_models (name);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_logical_entities_model_id ON logical_entities (model_id);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_logical_entities_name ON logical_entities (name);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_logical_fields_entity_id ON logical_fields (entity_id);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_source_mappings_logical_model_id ON source_mappings (logical_model_id);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_source_mappings_source_id ON source_mappings (source_id);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_entity_mappings_source_mapping_id ON entity_mappings (source_mapping_id);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_entity_mappings_logical_entity_id ON entity_mappings (logical_entity_id);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_field_mappings_entity_mapping_id ON field_mappings (entity_mapping_id);"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS ix_field_mappings_logical_field_id ON field_mappings (logical_field_id);"))

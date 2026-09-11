@@ -91,6 +91,14 @@ class AppShell extends StatelessWidget {
                         const SizedBox(height: 4),
                         _buildNavItem(
                           context: context,
+                          title: 'Mapping Registry',
+                          route: '/registry',
+                          icon: Icons.schema_outlined,
+                          activeIcon: Icons.schema,
+                        ),
+                        const SizedBox(height: 4),
+                        _buildNavItem(
+                          context: context,
                           title: 'Activity',
                           route: '/activity',
                           icon: Icons.history_outlined,
@@ -148,14 +156,16 @@ class AppShell extends StatelessWidget {
   Widget _buildTabletLayout(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final navRoutes = ['/', '/sources', '/activity', '/settings'];
+    final navRoutes = ['/', '/sources', '/registry', '/activity', '/settings'];
     int selectedIndex = 0;
     if (activeRoute == '/sources' || activeRoute.startsWith('/sources/')) {
       selectedIndex = 1;
-    } else if (activeRoute == '/activity') {
+    } else if (activeRoute == '/registry' || activeRoute.startsWith('/registry/')) {
       selectedIndex = 2;
-    } else if (activeRoute == '/settings') {
+    } else if (activeRoute == '/activity') {
       selectedIndex = 3;
+    } else if (activeRoute == '/settings') {
+      selectedIndex = 4;
     }
 
     return Scaffold(
@@ -192,6 +202,11 @@ class AppShell extends StatelessWidget {
                 icon: Icon(Icons.dns_outlined),
                 selectedIcon: Icon(Icons.dns),
                 label: Text('Sources', style: TextStyle(fontSize: 11)),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.schema_outlined),
+                selectedIcon: Icon(Icons.schema),
+                label: Text('Registry', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.history_outlined),
@@ -298,6 +313,15 @@ class AppShell extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).pop();
                 onNavigate('/sources');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.schema_outlined),
+              title: const Text('Mapping Registry'),
+              selected: activeRoute == '/registry' || activeRoute.startsWith('/registry/'),
+              onTap: () {
+                Navigator.of(context).pop();
+                onNavigate('/registry');
               },
             ),
             ListTile(
@@ -469,12 +493,15 @@ class AppShell extends StatelessWidget {
               color: isActive ? colorScheme.primary : colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 12),
-            Text(
-              title,
-              style: TextStyle(
-                color: isActive ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                fontSize: 13,
+            Expanded(
+              child: Text(
+                title,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isActive ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 13,
+                ),
               ),
             ),
           ],

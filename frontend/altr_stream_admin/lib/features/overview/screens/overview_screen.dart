@@ -13,6 +13,7 @@ class OverviewScreen extends StatelessWidget {
   final VoidCallback onAddSource;
   final Function(SourceModel source) onSelectSource;
   final VoidCallback onViewAllSources;
+  final VoidCallback? onNavigateToRegistry;
   final VoidCallback onNodeStatusTap;
   final String nodeStatus;
 
@@ -25,6 +26,7 @@ class OverviewScreen extends StatelessWidget {
     required this.onAddSource,
     required this.onSelectSource,
     required this.onViewAllSources,
+    this.onNavigateToRegistry,
     required this.onNodeStatusTap,
     this.nodeStatus = 'ACTIVE',
   });
@@ -265,6 +267,53 @@ class OverviewScreen extends StatelessWidget {
                       ),
                     );
                   },
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Mapping Registry Quick-Access Card
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.schema_outlined, color: colorScheme.primary, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Schema & Mapping Registry',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Manage source-agnostic logical models and map physical PostgreSQL / SQLite databases to expose unified AltrQL queries.',
+                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: onNavigateToRegistry,
+                  icon: const Icon(Icons.arrow_forward, size: 14),
+                  label: const Text('Open Registry'),
                 ),
               ],
             ),
