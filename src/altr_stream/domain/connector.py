@@ -14,8 +14,10 @@ class ParameterStyle(str, Enum):
     """Parameter binding style supported by a physical database dialect."""
 
     POSITIONAL_NUMERIC = "POSITIONAL_NUMERIC"  # e.g. $1, $2 (PostgreSQL)
-    POSITIONAL_QMARK = "POSITIONAL_QMARK"      # e.g. ?, ? (SQLite, MySQL)
+    POSITIONAL_QMARK = "POSITIONAL_QMARK"      # e.g. ?, ? (SQLite)
+    POSITIONAL_FORMAT = "POSITIONAL_FORMAT"    # e.g. %s, %s (MySQL)
     NAMED = "NAMED"                            # e.g. :param (Oracle, SQLite named)
+    DOCUMENT_BSON = "DOCUMENT_BSON"            # Structured BSON filter document (MongoDB)
 
 
 class SourceCapabilities(BaseModel):

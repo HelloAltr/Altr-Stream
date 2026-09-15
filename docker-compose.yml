@@ -16,6 +16,8 @@ services:
     depends_on:
       postgres-test:
         condition: service_healthy
+      mysql-test:
+        condition: service_healthy
     networks:
       - altr-network
 
@@ -52,11 +54,35 @@ services:
     networks:
       - altr-network
 
+  mysql-test:
+    image: mysql:8.0
+    container_name: altr-mysql-test
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_DATABASE=altr_test_db
+      - MYSQL_USER=altr_test_user
+      - MYSQL_PASSWORD=altr_test_pass
+      - MYSQL_ROOT_PASSWORD=altr_root_pass
+    volumes:
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "altr_test_user", "--password=altr_test_pass"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - altr-network
+
 volumes:
   altr_stream_data:
     driver: local
   postgres_data:
-    driver: local 
+    driver: local
+  mysql_data:
+    driver: local
 
 networks:
   altr-network:

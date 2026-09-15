@@ -90,42 +90,52 @@ def test_postgres_connector_registered_by_default():
 
 def test_connector_factory_decorator_registration():
     """Verify decorator-based connector registration, resolution, and unregistration."""
-    # Register DummyRelationalConnector under MYSQL
-    ConnectorFactory.register(SourceType.MYSQL)(DummyRelationalConnector)
-    assert SourceType.MYSQL in ConnectorFactory.supported_types()
+    orig = ConnectorFactory._registry.get(SourceType.MYSQL)
+    try:
+        # Register DummyRelationalConnector under MYSQL
+        ConnectorFactory.register(SourceType.MYSQL)(DummyRelationalConnector)
+        assert SourceType.MYSQL in ConnectorFactory.supported_types()
 
-    config = ConnectionConfig(
-        host="127.0.0.1",
-        port=3306,
-        database_name="mydb",
-        username="root",
-        password="password",
-    )
-    connector = ConnectorFactory.get_connector(SourceType.MYSQL, config, timeout_sec=10.0)
-    assert isinstance(connector, DummyRelationalConnector)
-    assert connector.timeout_sec == 10.0
+        config = ConnectionConfig(
+            host="127.0.0.1",
+            port=3306,
+            database_name="mydb",
+            username="root",
+            password="password",
+        )
+        connector = ConnectorFactory.get_connector(SourceType.MYSQL, config, timeout_sec=10.0)
+        assert isinstance(connector, DummyRelationalConnector)
+        assert connector.timeout_sec == 10.0
 
-    # Unregister and verify cleanup
-    ConnectorFactory.unregister(SourceType.MYSQL)
-    assert SourceType.MYSQL not in ConnectorFactory.supported_types()
-    with pytest.raises(ConnectorNotFoundError):
-        ConnectorFactory.get_connector(SourceType.MYSQL, config)
+        # Unregister and verify cleanup
+        ConnectorFactory.unregister(SourceType.MYSQL)
+        assert SourceType.MYSQL not in ConnectorFactory.supported_types()
+        with pytest.raises(ConnectorNotFoundError):
+            ConnectorFactory.get_connector(SourceType.MYSQL, config)
+    finally:
+        if orig:
+            ConnectorFactory.register(SourceType.MYSQL)(orig)
 
 
 def test_unregistered_connector_raises_error():
     """Verify attempting to get an unregistered connector raises ConnectorNotFoundError."""
-    # Ensure MONGODB is not registered
-    ConnectorFactory.unregister(SourceType.MONGODB)
-    config = ConnectionConfig(
-        host="localhost",
-        port=27017,
-        database_name="test",
-        username="user",
-        password="password",
-    )
-    with pytest.raises(ConnectorNotFoundError) as exc_info:
-        ConnectorFactory.get_connector(SourceType.MONGODB, config)
-    assert "MONGODB" in str(exc_info.value)
+    orig = ConnectorFactory._registry.get(SourceType.MONGODB)
+    try:
+        # Ensure MONGODB is not registered
+        ConnectorFactory.unregister(SourceType.MONGODB)
+        config = ConnectionConfig(
+            host="localhost",
+            port=27017,
+            database_name="test",
+            username="user",
+            password="password",
+        )
+        with pytest.raises(ConnectorNotFoundError) as exc_info:
+            ConnectorFactory.get_connector(SourceType.MONGODB, config)
+        assert "MONGODB" in str(exc_info.value)
+    finally:
+        if orig:
+            ConnectorFactory.register(SourceType.MONGODB)(orig)
 
 
 @pytest.mark.asyncio
