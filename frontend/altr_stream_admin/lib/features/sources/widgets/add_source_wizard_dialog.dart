@@ -28,8 +28,8 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
   final _hostController = TextEditingController(text: 'localhost');
   final _portController = TextEditingController(text: '5432');
   final _databaseController = TextEditingController(text: 'altr_test_db');
-  final _usernameController = TextEditingController(text: 'altr_user');
-  final _passwordController = TextEditingController(text: 'altr_secure_pass');
+  final _usernameController = TextEditingController(text: 'altr_test_user');
+  final _passwordController = TextEditingController(text: 'altr_test_pass');
   bool _obscurePassword = true;
   bool _showAdvanced = false;
 
@@ -285,6 +285,19 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     );
   }
 
+  void _onTypeSelected(String type) {
+    setState(() {
+      _selectedType = type;
+      if (type == 'POSTGRESQL') {
+        _portController.text = '5432';
+      } else if (type == 'MYSQL') {
+        _portController.text = '3306';
+      } else if (type == 'MONGODB') {
+        _portController.text = '27017';
+      }
+    });
+  }
+
   // --- STEP 1: CHOOSE TYPE ---
   Widget _buildStep1ChooseType(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -319,18 +332,18 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           context: context,
           type: 'MYSQL',
           title: 'MySQL',
-          description: 'Planned milestone connector for relational tables.',
+          description: 'Supported relational connector with connection pooling, schema discovery, and AltrQL execution.',
           icon: Icons.storage_outlined,
-          isSupported: false,
+          isSupported: true,
         ),
         const SizedBox(height: 12),
         _buildConnectorOption(
           context: context,
           type: 'MONGODB',
           title: 'MongoDB',
-          description: 'Planned document connector for collection introspection.',
+          description: 'Supported document connector with collection reachability, ping, and connection lifecycle testing.',
           icon: Icons.folder_open,
-          isSupported: false,
+          isSupported: true,
         ),
         const SizedBox(height: 24),
         Row(
@@ -339,7 +352,15 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
             ElevatedButton(
               onPressed: () {
                 if (_nameController.text.isEmpty) {
-                  _nameController.text = _selectedType == 'SQLITE' ? 'Manual SQLite Test' : 'Production-Postgres';
+                  if (_selectedType == 'SQLITE') {
+                    _nameController.text = 'Manual SQLite Test';
+                  } else if (_selectedType == 'MYSQL') {
+                    _nameController.text = 'Production-MySQL';
+                  } else if (_selectedType == 'MONGODB') {
+                    _nameController.text = 'Production-MongoDB';
+                  } else {
+                    _nameController.text = 'Production-Postgres';
+                  }
                 }
                 setState(() => _currentStep = 1);
               },
@@ -370,7 +391,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     final isSelected = _selectedType == type;
 
     return InkWell(
-      onTap: isSupported ? () => setState(() => _selectedType = type) : null,
+      onTap: isSupported ? () => _onTypeSelected(type) : null,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -433,7 +454,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 groupValue: _selectedType,
                 activeColor: colorScheme.primary,
                 onChanged: (val) {
-                  if (val != null) setState(() => _selectedType = val);
+                  if (val != null) _onTypeSelected(val);
                 },
               ),
           ],
@@ -498,9 +519,11 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                   flex: 3,
                   child: TextFormField(
                     controller: _hostController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Host / IP *',
-                      hintText: 'e.g. localhost or postgres-test',
+                      hintText: _selectedType == 'MYSQL'
+                          ? 'e.g. localhost or mysql-test'
+                          : (_selectedType == 'MONGODB' ? 'e.g. localhost or mongodb-test' : 'e.g. localhost or postgres-test'),
                     ),
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Host is required' : null,
                   ),

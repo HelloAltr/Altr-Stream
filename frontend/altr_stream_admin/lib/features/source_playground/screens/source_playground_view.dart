@@ -43,15 +43,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
     super.initState();
     _schema = widget.schema;
 
-    // Set an initial helpful query
-    String initialQuery = 'SELECT 1;';
-    if (_schema != null && _schema!.entities.isNotEmpty) {
-      initialQuery = 'SELECT * FROM ${_schema!.entities.first.name} LIMIT 10;';
-    } else {
-      initialQuery = 'SELECT * FROM users LIMIT 10;';
-    }
-
-    _queryController = TextEditingController(text: initialQuery);
+    _queryController = TextEditingController();
     _focusNode = FocusNode();
     _queryController.addListener(_onQueryChanged);
 
@@ -116,7 +108,9 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
   }
 
   void _insertTableTemplate(EntitySchemaModel entity) {
-    final template = 'SELECT * FROM ${entity.name} LIMIT 100;\n';
+    final template = widget.source.type.toUpperCase() == 'MONGODB'
+        ? 'db.${entity.name}.find().limit(100);\n'
+        : 'SELECT * FROM ${entity.name} LIMIT 100;\n';
     setState(() {
       _queryController.text = template;
       _response = null;

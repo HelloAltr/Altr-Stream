@@ -891,6 +891,14 @@ void main() {
     expect(find.text('Schema Explorer'), findsOneWidget);
     expect(find.text('users'), findsOneWidget);
 
+    // Verify hint text is present for PostgreSQL
+    expect(find.text('Type in a PostgreSQL query to execute it'), findsOneWidget);
+
+    // Enter query in editor
+    final editorField = find.descendant(of: find.byType(QueryEditor), matching: find.byType(TextField));
+    await tester.enterText(editorField, 'SELECT * FROM users LIMIT 10;');
+    await tester.pump();
+
     // Tap Run Query
     await tester.tap(find.text('Run Query'));
     await tester.pumpAndSettle();
@@ -899,6 +907,58 @@ void main() {
     expect(find.byType(QueryResultTable), findsOneWidget);
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('Bob'), findsOneWidget);
+  });
+
+  testWidgets('QueryEditor displays DB-specific sample hint text for PostgreSQL, MySQL, SQLite, and MongoDB', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final types = {
+      'POSTGRESQL': 'Type in a PostgreSQL query to execute it',
+      'MYSQL': 'Type in a MySQL query to execute it',
+      'SQLITE': 'Type in a SQLite query to execute it',
+      'MONGODB': 'Type in a MongoDB query to execute it',
+    };
+
+    for (final entry in types.entries) {
+      final mockSource = SourceModel(
+        id: 'src_${entry.key.toLowerCase()}',
+        name: 'Test ${entry.key}',
+        type: entry.key,
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: QueryEditor(
+              controller: controller,
+              focusNode: focusNode,
+              selectedSource: mockSource,
+              isExecuting: false,
+              canExecute: false,
+              onExecute: () {},
+              onClear: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('${entry.key} QUERY'), findsOneWidget);
+      expect(find.text(entry.value), findsOneWidget);
+
+      controller.dispose();
+      focusNode.dispose();
+    }
   });
 
   testWidgets('Destructive query detection triggers DestructiveQueryDialog confirmation in SourcePlaygroundView', (WidgetTester tester) async {
@@ -1955,7 +2015,7 @@ void main() {
     expect(find.text('Mass DELETE Confirmation Required'), findsNothing);
   });
 
-  testWidgets('AddSourceWizardDialog renders SQLite connector as supported alongside PostgreSQL, and MySQL/MongoDB as Future Milestone', (WidgetTester tester) async {
+  testWidgets('AddSourceWizardDialog renders all 4 connectors (PostgreSQL, SQLite, MySQL, MongoDB) as supported', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -1982,12 +2042,152 @@ void main() {
     expect(find.text('MySQL'), findsOneWidget);
     expect(find.text('MongoDB'), findsOneWidget);
 
-    // Verify Future Milestone badges on MySQL and MongoDB
-    expect(find.text('Future Milestone'), findsNWidgets(2));
+    // Verify no Future Milestone badges exist on the 4 supported connectors
+    expect(find.text('Future Milestone'), findsNothing);
 
-    // Tap SQLite to select it
-    await tester.tap(find.text('SQLite'));
+    // Tap MySQL to select it
+    await tester.tap(find.text('MySQL'));
     await tester.pumpAndSettle();
+
+    // Tap MongoDB to select it
+    await tester.tap(find.text('MongoDB'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('AddSourceWizardDialog MySQL test connection and registration generates correct MySQL payload', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient(
+      connectionTestResultToReturn: ConnectionTestResultModel(
+        success: true,
+        message: 'Successfully connected to MySQL database',
+        latencyMs: 1.2,
+        serverVersion: '8.0.36',
+      ),
+    );
+
+    SourceModel? createdSource;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: AddSourceWizardDialog(
+            apiClient: mockClient,
+            onSourceCreated: (s) => createdSource = s,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Select MySQL & Continue
+    await tester.tap(find.text('MySQL'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    // 2. Configure fields - verify port defaulted to 3306
+    expect(find.text('Step 2 of 4: Configure connection parameters'), findsOneWidget);
+    final hostField = find.widgetWithText(TextFormField, 'Host / IP *');
+    final portField = find.widgetWithText(TextFormField, 'Port *');
+
+    await tester.enterText(hostField, 'mysql-test');
+    await tester.enterText(portField, '3306');
+    await tester.pump();
+
+    // Tap Continue to Test
+    await tester.tap(find.text('Continue to Test'));
+    await tester.pumpAndSettle();
+
+    // Verify testAdhocConnection was called with MySQL parameters
+    expect(mockClient.lastTestAdhocParams?['type'], 'MYSQL');
+    expect(mockClient.lastTestAdhocParams?['host'], 'mysql-test');
+    expect(mockClient.lastTestAdhocParams?['port'], 3306);
+
+    // Verify test connection success result
+    expect(find.text('✓ Successfully Connected'), findsOneWidget);
+    expect(find.text('Successfully connected to MySQL database'), findsOneWidget);
+    expect(find.text('Server Version: 8.0.36'), findsOneWidget);
+
+    // 3. Continue to Review & Register
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Step 4 of 4: Review and register source'), findsOneWidget);
+    expect(find.text('MYSQL'), findsOneWidget);
+    expect(find.text('mysql-test:3306'), findsOneWidget);
+  });
+
+  testWidgets('AddSourceWizardDialog MongoDB test connection and registration generates correct MongoDB payload', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient(
+      connectionTestResultToReturn: ConnectionTestResultModel(
+        success: true,
+        message: 'Successfully reached MongoDB server',
+        latencyMs: 1.5,
+        serverVersion: '7.0.5',
+      ),
+    );
+
+    SourceModel? createdSource;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: AddSourceWizardDialog(
+            apiClient: mockClient,
+            onSourceCreated: (s) => createdSource = s,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Select MongoDB & Continue
+    await tester.tap(find.text('MongoDB'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    // 2. Configure fields - verify port defaulted to 27017
+    expect(find.text('Step 2 of 4: Configure connection parameters'), findsOneWidget);
+    final hostField = find.widgetWithText(TextFormField, 'Host / IP *');
+    final portField = find.widgetWithText(TextFormField, 'Port *');
+
+    await tester.enterText(hostField, 'mongodb-test');
+    await tester.enterText(portField, '27017');
+    await tester.pump();
+
+    // Tap Continue to Test
+    await tester.tap(find.text('Continue to Test'));
+    await tester.pumpAndSettle();
+
+    // Verify testAdhocConnection was called with MongoDB parameters
+    expect(mockClient.lastTestAdhocParams?['type'], 'MONGODB');
+    expect(mockClient.lastTestAdhocParams?['host'], 'mongodb-test');
+    expect(mockClient.lastTestAdhocParams?['port'], 27017);
+
+    // Verify test connection success result
+    expect(find.text('✓ Successfully Connected'), findsOneWidget);
+    expect(find.text('Successfully reached MongoDB server'), findsOneWidget);
+    expect(find.text('Server Version: 7.0.5'), findsOneWidget);
+
+    // 3. Continue to Review & Register
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Step 4 of 4: Review and register source'), findsOneWidget);
+    expect(find.text('MONGODB'), findsOneWidget);
+    expect(find.text('mongodb-test:27017'), findsOneWidget);
   });
 
   testWidgets('AddSourceWizardDialog SQLite configuration step shows only Source Name and Database File Path without network fields', (WidgetTester tester) async {

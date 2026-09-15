@@ -76,12 +76,35 @@ services:
     networks:
       - altr-network
 
+  mongodb-test:
+    image: mongo:7.0
+    container_name: altr-mongodb-test
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=altr_test_db
+      - MONGO_INITDB_ROOT_USERNAME=altr_root_user
+      - MONGO_INITDB_ROOT_PASSWORD=altr_root_pass
+    volumes:
+      - ./docker/mongodb/init.js:/docker-entrypoint-initdb.d/init.js:ro
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "-u", "altr_test_user", "-p", "altr_test_pass", "--authenticationDatabase", "admin"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - altr-network
+
 volumes:
   altr_stream_data:
     driver: local
   postgres_data:
     driver: local
   mysql_data:
+    driver: local
+  mongodb_data:
     driver: local
 
 networks:

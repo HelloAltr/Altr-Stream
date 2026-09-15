@@ -22,6 +22,22 @@ class QueryEditor extends StatelessWidget {
     this.selectedSource,
   });
 
+  String _getHintText(SourceModel? source) {
+    final type = source?.type.toUpperCase() ?? '';
+    switch (type) {
+      case 'POSTGRESQL':
+        return 'Type in a PostgreSQL query to execute it';
+      case 'MYSQL':
+        return 'Type in a MySQL query to execute it';
+      case 'SQLITE':
+        return 'Type in a SQLite query to execute it';
+      case 'MONGODB':
+        return 'Type in a MongoDB query to execute it';
+      default:
+        return 'Type in a physical query to execute it';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -117,7 +133,7 @@ class QueryEditor extends StatelessWidget {
                 ),
                 cursorColor: colorScheme.primary,
                 decoration: InputDecoration(
-                  hintText: '-- Write a native physical query\nSELECT * FROM users LIMIT 10;',
+                  hintText: _getHintText(selectedSource),
                   hintStyle: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 13,
