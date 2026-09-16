@@ -100,14 +100,25 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
                           color: colorScheme.onSurface,
                         ),
                       ),
-                      if (widget.schema != null)
-                        Text(
-                          '${widget.schema!.entityCount} tables • ${widget.schema!.totalFieldCount} columns',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                      if (widget.schema != null) ...[
+                        Builder(
+                          builder: (context) {
+                            final isMongo = widget.selectedSource?.type.toUpperCase() == 'MONGODB';
+                            final count = widget.schema!.entityCount;
+                            final entityTerm = isMongo
+                                ? (count == 1 ? 'collection' : 'collections')
+                                : (count == 1 ? 'table' : 'tables');
+                            final fieldTerm = isMongo ? 'fields' : 'columns';
+                            return Text(
+                              '$count $entityTerm • ${widget.schema!.totalFieldCount} $fieldTerm',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            );
+                          },
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -139,7 +150,9 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
                 controller: _searchController,
                 style: const TextStyle(fontSize: 12),
                 decoration: InputDecoration(
-                  hintText: 'Filter tables & columns...',
+                  hintText: (widget.selectedSource?.type.toUpperCase() == 'MONGODB')
+                      ? 'Filter collections & fields...'
+                      : 'Filter tables & columns...',
                   hintStyle: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
                   prefixIcon: Icon(Icons.search, size: 16, color: colorScheme.onSurfaceVariant),
                   suffixIcon: _searchQuery.isNotEmpty
@@ -285,11 +298,12 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
     }
 
     if (entities.isEmpty) {
+      final isMongo = widget.selectedSource?.type.toUpperCase() == 'MONGODB';
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Text(
-            'No matching tables or columns found.',
+            isMongo ? 'No matching collections or fields found.' : 'No matching tables or columns found.',
             style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
           ),
         ),
@@ -307,6 +321,8 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
   }
 
   Widget _buildEntityTile(BuildContext context, ColorScheme colorScheme, EntitySchemaModel entity) {
+    final isMongo = widget.selectedSource?.type.toUpperCase() == 'MONGODB';
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 3),
       decoration: BoxDecoration(
@@ -324,7 +340,9 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
             tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
             childrenPadding: const EdgeInsets.only(bottom: 6),
             leading: Icon(
-              entity.entityType.toUpperCase() == 'VIEW' ? Icons.visibility_outlined : Icons.table_chart_outlined,
+              entity.entityType.toUpperCase() == 'COLLECTION'
+                  ? Icons.folder_copy_outlined
+                  : (entity.entityType.toUpperCase() == 'VIEW' ? Icons.visibility_outlined : Icons.table_chart_outlined),
               size: 16,
               color: colorScheme.primary,
             ),
@@ -337,7 +355,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
               ),
             ),
             subtitle: Text(
-              '${entity.fields.length} columns',
+              '${entity.fields.length} ${isMongo ? "fields" : "columns"}',
               style: TextStyle(
                 fontSize: 10,
                 color: colorScheme.onSurfaceVariant,
@@ -348,7 +366,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.code_rounded, size: 15),
-                  tooltip: 'Query Table (Insert Template)',
+                  tooltip: isMongo ? 'Query Collection (Insert Template)' : 'Query Table (Insert Template)',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 26, minHeight: 26),

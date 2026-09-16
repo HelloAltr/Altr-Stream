@@ -15,10 +15,14 @@ from altr_stream.domain.connector import (
     ParameterStyle,
     SourceCapabilities,
 )
+from altr_stream.domain.errors import SchemaDiscoveryError
 from altr_stream.domain.query import QueryResult
 from altr_stream.domain.schema import SourceSchema
 from altr_stream.domain.source import ConnectionConfig, SourceType
 from altr_stream.infrastructure.connectors.factory import ConnectorFactory
+from altr_stream.infrastructure.connectors.mongodb.mapper import (
+    build_source_schema_from_mongodb_samples,
+)
 
 
 @ConnectorFactory.register(SourceType.MONGODB)
@@ -164,8 +168,61 @@ class MongoDBConnector(BaseConnector):
                     pass
 
     async def discover_schema(self, source_id: str, source_name: str) -> SourceSchema:
-        """Discover and return the standardized schema of the physical MongoDB database."""
-        raise NotImplementedError("MongoDB schema discovery will be implemented in Phase 0.7.2b.")
+        """Discover and return the standardized schema of the physical MongoDB database using deterministic sampling."""
+        client = None
+        is_internal_client = False
+        sample_limit = 100
+        db_name = self.config.database_name or ""
+        try:
+            if self._client is not None:
+                client = self._client
+            else:
+                client = self._create_client()
+                is_internal_client = True
+
+            db = client[db_name or "admin"]
+
+            # 1. Fetch non-system collections
+            all_collections = await db.list_collection_names()
+            target_collections = sorted([
+                c for c in all_collections
+                if not c.startswith("system.") and c != "system.views"
+            ])
+
+            # 2. Deterministically sample up to 100 documents per collection sorted by _id
+            sampled_collections: dict[str, list[dict[str, Any]]] = {}
+            for coll_name in target_collections:
+                coll = db[coll_name]
+                cursor = coll.find({}).sort("_id", 1).limit(sample_limit)
+                docs = await cursor.to_list(length=sample_limit)
+                sampled_collections[coll_name] = docs
+
+            # 3. Build standardized SourceSchema from observed samples
+            return build_source_schema_from_mongodb_samples(
+                source_id=source_id,
+                source_name=source_name,
+                database_name=db_name,
+                sampled_collections=sampled_collections,
+                sample_limit=sample_limit,
+            )
+        except (PyMongoError, asyncio.TimeoutError, OSError, ConnectionRefusedError) as e:
+            sanitized = self._sanitize_error(e)
+            raise SchemaDiscoveryError(
+                f"Failed to discover schema from MongoDB '{source_name}': {sanitized}",
+                details=sanitized,
+            ) from e
+        except Exception as e:
+            sanitized = self._sanitize_error(e)
+            raise SchemaDiscoveryError(
+                f"Unexpected error during schema discovery for '{source_name}': {sanitized}",
+                details=sanitized,
+            ) from e
+        finally:
+            if is_internal_client and client is not None:
+                try:
+                    await client.close()
+                except Exception:
+                    pass
 
     def get_capabilities(self) -> SourceCapabilities:
         """Report physical capabilities for the MongoDB connector."""

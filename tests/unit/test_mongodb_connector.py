@@ -1,6 +1,7 @@
 """Unit tests for MongoDBConnector lifecycle, configuration, capabilities, and connection testing."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
+from bson import ObjectId
 import pytest
 
 from altr_stream.domain.connector import ParameterStyle
@@ -197,18 +198,80 @@ async def test_mongodb_test_connection_buildinfo_fallback(mongodb_config: Connec
 
 
 @pytest.mark.asyncio
-async def test_mongodb_unimplemented_stubs(mongodb_config: ConnectionConfig):
-    """Verify that schema discovery and query execution raise NotImplementedError in Phase 0.7.2a."""
+async def test_mongodb_discover_schema_mock_success(mongodb_config: ConnectionConfig):
+    """Test successful schema discovery using mock AsyncMongoClient and cursor."""
+    connector = MongoDBConnector(mongodb_config)
+
+    mock_cursor = MagicMock()
+    mock_cursor.sort.return_value = mock_cursor
+    mock_cursor.limit.return_value = mock_cursor
+    mock_cursor.to_list = AsyncMock(return_value=[
+        {"_id": ObjectId("507f1f77bcf86cd799439011"), "username": "alice", "score": 95},
+        {"_id": ObjectId("507f1f77bcf86cd799439012"), "username": "bob", "score": 88, "role": "admin"},
+    ])
+
+    mock_coll = MagicMock()
+    mock_coll.find.return_value = mock_cursor
+
+    mock_db = MagicMock()
+    mock_db.list_collection_names = AsyncMock(return_value=["users", "system.views", "system.profile"])
+    mock_db.__getitem__.return_value = mock_coll
+
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+    mock_client.close = AsyncMock()
+
+    with patch.object(connector, "_create_client", return_value=mock_client):
+        schema = await connector.discover_schema("src_1", "MongoDB Test")
+
+        assert schema.source_id == "src_1"
+        assert schema.source_name == "MongoDB Test"
+        assert schema.entity_count == 1
+        entity = schema.entities[0]
+        assert entity.name == "users"
+        assert entity.entity_type == "COLLECTION"
+
+        field_names = [f.name for f in entity.fields]
+        assert field_names == ["_id", "role", "score", "username"]
+
+        mock_coll.find.assert_called_once_with({})
+        mock_cursor.sort.assert_called_once_with("_id", 1)
+        mock_cursor.limit.assert_called_once_with(100)
+        mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mongodb_discover_schema_sanitizes_errors(mongodb_config: ConnectionConfig):
+    """Test discover_schema wraps errors in SchemaDiscoveryError and sanitizes passwords."""
+    connector = MongoDBConnector(mongodb_config)
+
+    mock_client = MagicMock()
+    mock_db = MagicMock()
+    mock_db.list_collection_names = AsyncMock(
+        side_effect=Exception(f"Failed to authenticate user altr_test_user with password {mongodb_config.password}")
+    )
+    mock_client.__getitem__.return_value = mock_db
+    mock_client.close = AsyncMock()
+
+    with patch.object(connector, "_create_client", return_value=mock_client):
+        with pytest.raises(Exception) as exc_info:
+            await connector.discover_schema("src_1", "MongoDB Test")
+
+        err_msg = str(exc_info.value)
+        assert "super_secret_mongo_password" not in err_msg
+        assert "••••••••" in err_msg
+        mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mongodb_query_execution_unimplemented_stubs(mongodb_config: ConnectionConfig):
+    """Verify that query execution and batch execution raise NotImplementedError for Phase 0.7.2c."""
     connector = MongoDBConnector(mongodb_config)
 
     with pytest.raises(NotImplementedError) as exc_info1:
-        await connector.discover_schema("src_1", "MongoDB Test")
-    assert "0.7.2b" in str(exc_info1.value)
+        await connector.execute_query("mongodb:find", [])
+    assert "0.7.2c" in str(exc_info1.value)
 
     with pytest.raises(NotImplementedError) as exc_info2:
-        await connector.execute_query("mongodb:find", [])
-    assert "0.7.2c" in str(exc_info2.value)
-
-    with pytest.raises(NotImplementedError) as exc_info3:
         await connector.execute_batch([])
-    assert "0.7.2c" in str(exc_info3.value)
+    assert "0.7.2c" in str(exc_info2.value)

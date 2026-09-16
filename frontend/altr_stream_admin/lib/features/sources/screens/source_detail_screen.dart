@@ -128,9 +128,14 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
             _selectedTableName = schema.entities.first.name;
           }
         });
+        final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
+        final count = schema.entityCount;
+        final entityTerm = isMongo
+            ? (count == 1 ? 'collection' : 'collections')
+            : (count == 1 ? 'table' : 'tables');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Schema discovered: ${schema.entityCount} tables found!'),
+            content: Text('Schema discovered: $count $entityTerm found!'),
             backgroundColor: AppTheme.getStatusColor('ACTIVE', context),
           ),
         );
@@ -372,8 +377,10 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                   _buildDivider(context),
                   _buildInfoRow(
                     context,
-                    'Discovered Tables',
-                    _schema != null ? '${_schema!.entityCount} tables (${_schema!.totalFieldCount} fields)' : 'No schema discovered yet',
+                    widget.source.type.toUpperCase() == 'MONGODB' ? 'Discovered Collections' : 'Discovered Tables',
+                    _schema != null
+                        ? '${_schema!.entityCount} ${widget.source.type.toUpperCase() == "MONGODB" ? (_schema!.entityCount == 1 ? "collection" : "collections") : (_schema!.entityCount == 1 ? "table" : "tables")} (${_schema!.totalFieldCount} fields)'
+                        : 'No schema discovered yet',
                   ),
                   _buildDivider(context),
                   _buildInfoRow(context, 'Registered Date', dateFormat.format(widget.source.createdAt)),
@@ -398,7 +405,9 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Run introspection to discover tables, columns, data types, and primary keys from this database.',
+                        widget.source.type.toUpperCase() == 'MONGODB'
+                            ? 'Run introspection to discover collections, fields, data types, and identifiers from this database.'
+                            : 'Run introspection to discover tables, columns, data types, and primary keys from this database.',
                         style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant, height: 1.4),
                       ),
                       const SizedBox(height: 16),
@@ -584,7 +593,9 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
             ),
             const SizedBox(height: 8),
             Text(
-              'Run schema discovery to introspect tables and fields from this database.',
+              widget.source.type.toUpperCase() == 'MONGODB'
+                  ? 'Run schema discovery to introspect collections and fields from this database.'
+                  : 'Run schema discovery to introspect tables and fields from this database.',
               style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 20),
@@ -609,11 +620,12 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
       (e) => e.name == _selectedTableName,
       orElse: () => currentEntities.isNotEmpty ? currentEntities.first : _schema!.entities.first,
     );
+    final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column: Namespaces & Tables Tree
+        // Left Column: Namespaces & Tables/Collections Tree
         SizedBox(
           width: 260,
           child: Card(
@@ -623,7 +635,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'SCHEMAS & TABLES',
+                    isMongo ? 'SCHEMAS & COLLECTIONS' : 'SCHEMAS & TABLES',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant, letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 12),
@@ -664,7 +676,11 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.table_chart_outlined, size: 14, color: colorScheme.onSurfaceVariant),
+                                    Icon(
+                                      isMongo ? Icons.folder_copy_outlined : Icons.table_chart_outlined,
+                                      size: 14,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
@@ -699,7 +715,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
         ),
         const SizedBox(width: 16),
 
-        // Right Column: Table Column Details
+        // Right Column: Table/Collection Column Details
         Expanded(
           child: Card(
             child: Padding(
@@ -712,7 +728,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.table_rows, color: colorScheme.primary, size: 18),
+                          Icon(isMongo ? Icons.dns_outlined : Icons.table_rows, color: colorScheme.primary, size: 18),
                           const SizedBox(width: 8),
                           Text(
                             '${currentEntity.namespace}.${currentEntity.name}',

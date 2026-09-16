@@ -346,11 +346,21 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
               label: Text(_isTabletSchemaOpen ? 'Hide Schema Explorer' : 'Show Schema Explorer'),
               style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
             ),
-            if (_schema != null)
-              Text(
-                '${_schema!.entityCount} tables available',
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+            if (_schema != null) ...[
+              Builder(
+                builder: (context) {
+                  final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
+                  final count = _schema!.entityCount;
+                  final entityTerm = isMongo
+                      ? (count == 1 ? 'collection' : 'collections')
+                      : (count == 1 ? 'table' : 'tables');
+                  return Text(
+                    '$count $entityTerm available',
+                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  );
+                },
               ),
+            ],
           ],
         ),
         const SizedBox(height: 10),
@@ -397,6 +407,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
   Widget _buildMobileLayout(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final canExecute = _queryController.text.trim().isNotEmpty && !_isExecuting;
+    final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -408,14 +419,23 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
             OutlinedButton.icon(
               onPressed: () => _showMobileSchemaBottomSheet(context),
               icon: const Icon(Icons.account_tree_outlined, size: 14),
-              label: const Text('Browse Schema Tables'),
+              label: Text(isMongo ? 'Browse Collections' : 'Browse Schema Tables'),
               style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
             ),
-            if (_schema != null)
-              Text(
-                '${_schema!.entityCount} tables',
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+            if (_schema != null) ...[
+              Builder(
+                builder: (context) {
+                  final count = _schema!.entityCount;
+                  final entityTerm = isMongo
+                      ? (count == 1 ? 'collection' : 'collections')
+                      : (count == 1 ? 'table' : 'tables');
+                  return Text(
+                    '$count $entityTerm',
+                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  );
+                },
               ),
+            ],
           ],
         ),
         const SizedBox(height: 10),

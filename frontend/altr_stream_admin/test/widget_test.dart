@@ -782,7 +782,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Schema Explorer'), findsOneWidget);
-    expect(find.text('1 tables • 2 columns'), findsOneWidget);
+    expect(find.text('1 table • 2 columns'), findsOneWidget);
     expect(find.text('users'), findsOneWidget);
 
     // Click "Query Table" template icon button
@@ -2069,15 +2069,13 @@ void main() {
       ),
     );
 
-    SourceModel? createdSource;
-
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: Scaffold(
           body: AddSourceWizardDialog(
             apiClient: mockClient,
-            onSourceCreated: (s) => createdSource = s,
+            onSourceCreated: (_) {},
           ),
         ),
       ),
@@ -2137,15 +2135,13 @@ void main() {
       ),
     );
 
-    SourceModel? createdSource;
-
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: Scaffold(
           body: AddSourceWizardDialog(
             apiClient: mockClient,
-            onSourceCreated: (s) => createdSource = s,
+            onSourceCreated: (_) {},
           ),
         ),
       ),
@@ -3563,7 +3559,152 @@ void main() {
     expect(find.text('EDITING'), findsNothing);
     expect(find.text('Edit'), findsOneWidget);
   });
+
+  testWidgets('SourceDetailScreen renders source-aware terminology for SQL (tables)', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sqlSource = SourceModel(
+      id: 'src_sql',
+      name: 'Test Postgres',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'testdb',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final sqlSchema = SourceSchemaModel(
+      sourceId: 'src_sql',
+      sourceName: 'Test Postgres',
+      version: '1.0.0',
+      discoveredAt: DateTime.now(),
+      entities: [
+        EntitySchemaModel(
+          name: 'users',
+          namespace: 'public',
+          entityType: 'TABLE',
+          fields: [
+            FieldSchemaModel(name: 'id', dataType: 'INTEGER', nativeDataType: 'int4', nullable: false, isPrimaryKey: true, position: 1),
+          ],
+          primaryKey: ['id'],
+          constraints: [],
+        ),
+      ],
+      metadata: {},
+    );
+
+    final sqlClient = MockTestApiClient(schemaToReturn: sqlSchema);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourceDetailScreen(
+            source: sqlSource,
+            apiClient: sqlClient,
+            onBack: () {},
+            onDelete: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Overview Tab should display "Discovered Tables" and "1 table (1 fields)"
+    expect(find.text('Discovered Tables'), findsOneWidget);
+    expect(find.text('1 table (1 fields)'), findsOneWidget);
+
+    // Click Discover Schema to verify snackbar terminology
+    await tester.tap(find.text('Discover Schema').first);
+    await tester.pump();
+    expect(find.text('Schema discovered: 1 table found!'), findsOneWidget);
+    await tester.pumpAndSettle();
+
+    // Switch to Discovered Schemas tab
+    await tester.tap(find.text('Discovered Schemas'));
+    await tester.pumpAndSettle();
+    expect(find.text('SCHEMAS & TABLES'), findsOneWidget);
+    expect(find.text('SCHEMAS & COLLECTIONS'), findsNothing);
+  });
+
+  testWidgets('SourceDetailScreen renders source-aware terminology for MongoDB (collections)', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mongoSource = SourceModel(
+      id: 'src_mongo',
+      name: 'Test Mongo',
+      type: 'MONGODB',
+      host: 'localhost',
+      port: 27017,
+      databaseName: 'altr_test_db',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mongoSchema = SourceSchemaModel(
+      sourceId: 'src_mongo',
+      sourceName: 'Test Mongo',
+      version: '1.0.0',
+      discoveredAt: DateTime.now(),
+      entities: [
+        EntitySchemaModel(
+          name: 'live_discovery_test',
+          namespace: 'altr_test_db',
+          entityType: 'COLLECTION',
+          fields: [
+            FieldSchemaModel(name: '_id', dataType: 'STRING', nativeDataType: 'objectId', nullable: false, isPrimaryKey: true, position: 1),
+          ],
+          primaryKey: ['_id'],
+          constraints: [],
+        ),
+      ],
+      metadata: {},
+    );
+
+    final mongoClient = MockTestApiClient(schemaToReturn: mongoSchema);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourceDetailScreen(
+            source: mongoSource,
+            apiClient: mongoClient,
+            onBack: () {},
+            onDelete: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Overview Tab should display "Discovered Collections" and "1 collection (1 fields)"
+    expect(find.text('Discovered Collections'), findsOneWidget);
+    expect(find.text('1 collection (1 fields)'), findsOneWidget);
+
+    // Click Discover Schema to verify snackbar terminology
+    await tester.tap(find.text('Discover Schema').first);
+    await tester.pump();
+    expect(find.text('Schema discovered: 1 collection found!'), findsOneWidget);
+    await tester.pumpAndSettle();
+
+    // Switch to Discovered Schemas tab
+    await tester.tap(find.text('Discovered Schemas'));
+    await tester.pumpAndSettle();
+    expect(find.text('SCHEMAS & COLLECTIONS'), findsOneWidget);
+    expect(find.text('SCHEMAS & TABLES'), findsNothing);
+  });
 }
+
 
 
 
