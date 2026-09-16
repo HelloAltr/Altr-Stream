@@ -294,7 +294,8 @@ class MongoDBConnector(BaseConnector):
                 raise QueryExecutionError("Each item in 'documents' must be a dictionary.")
 
         ordered = bool(spec.get("ordered", True))
-        result = await coll.insert_many(documents, ordered=ordered)
+        docs_to_insert = [dict(d) for d in documents]
+        result = await coll.insert_many(docs_to_insert, ordered=ordered)
 
         inserted_count = len(result.inserted_ids)
         inserted_rows = [{"_id": normalize_bson_value(id_val)} for id_val in result.inserted_ids]

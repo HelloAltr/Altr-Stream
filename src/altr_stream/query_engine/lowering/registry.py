@@ -11,6 +11,7 @@ from typing import Dict, Type, Union
 from altr_stream.domain.source import SourceType
 from altr_stream.query_engine.domain.errors import UnsupportedDialectError
 from altr_stream.query_engine.lowering.base import QueryLowerer
+from altr_stream.query_engine.lowering.mongodb import MongoDBLowerer
 from altr_stream.query_engine.lowering.mysql import MySQLLowerer
 from altr_stream.query_engine.lowering.postgres import PostgreSQLLowerer
 from altr_stream.query_engine.lowering.sqlite import SQLiteLowerer
@@ -25,6 +26,7 @@ class LowererRegistry:
         self.register(SourceType.POSTGRESQL, PostgreSQLLowerer)
         self.register(SourceType.SQLITE, SQLiteLowerer)
         self.register(SourceType.MYSQL, MySQLLowerer)
+        self.register(SourceType.MONGODB, MongoDBLowerer)
 
     def register(
         self,

@@ -76,8 +76,11 @@ from altr_stream.query_engine.domain import (
 )
 from altr_stream.query_engine.lowering import (
     LowererRegistry,
+    MongoDBLowerer,
+    MySQLLowerer,
     PostgreSQLLowerer,
     QueryLowerer,
+    SQLiteLowerer,
     get_lowerer,
 )
 from altr_stream.query_engine.parser import Lexer, Parser, Token, TokenType, parse_altrql
@@ -133,7 +136,10 @@ __all__ = [
     "QueryLoweringError",
     "QueryLowerer",
     "QueryOperation",
+    "MongoDBLowerer",
+    "MySQLLowerer",
     "PostgreSQLLowerer",
+    "SQLiteLowerer",
     "LowererRegistry",
     "Range",
     "RankingClause",

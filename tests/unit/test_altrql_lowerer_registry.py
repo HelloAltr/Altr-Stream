@@ -21,10 +21,15 @@ def test_registry_resolves_postgresql_by_string():
     assert isinstance(lowerer2, PostgreSQLLowerer)
 
 
+def test_registry_resolves_mongodb_by_enum():
+    lowerer = get_lowerer(SourceType.MONGODB)
+    assert lowerer.__class__.__name__ == "MongoDBLowerer"
+
+
 def test_registry_unsupported_dialect_raises_error():
     with pytest.raises(UnsupportedDialectError) as exc_info:
-        get_lowerer("mongodb")
-    assert "No AltrQL lowerer is registered for source dialect 'mongodb'." in str(exc_info.value)
+        get_lowerer("cassandra")
+    assert "No AltrQL lowerer is registered for source dialect 'cassandra'." in str(exc_info.value)
 
 
 def test_registry_custom_registration():
