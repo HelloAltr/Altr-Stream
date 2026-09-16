@@ -103,6 +103,7 @@ class QueryExecuteRequestDTO(BaseModel):
 
     source_id: str = Field(..., min_length=1, description="Registered data source ID")
     query: str = Field(..., min_length=1, description="Native query to execute")
+    mode: str | None = Field(default=None, description="Optional MongoDB query mode: 'shell' or 'physical'")
 
 
 class QueryMetadataDTO(BaseModel):

@@ -34,7 +34,7 @@ async def execute_query(
 ) -> QueryExecuteResponseDTO:
     """Execute a native query against a registered physical data source."""
     try:
-        result = await service.execute_query(source_id=dto.source_id, query=dto.query)
+        result = await service.execute_query(source_id=dto.source_id, query=dto.query, mode=dto.mode)
         return QueryExecuteResponseDTO(
             success=True,
             columns=result.columns,

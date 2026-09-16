@@ -5,6 +5,7 @@ from bson import ObjectId
 import pytest
 
 from altr_stream.domain.connector import ParameterStyle
+from altr_stream.domain.errors import QueryExecutionError
 from altr_stream.domain.source import ConnectionConfig, SourceType
 from altr_stream.infrastructure.connectors.factory import ConnectorFactory
 from altr_stream.infrastructure.connectors.mongodb.connector import MongoDBConnector
@@ -264,14 +265,252 @@ async def test_mongodb_discover_schema_sanitizes_errors(mongodb_config: Connecti
 
 
 @pytest.mark.asyncio
-async def test_mongodb_query_execution_unimplemented_stubs(mongodb_config: ConnectionConfig):
-    """Verify that query execution and batch execution raise NotImplementedError for Phase 0.7.2c."""
+async def test_mongodb_execute_query_find(mongodb_config: ConnectionConfig):
+    """Test find execution with filters, sorting, limit, and normalized results."""
+    from bson import Decimal128
+    from datetime import datetime, timezone
+
     connector = MongoDBConnector(mongodb_config)
 
-    with pytest.raises(NotImplementedError) as exc_info1:
-        await connector.execute_query("mongodb:find", [])
-    assert "0.7.2c" in str(exc_info1.value)
+    mock_cursor = MagicMock()
+    mock_cursor.sort.return_value = mock_cursor
+    mock_cursor.skip.return_value = mock_cursor
+    mock_cursor.limit.return_value = mock_cursor
+    mock_cursor.to_list = AsyncMock(return_value=[
+        {
+            "_id": ObjectId("507f1f77bcf86cd799439011"),
+            "username": "alice",
+            "balance": Decimal128("120.50"),
+            "created_at": datetime(2026, 9, 16, 8, 0, 0, tzinfo=timezone.utc),
+            "role": "admin",
+        }
+    ])
 
-    with pytest.raises(NotImplementedError) as exc_info2:
-        await connector.execute_batch([])
-    assert "0.7.2c" in str(exc_info2.value)
+    mock_coll = MagicMock()
+    mock_coll.find.return_value = mock_cursor
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_coll
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+    mock_client.close = AsyncMock()
+
+    with patch.object(connector, "_create_client", return_value=mock_client):
+        spec = {
+            "collection": "users",
+            "filter": {"role": "admin"},
+            "projection": {"_id": 1, "username": 1, "balance": 1, "created_at": 1, "role": 1},
+            "sort": [("created_at", -1)],
+            "limit": 10,
+            "skip": 0,
+        }
+        res = await connector.execute_query("mongodb:find", parameters=[spec])
+
+        assert res.row_count == 1
+        assert res.affected_rows is None
+        assert res.columns == ["_id", "username", "balance", "created_at", "role"]
+        assert len(res.rows) == 1
+        assert res.rows[0]["_id"] == "507f1f77bcf86cd799439011"
+        assert res.rows[0]["username"] == "alice"
+        assert res.rows[0]["balance"] == Decimal128("120.50").to_decimal()
+        assert res.rows[0]["created_at"] == datetime(2026, 9, 16, 8, 0, 0, tzinfo=timezone.utc)
+        assert res.execution_time_ms >= 0
+
+        mock_coll.find.assert_called_once_with(
+            filter={"role": "admin"},
+            projection={"_id": 1, "username": 1, "balance": 1, "created_at": 1, "role": 1},
+        )
+        mock_cursor.sort.assert_called_once_with([("created_at", -1)])
+        mock_cursor.limit.assert_called_once_with(10)
+        mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mongodb_execute_query_insert_many(mongodb_config: ConnectionConfig):
+    """Test insert_many execution returning inserted count, affected rows, and inserted IDs."""
+    connector = MongoDBConnector(mongodb_config)
+
+    mock_insert_result = MagicMock()
+    mock_insert_result.inserted_ids = [
+        ObjectId("507f1f77bcf86cd799439011"),
+        ObjectId("507f1f77bcf86cd799439012"),
+    ]
+
+    mock_coll = MagicMock()
+    mock_coll.insert_many = AsyncMock(return_value=mock_insert_result)
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_coll
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+    mock_client.close = AsyncMock()
+
+    with patch.object(connector, "_create_client", return_value=mock_client):
+        spec = {
+            "collection": "users",
+            "documents": [
+                {"username": "user1"},
+                {"username": "user2"},
+            ],
+            "ordered": True,
+        }
+        res = await connector.execute_query("mongodb:insert_many", parameters=[spec])
+
+        assert res.row_count == 2
+        assert res.affected_rows == 2
+        assert res.columns == ["_id"]
+        assert len(res.rows) == 2
+        assert res.rows[0]["_id"] == "507f1f77bcf86cd799439011"
+        assert res.rows[1]["_id"] == "507f1f77bcf86cd799439012"
+        assert "Inserted 2 document(s)" in (res.message or "")
+
+        mock_coll.insert_many.assert_awaited_once_with(
+            [{"username": "user1"}, {"username": "user2"}],
+            ordered=True,
+        )
+        mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mongodb_execute_query_update_many(mongodb_config: ConnectionConfig):
+    """Test update_many execution returning modified count as affected rows."""
+    connector = MongoDBConnector(mongodb_config)
+
+    mock_update_result = MagicMock()
+    mock_update_result.modified_count = 3
+    mock_update_result.matched_count = 3
+
+    mock_coll = MagicMock()
+    mock_coll.update_many = AsyncMock(return_value=mock_update_result)
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_coll
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+    mock_client.close = AsyncMock()
+
+    with patch.object(connector, "_create_client", return_value=mock_client):
+        spec = {
+            "collection": "users",
+            "filter": {"role": "guest"},
+            "update": {"$set": {"status": "archived"}},
+            "upsert": False,
+        }
+        res = await connector.execute_query("mongodb:update_many", parameters=[spec])
+
+        assert res.row_count == 0
+        assert res.affected_rows == 3
+        assert res.columns == []
+        assert res.rows == []
+        assert "Updated 3 document(s)" in (res.message or "")
+
+        mock_coll.update_many.assert_awaited_once_with(
+            filter={"role": "guest"},
+            update={"$set": {"status": "archived"}},
+            upsert=False,
+        )
+        mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mongodb_execute_query_delete_many(mongodb_config: ConnectionConfig):
+    """Test delete_many execution returning deleted count as affected rows."""
+    connector = MongoDBConnector(mongodb_config)
+
+    mock_delete_result = MagicMock()
+    mock_delete_result.deleted_count = 4
+
+    mock_coll = MagicMock()
+    mock_coll.delete_many = AsyncMock(return_value=mock_delete_result)
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_coll
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+    mock_client.close = AsyncMock()
+
+    with patch.object(connector, "_create_client", return_value=mock_client):
+        spec = {
+            "collection": "logs",
+            "filter": {"level": "debug"},
+        }
+        res = await connector.execute_query("mongodb:delete_many", parameters=[spec])
+
+        assert res.row_count == 0
+        assert res.affected_rows == 4
+        assert res.columns == []
+        assert res.rows == []
+        assert "Deleted 4 document(s)" in (res.message or "")
+
+        mock_coll.delete_many.assert_awaited_once_with(filter={"level": "debug"})
+        mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mongodb_execute_batch_success(mongodb_config: ConnectionConfig):
+    """Test execute_batch executing multiple commands sequentially."""
+    connector = MongoDBConnector(mongodb_config)
+
+    mock_insert_result = MagicMock()
+    mock_insert_result.inserted_ids = [ObjectId("507f1f77bcf86cd799439011")]
+
+    mock_update_result = MagicMock()
+    mock_update_result.modified_count = 2
+    mock_update_result.matched_count = 2
+
+    mock_coll = MagicMock()
+    mock_coll.insert_many = AsyncMock(return_value=mock_insert_result)
+    mock_coll.update_many = AsyncMock(return_value=mock_update_result)
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_coll
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+    mock_client.close = AsyncMock()
+
+    with patch.object(connector, "_create_client", return_value=mock_client):
+        batch = [
+            ("mongodb:insert_many", [{"collection": "users", "documents": [{"name": "alice"}]}]),
+            ("mongodb:update_many", [{"collection": "users", "filter": {}, "update": {"$set": {"active": True}}}]),
+        ]
+        res = await connector.execute_batch(batch)
+
+        assert res.affected_rows == 3  # 1 inserted + 2 modified
+        mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mongodb_execute_query_validation_and_error_sanitization(mongodb_config: ConnectionConfig):
+    """Test that invalid command specs and driver errors are caught, wrapped in QueryExecutionError, and sanitized."""
+    connector = MongoDBConnector(mongodb_config)
+
+    # 1. Missing collection
+    with pytest.raises(QueryExecutionError) as exc_info1:
+        await connector.execute_query("mongodb:find", parameters=[{"filter": {}}])
+    assert "collection" in str(exc_info1.value)
+
+    # 2. Unsupported operation
+    with pytest.raises(QueryExecutionError) as exc_info2:
+        await connector.execute_query("mongodb:drop_database", parameters=[{"collection": "users"}])
+    assert "Unsupported MongoDB operation" in str(exc_info2.value)
+
+    # 3. Missing parameters dictionary
+    with pytest.raises(QueryExecutionError) as exc_info3:
+        await connector.execute_query("mongodb:find", parameters=[])
+    assert "dictionary specification" in str(exc_info3.value)
+
+    # 4. Driver exception sanitizes passwords
+    mock_coll = MagicMock()
+    mock_coll.find.side_effect = Exception(
+        f"Server error with password {mongodb_config.password} on mongodb://user:{mongodb_config.password}@localhost:27017"
+    )
+    mock_db = MagicMock()
+    mock_db.__getitem__.return_value = mock_coll
+    mock_client = MagicMock()
+    mock_client.__getitem__.return_value = mock_db
+    mock_client.close = AsyncMock()
+
+    with patch.object(connector, "_create_client", return_value=mock_client):
+        with pytest.raises(QueryExecutionError) as exc_info4:
+            await connector.execute_query("mongodb:find", parameters=[{"collection": "users"}])
+
+        err_msg = str(exc_info4.value)
+        assert "super_secret_mongo_password" not in err_msg
+        assert "••••••••" in err_msg
+        mock_client.close.assert_awaited_once()
+

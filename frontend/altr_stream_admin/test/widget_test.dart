@@ -14,6 +14,8 @@ import 'package:altr_stream_admin/features/source_playground/widgets/schema_expl
 import 'package:altr_stream_admin/features/source_playground/widgets/command_outcome_panel.dart';
 import 'package:altr_stream_admin/features/source_playground/widgets/destructive_query_dialog.dart';
 import 'package:altr_stream_admin/features/source_playground/widgets/query_editor.dart';
+import 'package:altr_stream_admin/features/source_playground/widgets/query_error_panel.dart';
+import 'package:altr_stream_admin/features/source_playground/widgets/query_metadata_banner.dart';
 import 'package:altr_stream_admin/features/source_playground/widgets/query_result_table.dart';
 import 'package:altr_stream_admin/features/registry/screens/logical_model_detail_screen.dart';
 import 'package:altr_stream_admin/features/registry/screens/registry_screen.dart';
@@ -31,6 +33,7 @@ class MockTestApiClient extends ApiClient {
   final SourceModel? sourceToReturnOnCreate;
   final List<SourceMappingModel>? mappingsToReturn;
   final List<LogicalModelModel>? modelsToReturn;
+  final Object? queryErrorToThrow;
 
   Map<String, dynamic>? lastTestAdhocParams;
   Map<String, dynamic>? lastCreateSourceParams;
@@ -48,6 +51,7 @@ class MockTestApiClient extends ApiClient {
     this.sourceToReturnOnCreate,
     this.mappingsToReturn,
     this.modelsToReturn,
+    this.queryErrorToThrow,
   });
 
   @override
@@ -428,7 +432,11 @@ class MockTestApiClient extends ApiClient {
   Future<QueryExecuteResponseModel> executeQuery({
     required String sourceId,
     required String query,
+    String? mode,
   }) async {
+    if (queryErrorToThrow != null) {
+      throw queryErrorToThrow!;
+    }
     return queryResponseToReturn ??
         QueryExecuteResponseModel(
           success: true,
@@ -904,9 +912,15 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify result table rendered
+    expect(find.byType(QueryMetadataBanner), findsOneWidget);
     expect(find.byType(QueryResultTable), findsOneWidget);
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('Bob'), findsOneWidget);
+
+    // Verify Copy Results action
+    expect(find.text('Copy Results'), findsOneWidget);
+    await tester.tap(find.text('Copy Results'));
+    await tester.pump();
   });
 
   testWidgets('QueryEditor displays DB-specific sample hint text for PostgreSQL, MySQL, SQLite, and MongoDB', (WidgetTester tester) async {
@@ -919,7 +933,7 @@ void main() {
       'POSTGRESQL': 'Type in a PostgreSQL query to execute it',
       'MYSQL': 'Type in a MySQL query to execute it',
       'SQLITE': 'Type in a SQLite query to execute it',
-      'MONGODB': 'Type in a MongoDB query to execute it',
+      'MONGODB': 'Type a MongoDB query, e.g. db.users.find().pretty()',
     };
 
     for (final entry in types.entries) {
@@ -1040,6 +1054,11 @@ void main() {
     expect(find.byType(CommandOutcomePanel), findsOneWidget);
     expect(find.text('Command Executed Successfully'), findsOneWidget);
     expect(find.text('DROP TABLE'), findsOneWidget);
+
+    // Verify Copy Details action
+    expect(find.text('Copy Details'), findsOneWidget);
+    await tester.tap(find.text('Copy Details'));
+    await tester.pump();
   });
 
   testWidgets('Query editor remains fully editable and focused after execution failure, cancellation, and clear', (WidgetTester tester) async {
@@ -1124,6 +1143,59 @@ void main() {
     await tester.enterText(editorField, 'SELECT 3;');
     await tester.pump();
     expect(find.text('SELECT 3;'), findsOneWidget);
+  });
+
+  testWidgets('SourcePlaygroundView displays error with Copy Error button on execution failure', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'src_pg_1',
+      name: 'Primary PostgreSQL',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'testdb',
+      username: 'postgres',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient(
+      queryErrorToThrow: ApiException(message: 'syntax error at or near "SELECTT"', statusCode: 400),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SizedBox(
+            height: 700,
+            child: SourcePlaygroundView(
+              source: mockSource,
+              apiClient: mockClient,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editorField = find.descendant(of: find.byType(QueryEditor), matching: find.byType(TextField));
+    await tester.enterText(editorField, 'SELECTT 1;');
+    await tester.pump();
+
+    await tester.tap(find.text('Run Query'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(QueryErrorPanel), findsOneWidget);
+    expect(find.text('Query Execution Failed'), findsOneWidget);
+    expect(find.text('Copy Error'), findsOneWidget);
+    await tester.tap(find.text('Copy Error'));
+    await tester.pump();
   });
 
   testWidgets('Query editor supports consecutive query executions without losing focus or editability', (WidgetTester tester) async {
@@ -3703,7 +3775,140 @@ void main() {
     expect(find.text('SCHEMAS & COLLECTIONS'), findsOneWidget);
     expect(find.text('SCHEMAS & TABLES'), findsNothing);
   });
+
+  testWidgets('MongoDB Source Playground defaults to MongoDB Shell mode with dropdown', (WidgetTester tester) async {
+    final mongoSource = SourceModel(
+      id: 'mongo_pg_1',
+      name: 'MongoDB Playground Source',
+      type: 'MONGODB',
+      host: 'localhost',
+      port: 27017,
+      databaseName: 'altr_test_db',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final client = MockTestApiClient();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourcePlaygroundView(
+            source: mongoSource,
+            apiClient: client,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify badge and mode dropdown
+    expect(find.text('MONGODB QUERY'), findsOneWidget);
+    expect(find.text('MongoDB Shell'), findsOneWidget);
+    expect(find.text('Type a MongoDB query, e.g. db.users.find().pretty()'), findsOneWidget);
+  });
+
+  testWidgets('SQL Source Playground does not show MongoDB query mode dropdown', (WidgetTester tester) async {
+    final pgSource = SourceModel(
+      id: 'pg_pg_1',
+      name: 'PostgreSQL Playground Source',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'altr_test_db',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final client = MockTestApiClient();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourcePlaygroundView(
+            source: pgSource,
+            apiClient: client,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify badge and lack of MongoDB mode dropdown
+    expect(find.text('POSTGRESQL QUERY'), findsOneWidget);
+    expect(find.text('MongoDB Shell'), findsNothing);
+    expect(find.text('Physical Command'), findsNothing);
+    expect(find.text('Type in a PostgreSQL query to execute it'), findsOneWidget);
+  });
+
+  testWidgets('MongoDB Source Playground mode switching with non-empty editor triggers confirmation dialog', (WidgetTester tester) async {
+    final mongoSource = SourceModel(
+      id: 'mongo_pg_2',
+      name: 'MongoDB Mode Switch Source',
+      type: 'MONGODB',
+      host: 'localhost',
+      port: 27017,
+      databaseName: 'altr_test_db',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final client = MockTestApiClient();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourcePlaygroundView(
+            source: mongoSource,
+            apiClient: client,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Enter query in editor
+    await tester.enterText(find.byType(TextField), 'db.users.find()');
+    await tester.pumpAndSettle();
+
+    // Tap Mode dropdown to switch to Physical Command
+    await tester.tap(find.text('MongoDB Shell'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Physical Command').last);
+    await tester.pumpAndSettle();
+
+    // Confirmation dialog should appear
+    expect(find.text('Switch Query Mode?'), findsOneWidget);
+    expect(find.textContaining('The current query uses MongoDB Shell syntax'), findsOneWidget);
+
+    // Cancel first
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Still in Shell mode and editor unchanged
+    expect(find.text('MongoDB Shell'), findsOneWidget);
+    expect(find.text('db.users.find()'), findsOneWidget);
+
+    // Open dropdown again and click Switch
+    await tester.tap(find.text('MongoDB Shell'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Physical Command').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Switch'));
+    await tester.pumpAndSettle();
+
+    // Now in Physical Command mode
+    expect(find.text('Physical Command'), findsOneWidget);
+    expect(find.text('Type a physical JSON command, e.g. {"collection": "users", "filter": {}}'), findsOneWidget);
+  });
 }
+
 
 
 

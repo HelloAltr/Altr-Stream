@@ -4,12 +4,14 @@ class QueryMetadataBanner extends StatelessWidget {
   final int rowCount;
   final double executionTimeMs;
   final String sourceName;
+  final VoidCallback? onCopyResults;
 
   const QueryMetadataBanner({
     super.key,
     required this.rowCount,
     required this.executionTimeMs,
     required this.sourceName,
+    this.onCopyResults,
   });
 
   @override
@@ -25,60 +27,87 @@ class QueryMetadataBanner extends StatelessWidget {
         border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check_circle, size: 14, color: colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(
-            'Success',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.primary,
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle, size: 14, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Success',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '·',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$rowCount ${rowCount == 1 ? "row" : "rows"}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '·',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${executionTimeMs.toStringAsFixed(1)} ms',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '·',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    sourceName,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            '·',
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$rowCount ${rowCount == 1 ? "row" : "rows"}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: colorScheme.onSurface,
+          if (onCopyResults != null) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onCopyResults,
+              icon: const Icon(Icons.copy, size: 12),
+              label: const Text(
+                'Copy Results',
+                style: TextStyle(fontSize: 11),
+              ),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '·',
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${executionTimeMs.toStringAsFixed(1)} ms',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: colorScheme.onSurfaceVariant,
-              fontFamily: 'monospace',
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '·',
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            sourceName,
-            style: TextStyle(
-              fontSize: 11,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
+          ],
         ],
       ),
     );

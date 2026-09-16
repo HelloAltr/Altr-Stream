@@ -207,10 +207,12 @@ class ApiClient {
   Future<QueryExecuteResponseModel> executeQuery({
     required String sourceId,
     required String query,
+    String? mode,
   }) async {
     final body = jsonEncode({
       'source_id': sourceId,
       'query': query,
+      if (mode != null && mode.isNotEmpty) 'mode': mode,
     });
 
     final res = await _client.post(

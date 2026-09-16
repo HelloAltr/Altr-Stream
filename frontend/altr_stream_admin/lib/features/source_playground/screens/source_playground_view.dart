@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../widgets/command_outcome_panel.dart';
@@ -37,6 +39,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
   QueryExecuteResponseModel? _response;
   String? _errorMessage;
   bool _isTabletSchemaOpen = false;
+  String _mongoQueryMode = 'shell'; // 'shell' (default) or 'physical'
 
   @override
   void initState() {
@@ -107,10 +110,65 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
     }
   }
 
+  Future<void> _handleMongoQueryModeChanged(String newMode) async {
+    if (newMode == _mongoQueryMode) return;
+
+    final currentText = _queryController.text.trim();
+    if (currentText.isEmpty) {
+      setState(() {
+        _mongoQueryMode = newMode;
+      });
+      _focusNode.requestFocus();
+      return;
+    }
+
+    final currentModeName = _mongoQueryMode == 'shell' ? 'MongoDB Shell' : 'Physical Command';
+    final newModeName = newMode == 'shell' ? 'MongoDB Shell' : 'Physical Command';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Switch Query Mode?'),
+        content: Text(
+          'The current query uses $currentModeName syntax.\nSwitching modes will clear the query editor for $newModeName mode.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Switch'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      setState(() {
+        _mongoQueryMode = newMode;
+        _queryController.clear();
+        _response = null;
+        _errorMessage = null;
+      });
+      _focusNode.requestFocus();
+    }
+  }
+
   void _insertTableTemplate(EntitySchemaModel entity) {
-    final template = widget.source.type.toUpperCase() == 'MONGODB'
-        ? 'db.${entity.name}.find().limit(100);\n'
-        : 'SELECT * FROM ${entity.name} LIMIT 100;\n';
+    final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
+    String template;
+    if (isMongo) {
+      if (_mongoQueryMode == 'physical') {
+        template = '{\n  "collection": "${entity.name}",\n  "filter": {}\n}\n';
+      } else {
+        template = 'db.${entity.name}.find().pretty();\n';
+      }
+    } else {
+      template = 'SELECT * FROM ${entity.name} LIMIT 100;\n';
+    }
+
     setState(() {
       _queryController.text = template;
       _response = null;
@@ -139,6 +197,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
     if (_isExecuting || _queryController.text.trim().isEmpty) return;
 
     final queryText = _queryController.text.trim();
+    final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
 
     // UX Safety Guardrail: Confirm destructive operations
     if (isDestructiveQuery(queryText)) {
@@ -163,6 +222,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
       final res = await widget.apiClient.executeQuery(
         sourceId: widget.source.id,
         query: queryText,
+        mode: isMongo ? _mongoQueryMode : null,
       );
       if (mounted) {
         setState(() {
@@ -200,6 +260,40 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
       _errorMessage = null;
     });
     _focusNode.requestFocus();
+  }
+
+  void _copyToClipboard(String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        width: 320,
+      ),
+    );
+  }
+
+  void _copyQueryResults() {
+    if (_response == null) return;
+    if (_response!.isCommandOutcome) {
+      final details = {
+        'source': widget.source.name,
+        'status': _response!.metadata.message ?? 'Command executed successfully',
+        'affectedRows': _response!.metadata.affectedRows,
+        'executionTimeMs': _response!.metadata.executionTimeMs,
+      };
+      final jsonString = const JsonEncoder.withIndent('  ').convert(details);
+      _copyToClipboard(jsonString, 'Command outcome details');
+    } else {
+      final jsonString = const JsonEncoder.withIndent('  ').convert(_response!.rows);
+      _copyToClipboard(jsonString, 'Query results JSON');
+    }
+  }
+
+  void _copyQueryError() {
+    if (_errorMessage == null) return;
+    _copyToClipboard(_errorMessage!, 'Error message');
   }
 
   void _showMobileSchemaBottomSheet(BuildContext context) {
@@ -275,6 +369,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
   Widget _buildDesktopLayout(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final canExecute = _queryController.text.trim().isNotEmpty && !_isExecuting;
+    final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -301,11 +396,13 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
             children: [
               // Query Editor Panel
               SizedBox(
-                height: 190,
+                height: 280,
                 child: QueryEditor(
                   controller: _queryController,
                   focusNode: _focusNode,
                   selectedSource: widget.source,
+                  mongoQueryMode: isMongo ? _mongoQueryMode : null,
+                  onMongoQueryModeChanged: _handleMongoQueryModeChanged,
                   isExecuting: _isExecuting,
                   canExecute: canExecute,
                   onExecute: _executeQuery,
@@ -328,6 +425,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
   Widget _buildTabletLayout(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final canExecute = _queryController.text.trim().isNotEmpty && !_isExecuting;
+    final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -349,9 +447,9 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
             if (_schema != null) ...[
               Builder(
                 builder: (context) {
-                  final isMongo = widget.source.type.toUpperCase() == 'MONGODB';
+                  final isMongoSource = widget.source.type.toUpperCase() == 'MONGODB';
                   final count = _schema!.entityCount;
-                  final entityTerm = isMongo
+                  final entityTerm = isMongoSource
                       ? (count == 1 ? 'collection' : 'collections')
                       : (count == 1 ? 'table' : 'tables');
                   return Text(
@@ -383,11 +481,13 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
 
         // Editor
         SizedBox(
-          height: 180,
+          height: 240,
           child: QueryEditor(
             controller: _queryController,
             focusNode: _focusNode,
             selectedSource: widget.source,
+            mongoQueryMode: isMongo ? _mongoQueryMode : null,
+            onMongoQueryModeChanged: _handleMongoQueryModeChanged,
             isExecuting: _isExecuting,
             canExecute: canExecute,
             onExecute: _executeQuery,
@@ -441,11 +541,13 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
         const SizedBox(height: 10),
 
         SizedBox(
-          height: 160,
+          height: 200,
           child: QueryEditor(
             controller: _queryController,
             focusNode: _focusNode,
             selectedSource: widget.source,
+            mongoQueryMode: isMongo ? _mongoQueryMode : null,
+            onMongoQueryModeChanged: _handleMongoQueryModeChanged,
             isExecuting: _isExecuting,
             canExecute: canExecute,
             onExecute: _executeQuery,
@@ -483,6 +585,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
         child: QueryErrorPanel(
           errorMessage: _errorMessage!,
           onDismiss: () => setState(() => _errorMessage = null),
+          onCopy: _copyQueryError,
         ),
       );
     }
@@ -495,6 +598,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
             rowCount: _response!.metadata.rowCount,
             executionTimeMs: _response!.metadata.executionTimeMs,
             sourceName: widget.source.name,
+            onCopyResults: _copyQueryResults,
           ),
           const SizedBox(height: 10),
           Expanded(
@@ -503,6 +607,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
                     child: CommandOutcomePanel(
                       metadata: _response!.metadata,
                       sourceName: widget.source.name,
+                      onCopy: _copyQueryResults,
                     ),
                   )
                 : QueryResultTable(

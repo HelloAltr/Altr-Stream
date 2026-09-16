@@ -15,13 +15,16 @@ from altr_stream.domain.connector import (
     ParameterStyle,
     SourceCapabilities,
 )
-from altr_stream.domain.errors import SchemaDiscoveryError
+from altr_stream.domain.errors import QueryExecutionError, SchemaDiscoveryError
 from altr_stream.domain.query import QueryResult
 from altr_stream.domain.schema import SourceSchema
 from altr_stream.domain.source import ConnectionConfig, SourceType
 from altr_stream.infrastructure.connectors.factory import ConnectorFactory
 from altr_stream.infrastructure.connectors.mongodb.mapper import (
     build_source_schema_from_mongodb_samples,
+    extract_columns_from_documents,
+    normalize_bson_document,
+    normalize_bson_value,
 )
 
 
@@ -243,10 +246,235 @@ class MongoDBConnector(BaseConnector):
             supported_operations=["find", "insert_many", "update_many", "delete_many"],
         )
 
+    async def _execute_find(self, db: Any, spec: dict[str, Any], start_time: float) -> QueryResult:
+        coll_name = spec["collection"]
+        coll = db[coll_name]
+        filter_doc = spec.get("filter", {})
+        if not isinstance(filter_doc, dict):
+            raise QueryExecutionError("MongoDB 'find' filter must be a dictionary.")
+
+        projection = spec.get("projection")
+        if projection is not None and not isinstance(projection, dict):
+            raise QueryExecutionError("MongoDB 'find' projection must be a dictionary.")
+
+        cursor = coll.find(filter=filter_doc, projection=projection)
+
+        if "sort" in spec and spec["sort"] is not None:
+            cursor = cursor.sort(spec["sort"])
+        if "skip" in spec and spec["skip"] is not None:
+            cursor = cursor.skip(int(spec["skip"]))
+        if "limit" in spec and spec["limit"] is not None:
+            cursor = cursor.limit(int(spec["limit"]))
+
+        limit_val = spec.get("limit")
+        fetch_length = int(limit_val) if limit_val is not None and int(limit_val) > 0 else 1000
+        raw_docs = await cursor.to_list(length=fetch_length)
+
+        normalized_rows = [normalize_bson_document(d) for d in raw_docs]
+        columns = extract_columns_from_documents(raw_docs, projection=projection)
+        execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+
+        return QueryResult(
+            columns=columns,
+            rows=normalized_rows,
+            row_count=len(normalized_rows),
+            affected_rows=None,
+            message="Query executed successfully",
+            execution_time_ms=execution_time_ms,
+        )
+
+    async def _execute_insert_many(self, db: Any, spec: dict[str, Any], start_time: float) -> QueryResult:
+        coll_name = spec["collection"]
+        coll = db[coll_name]
+        documents = spec.get("documents")
+        if not isinstance(documents, list) or len(documents) == 0:
+            raise QueryExecutionError("MongoDB 'insert_many' requires a non-empty list of document dictionaries in 'documents'.")
+        for doc in documents:
+            if not isinstance(doc, dict):
+                raise QueryExecutionError("Each item in 'documents' must be a dictionary.")
+
+        ordered = bool(spec.get("ordered", True))
+        result = await coll.insert_many(documents, ordered=ordered)
+
+        inserted_count = len(result.inserted_ids)
+        inserted_rows = [{"_id": normalize_bson_value(id_val)} for id_val in result.inserted_ids]
+        execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+
+        return QueryResult(
+            columns=["_id"],
+            rows=inserted_rows,
+            row_count=inserted_count,
+            affected_rows=inserted_count,
+            message=f"Inserted {inserted_count} document(s)",
+            execution_time_ms=execution_time_ms,
+        )
+
+    async def _execute_update_many(self, db: Any, spec: dict[str, Any], start_time: float) -> QueryResult:
+        coll_name = spec["collection"]
+        coll = db[coll_name]
+        filter_doc = spec.get("filter", {})
+        if not isinstance(filter_doc, dict):
+            raise QueryExecutionError("MongoDB 'update_many' filter must be a dictionary.")
+
+        update_doc = spec.get("update")
+        if not isinstance(update_doc, dict) or not update_doc:
+            raise QueryExecutionError("MongoDB 'update_many' requires a non-empty update dictionary in 'update'.")
+
+        upsert = bool(spec.get("upsert", False))
+        result = await coll.update_many(filter=filter_doc, update=update_doc, upsert=upsert)
+
+        execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+        return QueryResult(
+            columns=[],
+            rows=[],
+            row_count=0,
+            affected_rows=result.modified_count,
+            message=f"Updated {result.modified_count} document(s) (matched {result.matched_count})",
+            execution_time_ms=execution_time_ms,
+        )
+
+    async def _execute_delete_many(self, db: Any, spec: dict[str, Any], start_time: float) -> QueryResult:
+        coll_name = spec["collection"]
+        coll = db[coll_name]
+        filter_doc = spec.get("filter", {})
+        if not isinstance(filter_doc, dict):
+            raise QueryExecutionError("MongoDB 'delete_many' filter must be a dictionary.")
+
+        result = await coll.delete_many(filter=filter_doc)
+
+        execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+        return QueryResult(
+            columns=[],
+            rows=[],
+            row_count=0,
+            affected_rows=result.deleted_count,
+            message=f"Deleted {result.deleted_count} document(s)",
+            execution_time_ms=execution_time_ms,
+        )
+
+    async def _dispatch_command(
+        self, db: Any, query: str, parameters: list[Any] | None, start_time: float
+    ) -> QueryResult:
+        if not query or not isinstance(query, str):
+            raise QueryExecutionError("MongoDB query must be a non-empty operation string (e.g. 'mongodb:find').")
+
+        op = query.replace("mongodb:", "").strip().lower()
+        spec = parameters[0] if parameters and len(parameters) > 0 and isinstance(parameters[0], dict) else {}
+
+        if not spec or not isinstance(spec, dict):
+            raise QueryExecutionError("MongoDB command requires a dictionary specification in parameters.")
+
+        if "collection" not in spec or not isinstance(spec["collection"], str) or not spec["collection"].strip():
+            raise QueryExecutionError("MongoDB command specification missing required string field 'collection'.")
+
+        if op == "find":
+            return await self._execute_find(db, spec, start_time)
+        elif op == "insert_many":
+            return await self._execute_insert_many(db, spec, start_time)
+        elif op == "update_many":
+            return await self._execute_update_many(db, spec, start_time)
+        elif op == "delete_many":
+            return await self._execute_delete_many(db, spec, start_time)
+        else:
+            raise QueryExecutionError(
+                f"Unsupported MongoDB operation: '{op}'. Supported operations are: 'find', 'insert_many', 'update_many', 'delete_many'."
+            )
+
     async def execute_query(self, query: str, parameters: list[Any] | None = None) -> QueryResult:
-        """Execute a native MongoDB command and return normalized results."""
-        raise NotImplementedError("MongoDB query execution will be implemented in Phase 0.7.2c.")
+        """Execute a native MongoDB command and return normalized QueryResult."""
+        start_time = time_module.perf_counter()
+        client = None
+        is_internal_client = False
+        try:
+            if self._client is not None:
+                client = self._client
+            else:
+                client = self._create_client()
+                is_internal_client = True
+
+            db_name = self.config.database_name or "admin"
+            db = client[db_name]
+
+            return await self._dispatch_command(db, query, parameters, start_time)
+        except QueryExecutionError:
+            raise
+        except (PyMongoError, asyncio.TimeoutError, OSError, ConnectionRefusedError) as e:
+            sanitized = self._sanitize_error(e)
+            raise QueryExecutionError(
+                f"MongoDB query execution failed: {sanitized}",
+                details=sanitized,
+            ) from e
+        except Exception as e:
+            sanitized = self._sanitize_error(e)
+            raise QueryExecutionError(
+                f"Unexpected error executing MongoDB query: {sanitized}",
+                details=sanitized,
+            ) from e
+        finally:
+            if is_internal_client and client is not None:
+                try:
+                    await client.close()
+                except Exception:
+                    pass
 
     async def execute_batch(self, queries: list[tuple[str, list[Any] | None]]) -> QueryResult:
-        """Execute a batch of native MongoDB commands."""
-        raise NotImplementedError("MongoDB batch execution will be implemented in Phase 0.7.2c.")
+        """Execute multiple MongoDB commands sequentially."""
+        start_time = time_module.perf_counter()
+        total_affected: int | None = None
+        all_rows: list[dict[str, Any]] = []
+        all_columns: list[str] = []
+        messages: list[str] = []
+
+        client = None
+        is_internal_client = False
+        try:
+            if self._client is not None:
+                client = self._client
+            else:
+                client = self._create_client()
+                is_internal_client = True
+
+            db_name = self.config.database_name or "admin"
+            db = client[db_name]
+
+            for query_str, params in queries:
+                res = await self._dispatch_command(db, query_str, params, start_time)
+                if res.columns and not all_columns:
+                    all_columns = res.columns
+                if res.rows:
+                    all_rows.extend(res.rows)
+                if res.affected_rows is not None:
+                    total_affected = (total_affected or 0) + res.affected_rows
+                if res.message:
+                    messages.append(res.message)
+
+            execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
+            return QueryResult(
+                columns=all_columns,
+                rows=all_rows,
+                row_count=len(all_rows),
+                affected_rows=total_affected,
+                message="; ".join(messages) if messages else "Batch executed successfully",
+                execution_time_ms=execution_time_ms,
+            )
+        except QueryExecutionError:
+            raise
+        except (PyMongoError, asyncio.TimeoutError, OSError, ConnectionRefusedError) as e:
+            sanitized = self._sanitize_error(e)
+            raise QueryExecutionError(
+                f"MongoDB batch execution failed: {sanitized}",
+                details=sanitized,
+            ) from e
+        except Exception as e:
+            sanitized = self._sanitize_error(e)
+            raise QueryExecutionError(
+                f"Unexpected error executing MongoDB batch: {sanitized}",
+                details=sanitized,
+            ) from e
+        finally:
+            if is_internal_client and client is not None:
+                try:
+                    await client.close()
+                except Exception:
+                    pass
+

@@ -269,3 +269,107 @@ def build_source_schema_from_mongodb_samples(
             "max_nested_depth": 3,
         },
     )
+
+
+def normalize_bson_value(val: Any) -> Any:
+    """Normalize a BSON or Python value into a vendor-neutral Python representation for QueryResult."""
+    if val is None:
+        return None
+
+    # 1. ObjectId -> canonical 24-character hexadecimal string
+    if isinstance(val, ObjectId):
+        return str(val)
+
+    # 2. Decimal128 -> exact decimal.Decimal (NEVER float)
+    if isinstance(val, Decimal128):
+        return val.to_decimal()
+    if isinstance(val, decimal.Decimal):
+        return val
+
+    # 3. datetime -> timezone-aware UTC datetime
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc)
+        return val.astimezone(timezone.utc)
+
+    # 4. BSON Timestamp -> integer seconds
+    if isinstance(val, Timestamp):
+        return int(val.time)
+
+    # 5. UUID / Binary Subtype 4 -> canonical uuid.UUID
+    if isinstance(val, uuid.UUID):
+        return val
+    if isinstance(val, Binary):
+        if val.subtype == 4:
+            return uuid.UUID(bytes=val)
+        # Binary Subtype 3 (legacy UUID) and Subtype 0 (generic binary) -> bytes
+        return bytes(val)
+    if isinstance(val, (bytes, bytearray, memoryview)):
+        return bytes(val)
+
+    # 6. Embedded document -> nested dict
+    if isinstance(val, dict):
+        return {str(k): normalize_bson_value(v) for k, v in val.items()}
+
+    # 7. Array -> list
+    if isinstance(val, (list, tuple, set)):
+        return [normalize_bson_value(item) for item in val]
+
+    # 8. Boolean (MUST be checked before int because bool subclasses int in Python)
+    if isinstance(val, bool):
+        return val
+
+    # 9. Integer & 64-bit Int64 -> int
+    if isinstance(val, (int, Int64)):
+        return int(val)
+
+    # 10. Float / Double -> float
+    if isinstance(val, float):
+        return val
+
+    # 11. String -> str
+    if isinstance(val, str):
+        return str(val)
+
+    # 12. Fallback for other/unsupported BSON types -> conservative string
+    return str(val)
+
+
+def normalize_bson_document(doc: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a top-level BSON document dictionary into vendor-neutral Python representations."""
+    return {str(k): normalize_bson_value(v) for k, v in doc.items()}
+
+
+def extract_columns_from_documents(
+    docs: list[dict[str, Any]],
+    projection: dict[str, Any] | None = None,
+) -> list[str]:
+    """Deterministically extract ordered column names from documents and optional projection."""
+    # If projection is an inclusion projection with positive values, derive columns from projection
+    if projection and isinstance(projection, dict):
+        inclusion_keys = [k for k, v in projection.items() if v and k != "_id"]
+        include_id = projection.get("_id", 1) != 0
+        columns: list[str] = []
+        if include_id:
+            columns.append("_id")
+        columns.extend([k for k in inclusion_keys if k != "_id"])
+        if columns:
+            return columns
+
+    if not docs:
+        return []
+
+    # Aggregate all unique top-level keys observed across documents
+    seen_keys: set[str] = set()
+    for doc in docs:
+        seen_keys.update(doc.keys())
+
+    has_id = "_id" in seen_keys
+    non_id_keys = sorted([k for k in seen_keys if k != "_id"])
+
+    columns = []
+    if has_id:
+        columns.append("_id")
+    columns.extend(non_id_keys)
+    return columns
+

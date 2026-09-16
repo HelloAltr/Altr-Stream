@@ -4,11 +4,13 @@ import '../../../core/api/models.dart';
 class CommandOutcomePanel extends StatelessWidget {
   final QueryMetadataModel metadata;
   final String sourceName;
+  final VoidCallback? onCopy;
 
   const CommandOutcomePanel({
     super.key,
     required this.metadata,
     required this.sourceName,
+    this.onCopy,
   });
 
   @override
@@ -63,6 +65,23 @@ class CommandOutcomePanel extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onCopy != null) ...[
+                OutlinedButton.icon(
+                  onPressed: onCopy,
+                  icon: const Icon(Icons.copy, size: 12),
+                  label: const Text(
+                    'Copy Details',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 16),

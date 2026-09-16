@@ -1,6 +1,6 @@
 """Unit tests for MongoDB BSON mapping, deterministic sampling, and SourceSchema construction."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import decimal
 import uuid
 
@@ -13,8 +13,11 @@ import pytest
 from altr_stream.domain.schema import StandardDataType
 from altr_stream.infrastructure.connectors.mongodb.mapper import (
     build_source_schema_from_mongodb_samples,
+    extract_columns_from_documents,
     map_bson_value_to_standard,
     merge_observed_types,
+    normalize_bson_document,
+    normalize_bson_value,
     traverse_document_fields,
 )
 
@@ -359,3 +362,136 @@ def test_build_source_schema_explicit_null_tracking():
     assert field.nullable is True
     assert field.data_type == StandardDataType.STRING
     assert field.native_data_type == "string"
+
+
+def test_normalize_bson_value_objectid():
+    """Verify ObjectId normalizes to canonical 24-char hex string."""
+    oid = ObjectId("507f1f77bcf86cd799439011")
+    normalized = normalize_bson_value(oid)
+    assert normalized == "507f1f77bcf86cd799439011"
+    assert isinstance(normalized, str)
+
+
+def test_normalize_bson_value_decimal128_exact_never_float():
+    """Verify Decimal128 normalizes to exact decimal.Decimal, never float."""
+    dec = Decimal128("12345.678901234567890123456789")
+    normalized = normalize_bson_value(dec)
+    assert isinstance(normalized, decimal.Decimal)
+    assert not isinstance(normalized, float)
+    assert str(normalized) == "12345.678901234567890123456789"
+
+    # Also test Python Decimal is preserved
+    std_dec = decimal.Decimal("99.99")
+    assert normalize_bson_value(std_dec) == std_dec
+
+
+def test_normalize_bson_value_datetime_timezone_aware_utc():
+    """Verify datetime normalizes to timezone-aware UTC datetime."""
+    # Naive datetime
+    naive_dt = datetime(2026, 9, 16, 10, 30, 0)
+    norm_naive = normalize_bson_value(naive_dt)
+    assert isinstance(norm_naive, datetime)
+    assert norm_naive.tzinfo == timezone.utc
+    assert norm_naive.hour == 10
+
+    # Aware datetime in non-UTC timezone
+    offset = timezone(timedelta(hours=5, minutes=30))
+    aware_dt = datetime(2026, 9, 16, 15, 30, 0, tzinfo=offset)
+    norm_aware = normalize_bson_value(aware_dt)
+    assert norm_aware.tzinfo == timezone.utc
+    assert norm_aware.hour == 10  # 15:30 +05:30 is 10:00 UTC
+
+
+def test_normalize_bson_value_timestamp_integer_seconds():
+    """Verify BSON Timestamp normalizes to integer seconds."""
+    ts = Timestamp(1726477200, 5)
+    normalized = normalize_bson_value(ts)
+    assert normalized == 1726477200
+    assert isinstance(normalized, int)
+
+
+def test_normalize_bson_value_binary_and_uuid():
+    """Verify UUID subtype 4 normalizes to canonical UUID, while subtype 3 & 0 normalize to bytes."""
+    u = uuid.UUID("c0a80101-0000-0000-0000-000000000000")
+
+    # UUID object -> canonical uuid.UUID
+    assert normalize_bson_value(u) == u
+
+    # Binary subtype 4 -> canonical uuid.UUID
+    bin_subtype_4 = Binary(u.bytes, subtype=4)
+    norm_sub4 = normalize_bson_value(bin_subtype_4)
+    assert isinstance(norm_sub4, uuid.UUID)
+    assert norm_sub4 == u
+
+    # Binary subtype 3 (legacy UUID) -> bytes (not UUID)
+    bin_subtype_3 = Binary(u.bytes, subtype=3)
+    norm_sub3 = normalize_bson_value(bin_subtype_3)
+    assert isinstance(norm_sub3, bytes)
+    assert norm_sub3 == u.bytes
+
+    # Binary subtype 0 (generic) -> bytes
+    bin_gen = Binary(b"\x01\x02\x03\x04", subtype=0)
+    norm_gen = normalize_bson_value(bin_gen)
+    assert isinstance(norm_gen, bytes)
+    assert norm_gen == b"\x01\x02\x03\x04"
+
+    # raw bytes -> bytes
+    assert normalize_bson_value(b"raw data") == b"raw data"
+
+
+def test_normalize_bson_value_nested_documents_and_arrays():
+    """Verify recursive normalization of nested documents and arrays."""
+    doc = {
+        "_id": ObjectId("507f1f77bcf86cd799439011"),
+        "balance": Decimal128("500.25"),
+        "created_at": datetime(2026, 9, 16, 9, 0, 0),
+        "tags": ["alpha", Decimal128("10.5")],
+        "profile": {
+            "tier": "gold",
+            "scores": [Int64(100), Int64(200)],
+            "meta": {
+                "active": True,
+                "null_field": None,
+            },
+        },
+    }
+
+    normalized = normalize_bson_document(doc)
+
+    assert normalized["_id"] == "507f1f77bcf86cd799439011"
+    assert isinstance(normalized["balance"], decimal.Decimal)
+    assert normalized["balance"] == decimal.Decimal("500.25")
+    assert normalized["created_at"] == datetime(2026, 9, 16, 9, 0, 0, tzinfo=timezone.utc)
+    assert normalized["tags"][0] == "alpha"
+    assert normalized["tags"][1] == decimal.Decimal("10.5")
+
+    assert normalized["profile"]["tier"] == "gold"
+    assert normalized["profile"]["scores"] == [100, 200]
+    assert normalized["profile"]["meta"]["active"] is True
+    assert normalized["profile"]["meta"]["null_field"] is None
+
+
+def test_extract_columns_from_documents_deterministic():
+    """Verify deterministic column extraction with and without projections."""
+    docs = [
+        {"_id": ObjectId("507f1f77bcf86cd799439011"), "username": "alice", "age": 30},
+        {"_id": ObjectId("507f1f77bcf86cd799439012"), "email": "bob@example.com", "username": "bob"},
+    ]
+
+    # Without projection: _id first, remaining sorted alphabetically
+    cols = extract_columns_from_documents(docs)
+    assert cols == ["_id", "age", "email", "username"]
+
+    # With inclusion projection including _id
+    proj_with_id = {"_id": 1, "username": 1, "email": 1}
+    cols_proj = extract_columns_from_documents(docs, projection=proj_with_id)
+    assert cols_proj == ["_id", "username", "email"]
+
+    # With projection suppressing _id: {"_id": 0, "username": 1, "age": 1}
+    proj_no_id = {"_id": 0, "username": 1, "age": 1}
+    cols_no_id = extract_columns_from_documents(docs, projection=proj_no_id)
+    assert cols_no_id == ["username", "age"]
+
+    # Empty documents without projection
+    assert extract_columns_from_documents([]) == []
+
