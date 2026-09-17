@@ -93,7 +93,7 @@ def test_lower_string_operators(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" WHERE ((("username" LIKE $1 AND "email" LIKE $2) AND "username" LIKE $3) AND ("username" NOT LIKE $4 OR "username" IS NULL)) ORDER BY "id" ASC;'
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ((("username" LIKE $1 ESCAPE \'\\\' AND "email" LIKE $2 ESCAPE \'\\\') AND "username" LIKE $3 ESCAPE \'\\\') AND ("username" NOT LIKE $4 ESCAPE \'\\\' OR "username" IS NULL)) ORDER BY "id" ASC;'
     assert pq.parameters == ["San%", "%@test.com", "%tho%", "%admin%"]
 
 
@@ -275,7 +275,7 @@ def test_lower_sort_clause(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" ORDER BY "age" DESC, "username" ASC;'
+    assert pq.query == 'SELECT * FROM "public"."users" ORDER BY "age" DESC NULLS LAST, "username" ASC NULLS FIRST;'
 
 
 def test_lower_ranking_clause(test_schema: SourceSchema):
@@ -313,7 +313,7 @@ def test_lower_ranking_and_sort_precedence(test_schema: SourceSchema):
     lowerer = PostgreSQLLowerer()
     pq = lowerer.lower(bound_ir)
 
-    assert pq.query == 'SELECT * FROM "public"."users" ORDER BY "score" DESC, "created_at" ASC LIMIT 5;'
+    assert pq.query == 'SELECT * FROM "public"."users" ORDER BY "score" DESC, "created_at" ASC NULLS FIRST LIMIT 5;'
 
 
 def test_lower_ranking_and_offset(test_schema: SourceSchema):
@@ -323,6 +323,26 @@ def test_lower_ranking_and_offset(test_schema: SourceSchema):
     pq = lowerer.lower(bound_ir)
 
     assert pq.query == 'SELECT * FROM "public"."users" ORDER BY "age" ASC LIMIT 5 OFFSET 10;'
+
+
+def test_lower_scalar_inequality_with_null_parity(test_schema: SourceSchema):
+    ir = parse_altrql('GET users WHERE { username != "admin" };')
+    bound_ir = bind_altrql(ir, test_schema)
+    lowerer = PostgreSQLLowerer()
+    pq = lowerer.lower(bound_ir)
+
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE ("username" != $1 OR "username" IS NULL) ORDER BY "id" ASC;'
+    assert pq.parameters == ["admin"]
+
+
+def test_lower_like_escaping_special_characters(test_schema: SourceSchema):
+    ir = parse_altrql('GET users WHERE { username HAS "100%", email HAS "a_b", username HAS "c\\\\d" };')
+    bound_ir = bind_altrql(ir, test_schema)
+    lowerer = PostgreSQLLowerer()
+    pq = lowerer.lower(bound_ir)
+
+    assert pq.query == 'SELECT * FROM "public"."users" WHERE (("username" LIKE $1 ESCAPE \'\\\' AND "email" LIKE $2 ESCAPE \'\\\') AND "username" LIKE $3 ESCAPE \'\\\') ORDER BY "id" ASC;'
+    assert pq.parameters == ["%100\\%%", "%a\\_b%", "%c\\\\d%"]
 
 
 def test_lower_immutability(test_schema: SourceSchema):

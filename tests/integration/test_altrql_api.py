@@ -385,7 +385,7 @@ async def test_execute_altrql_api_success(client: AsyncClient):
         assert data["bound_ir"] is not None
         assert data["physical_query"] is not None
         assert data["physical_query"]["dialect"] == "postgresql"
-        assert data["physical_query"]["query"] == 'SELECT "id", "username", "age" FROM "public"."users" WHERE "age" >= $1 ORDER BY "age" DESC;'
+        assert data["physical_query"]["query"] == 'SELECT "id", "username", "age" FROM "public"."users" WHERE "age" >= $1 ORDER BY "age" DESC NULLS LAST;'
         assert data["physical_query"]["parameters"] == [18]
         assert data["columns"] == ["id", "username", "age"]
         assert data["rows"] == [{"id": 1, "username": "alice", "age": 25}]

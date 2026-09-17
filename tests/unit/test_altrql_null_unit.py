@@ -214,7 +214,7 @@ def test_lower_not_has_with_null_handling(mock_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { status NOT HAS "act" };'), mock_schema)
     lowerer = PostgreSQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == 'SELECT * FROM "public"."users" WHERE ("status" NOT LIKE $1 OR "status" IS NULL) ORDER BY "id" ASC;'
+    assert res.query == 'SELECT * FROM "public"."users" WHERE ("status" NOT LIKE $1 ESCAPE \'\\\' OR "status" IS NULL) ORDER BY "id" ASC;'
     assert res.parameters == ["%act%"]
 
 

@@ -46,6 +46,9 @@ SEED_USERS = [
     (3, "carol@example.com", "INACTIVE", 22, False, json.dumps({"department": "Operations", "tier": "bronze"})),
     (4, "dave@corp.net", "ACTIVE", 40, True, None),
     (5, "eve@test.org", "SUSPENDED", 19, False, None),
+    (6, "frank@null.org", None, 50, True, None),
+    (7, "user_100%@domain.com", "ACTIVE", 33, True, None),
+    (8, "userX100Y@domain.com", "ACTIVE", 34, True, None),
 ]
 
 
@@ -115,9 +118,9 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
             );
         """)
         for row in SEED_USERS:
-            meta_val = f"'{row[5]}'::jsonb" if row[5] else "NULL"
             await pg_conn.execute_query(
-                f"INSERT INTO parity_users (id, email, status, age, is_active, metadata) VALUES ({row[0]}, '{row[1]}', '{row[2]}', {row[3]}, {str(row[4]).lower()}, {meta_val});"
+                "INSERT INTO parity_users (id, email, status, age, is_active, metadata) VALUES ($1, $2, $3, $4, $5, $6::jsonb);",
+                [row[0], row[1], row[2], row[3], row[4], row[5]],
             )
 
     # 4. Setup MySQL table
@@ -134,9 +137,9 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
             );
         """)
         for row in SEED_USERS:
-            meta_val = f"'{row[5]}'" if row[5] else "NULL"
             await mysql_conn.execute_query(
-                f"INSERT INTO parity_users (id, email, status, age, is_active, metadata) VALUES ({row[0]}, '{row[1]}', '{row[2]}', {row[3]}, {1 if row[4] else 0}, {meta_val});"
+                "INSERT INTO parity_users (id, email, status, age, is_active, metadata) VALUES (%s, %s, %s, %s, %s, %s);",
+                [row[0], row[1], row[2], row[3], 1 if row[4] else 0, row[5]],
             )
 
     # 5. Setup MongoDB collection
@@ -201,7 +204,16 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
     # Case 1: Simple GET + Default Deterministic Ordering (id ASC)
     # -----------------------------------------------------------------------
     sq_rows, pg_rows, my_rows, mg_rows = await run_query("GET parity_users;")
-    expected_all = [(1, "alice@example.com"), (2, "bob@example.com"), (3, "carol@example.com"), (4, "dave@corp.net"), (5, "eve@test.org")]
+    expected_all = [
+        (1, "alice@example.com"),
+        (2, "bob@example.com"),
+        (3, "carol@example.com"),
+        (4, "dave@corp.net"),
+        (5, "eve@test.org"),
+        (6, "frank@null.org"),
+        (7, "user_100%@domain.com"),
+        (8, "userX100Y@domain.com"),
+    ]
     assert sq_rows == expected_all
     assert pg_rows == expected_all
     assert my_rows == expected_all
@@ -220,7 +232,7 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
     # Case 3: ValueSet Exact Membership
     # -----------------------------------------------------------------------
     sq_rows, pg_rows, my_rows, mg_rows = await run_query('GET parity_users WHERE { status = {"ACTIVE", "PENDING"} };')
-    assert sq_rows == [(1, "alice@example.com"), (2, "bob@example.com"), (4, "dave@corp.net")]
+    assert sq_rows == [(1, "alice@example.com"), (2, "bob@example.com"), (4, "dave@corp.net"), (7, "user_100%@domain.com"), (8, "userX100Y@domain.com")]
     assert pg_rows == sq_rows
     assert my_rows == sq_rows
     assert mg_rows == sq_rows
@@ -256,7 +268,7 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
     # Case 7: NOT HAS Substring Negation (preserving NULL behavior)
     # -----------------------------------------------------------------------
     sq_rows, pg_rows, my_rows, mg_rows = await run_query('GET parity_users WHERE { email NOT HAS "example" };')
-    assert sq_rows == [(4, "dave@corp.net"), (5, "eve@test.org")]
+    assert sq_rows == [(4, "dave@corp.net"), (5, "eve@test.org"), (6, "frank@null.org"), (7, "user_100%@domain.com"), (8, "userX100Y@domain.com")]
     assert pg_rows == sq_rows
     assert my_rows == sq_rows
     assert mg_rows == sq_rows
@@ -280,7 +292,7 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
         age >= 25
     };
     """)
-    assert sq_rows == [(1, "alice@example.com"), (4, "dave@corp.net")]
+    assert sq_rows == [(1, "alice@example.com"), (4, "dave@corp.net"), (7, "user_100%@domain.com"), (8, "userX100Y@domain.com")]
     assert pg_rows == sq_rows
     assert my_rows == sq_rows
     assert mg_rows == sq_rows
@@ -289,7 +301,16 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
     # Case 10: Explicit Sorting (DESC)
     # -----------------------------------------------------------------------
     sq_rows, pg_rows, my_rows, mg_rows = await run_query("GET parity_users SORT { age DESC, id ASC };")
-    expected_sorted = [(4, "dave@corp.net"), (2, "bob@example.com"), (1, "alice@example.com"), (3, "carol@example.com"), (5, "eve@test.org")]
+    expected_sorted = [
+        (6, "frank@null.org"),
+        (4, "dave@corp.net"),
+        (8, "userX100Y@domain.com"),
+        (7, "user_100%@domain.com"),
+        (2, "bob@example.com"),
+        (1, "alice@example.com"),
+        (3, "carol@example.com"),
+        (5, "eve@test.org"),
+    ]
     assert sq_rows == expected_sorted
     assert pg_rows == expected_sorted
     assert my_rows == expected_sorted
@@ -299,7 +320,7 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
     # Case 11: Pagination (LIMIT & OFFSET)
     # -----------------------------------------------------------------------
     sq_rows, pg_rows, my_rows, mg_rows = await run_query("GET parity_users TOP 2 BY id OFFSET 1;")
-    expected_top = [(4, "dave@corp.net"), (3, "carol@example.com")]
+    expected_top = [(7, "user_100%@domain.com"), (6, "frank@null.org")]
     assert sq_rows == expected_top
     assert pg_rows == expected_top
     assert my_rows == expected_top
@@ -318,7 +339,7 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
     # Case 13: NULL Equality & ValueSet with NULL
     # -----------------------------------------------------------------------
     sq_rows, pg_rows, my_rows, mg_rows = await run_query("GET parity_users WHERE { metadata = NULL };")
-    assert sq_rows == [(4, "dave@corp.net"), (5, "eve@test.org")]
+    assert sq_rows == [(4, "dave@corp.net"), (5, "eve@test.org"), (6, "frank@null.org"), (7, "user_100%@domain.com"), (8, "userX100Y@domain.com")]
     assert pg_rows == sq_rows
     assert my_rows == sq_rows
     assert mg_rows == sq_rows
@@ -328,3 +349,96 @@ async def test_cross_database_semantic_parity(client: AsyncClient):
     assert pg_rows == sq_rows
     assert my_rows == sq_rows
     assert mg_rows == sq_rows
+
+    # -----------------------------------------------------------------------
+    # Case 14: Scalar Inequality with NULL (Milestone v0.7.6 Parity)
+    # status != "ACTIVE" must match PENDING, INACTIVE, SUSPENDED, and NULL status
+    # -----------------------------------------------------------------------
+    sq_rows, pg_rows, my_rows, mg_rows = await run_query('GET parity_users WHERE { status != "ACTIVE" };')
+    expected_neq = [
+        (2, "bob@example.com"),
+        (3, "carol@example.com"),
+        (5, "eve@test.org"),
+        (6, "frank@null.org"),
+    ]
+    assert sq_rows == expected_neq
+    assert pg_rows == expected_neq
+    assert my_rows == expected_neq
+    assert mg_rows == expected_neq
+
+    # -----------------------------------------------------------------------
+    # Case 15: SQL LIKE Wildcard Escaping (%, _, \) (Milestone v0.7.6 Parity)
+    # -----------------------------------------------------------------------
+    # 15a. HAS "100%" must match literal % (row 7), NOT row 8 ("userX100Y")
+    sq_rows, pg_rows, my_rows, mg_rows = await run_query('GET parity_users WHERE { email HAS "100%" };')
+    assert sq_rows == [(7, "user_100%@domain.com")]
+    assert pg_rows == [(7, "user_100%@domain.com")]
+    assert my_rows == [(7, "user_100%@domain.com")]
+    assert mg_rows == [(7, "user_100%@domain.com")]
+
+    # 15b. HAS "user_100" must match literal _ (row 7), NOT row 8 ("userX100")
+    sq_rows, pg_rows, my_rows, mg_rows = await run_query('GET parity_users WHERE { email HAS "user_100" };')
+    assert sq_rows == [(7, "user_100%@domain.com")]
+    assert pg_rows == [(7, "user_100%@domain.com")]
+    assert my_rows == [(7, "user_100%@domain.com")]
+    assert mg_rows == [(7, "user_100%@domain.com")]
+
+    # -----------------------------------------------------------------------
+    # Case 16: Explicit SORT NULL Ordering Parity (Milestone v0.7.6 Parity)
+    # ASC  -> NULLS FIRST
+    # DESC -> NULLS LAST
+    # -----------------------------------------------------------------------
+    # 16a. SORT { status ASC, id ASC } -> NULL status (row 6) first
+    r_sq = (await client.post("/api/v1/altrql/execute", json={"source_id": sq_id, "query": "GET parity_users SORT { status ASC, id ASC };"})).json()["rows"]
+    r_pg = (await client.post("/api/v1/altrql/execute", json={"source_id": pg_id, "query": "GET parity_users SORT { status ASC, id ASC };"})).json()["rows"]
+    r_my = (await client.post("/api/v1/altrql/execute", json={"source_id": my_id, "query": "GET parity_users SORT { status ASC, id ASC };"})).json()["rows"]
+    r_mg = (await client.post("/api/v1/altrql/execute", json={"source_id": mg_id, "query": "GET parity_users SORT { status ASC, id ASC };"})).json()["rows"]
+
+    sq_ids = [r["id"] for r in r_sq]
+    pg_ids = [r["id"] for r in r_pg]
+    my_ids = [r["id"] for r in r_my]
+    mg_ids = [r["id"] for r in r_mg]
+
+    # Row 6 has status=NULL and must be first across all backends
+    assert sq_ids[0] == 6
+    assert pg_ids[0] == 6
+    assert my_ids[0] == 6
+    assert mg_ids[0] == 6
+
+    # 16b. SORT { status DESC, id ASC } -> NULL status (row 6) last
+    r_sq = (await client.post("/api/v1/altrql/execute", json={"source_id": sq_id, "query": "GET parity_users SORT { status DESC, id ASC };"})).json()["rows"]
+    r_pg = (await client.post("/api/v1/altrql/execute", json={"source_id": pg_id, "query": "GET parity_users SORT { status DESC, id ASC };"})).json()["rows"]
+    r_my = (await client.post("/api/v1/altrql/execute", json={"source_id": my_id, "query": "GET parity_users SORT { status DESC, id ASC };"})).json()["rows"]
+    r_mg = (await client.post("/api/v1/altrql/execute", json={"source_id": mg_id, "query": "GET parity_users SORT { status DESC, id ASC };"})).json()["rows"]
+
+    sq_ids = [r["id"] for r in r_sq]
+    pg_ids = [r["id"] for r in r_pg]
+    my_ids = [r["id"] for r in r_my]
+    mg_ids = [r["id"] for r in r_mg]
+
+    # Row 6 has status=NULL and must be last across all backends
+    assert sq_ids[-1] == 6
+    assert pg_ids[-1] == 6
+    assert my_ids[-1] == 6
+    assert mg_ids[-1] == 6
+
+    # -----------------------------------------------------------------------
+    # Case 17: Projection Aliases Across All DBs (Milestone v0.7.6 Parity)
+    # -----------------------------------------------------------------------
+    proj_query = "GET parity_users (id AS user_id, email AS user_email, metadata.department AS dept) WHERE { id = 1 };"
+    res_sq = (await client.post("/api/v1/altrql/execute", json={"source_id": sq_id, "query": proj_query})).json()
+    res_pg = (await client.post("/api/v1/altrql/execute", json={"source_id": pg_id, "query": proj_query})).json()
+    res_my = (await client.post("/api/v1/altrql/execute", json={"source_id": my_id, "query": proj_query})).json()
+    res_mg = (await client.post("/api/v1/altrql/execute", json={"source_id": mg_id, "query": proj_query})).json()
+
+    assert res_sq["columns"] == ["user_id", "user_email", "dept"]
+    assert res_pg["columns"] == ["user_id", "user_email", "dept"]
+    assert res_my["columns"] == ["user_id", "user_email", "dept"]
+    assert res_mg["columns"] == ["user_id", "user_email", "dept"]
+
+    expected_aliased_row = {"user_id": 1, "user_email": "alice@example.com", "dept": "Engineering"}
+    assert res_sq["rows"] == [expected_aliased_row]
+    assert res_pg["rows"] == [expected_aliased_row]
+    assert res_my["rows"] == [expected_aliased_row]
+    assert res_mg["rows"] == [expected_aliased_row]
+

@@ -147,6 +147,18 @@ def test_lower_projection_nested_field(mongo_schema: SourceSchema):
     assert spec["projection"] == {"email": 1, "metadata.department": 1, "_id": 0}
 
 
+def test_lower_projection_with_aliases(mongo_schema: SourceSchema):
+    bound = bind_altrql(parse_altrql("GET users (email AS user_email, metadata.department AS dept);"), mongo_schema)
+    res = MongoDBLowerer().lower(bound)
+    spec = res.parameters[0]
+
+    assert spec["projection"] == {"email": 1, "metadata.department": 1, "_id": 0}
+    assert spec["projection_fields"] == [
+        {"path": ["email"], "alias": "user_email", "name": "user_email"},
+        {"path": ["metadata", "department"], "alias": "dept", "name": "dept"},
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 3. 14 Semantic Sanity Check Cases
 # ---------------------------------------------------------------------------

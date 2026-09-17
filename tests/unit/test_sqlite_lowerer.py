@@ -80,13 +80,29 @@ def test_sqlite_lower_string_has_and_not_has(sqlite_schema: SourceSchema):
     bound_has = bind_altrql(parse_altrql('GET users WHERE { email HAS "example" };'), sqlite_schema)
     lowerer = SQLiteLowerer()
     res_has = lowerer.lower(bound_has)
-    assert res_has.query == 'SELECT * FROM "users" WHERE "email" LIKE ? ORDER BY "id" ASC;'
+    assert res_has.query == 'SELECT * FROM "users" WHERE "email" LIKE ? ESCAPE \'\\\' ORDER BY "id" ASC;'
     assert res_has.parameters == ["%example%"]
 
     bound_not_has = bind_altrql(parse_altrql('GET users WHERE { status NOT HAS "act" };'), sqlite_schema)
     res_not_has = lowerer.lower(bound_not_has)
-    assert res_not_has.query == 'SELECT * FROM "users" WHERE ("status" NOT LIKE ? OR "status" IS NULL) ORDER BY "id" ASC;'
+    assert res_not_has.query == 'SELECT * FROM "users" WHERE ("status" NOT LIKE ? ESCAPE \'\\\' OR "status" IS NULL) ORDER BY "id" ASC;'
     assert res_not_has.parameters == ["%act%"]
+
+
+def test_sqlite_lower_scalar_inequality_with_null_parity(sqlite_schema: SourceSchema):
+    bound = bind_altrql(parse_altrql('GET users WHERE { status != "ACTIVE" };'), sqlite_schema)
+    lowerer = SQLiteLowerer()
+    res = lowerer.lower(bound)
+    assert res.query == 'SELECT * FROM "users" WHERE ("status" != ? OR "status" IS NULL) ORDER BY "id" ASC;'
+    assert res.parameters == ["ACTIVE"]
+
+
+def test_sqlite_lower_like_escaping_special_characters(sqlite_schema: SourceSchema):
+    bound = bind_altrql(parse_altrql('GET users WHERE { email HAS "100%", email HAS "a_b", email HAS "c\\\\d" };'), sqlite_schema)
+    lowerer = SQLiteLowerer()
+    res = lowerer.lower(bound)
+    assert res.query == 'SELECT * FROM "users" WHERE (("email" LIKE ? ESCAPE \'\\\' AND "email" LIKE ? ESCAPE \'\\\') AND "email" LIKE ? ESCAPE \'\\\') ORDER BY "id" ASC;'
+    assert res.parameters == ["%100\\%%", "%a\\_b%", "%c\\\\d%"]
 
 
 def test_sqlite_lower_create_with_null(sqlite_schema: SourceSchema):

@@ -1,6 +1,6 @@
 # Altr Stream — Developer Usage & Command Reference
 
-This document provides a concise, copy-pasteable command reference for running, developing, testing, and maintaining Altr Stream.
+This document provides a comprehensive, copy-pasteable command reference for running, developing, testing, querying, and maintaining Altr Stream across its multi-database ecosystem (**PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB**).
 
 ---
 
@@ -12,9 +12,9 @@ This document provides a concise, copy-pasteable command reference for running, 
 
 ---
 
-## 2. Production Workflow (Port 3000)
+## 2. Production Stack Workflow (Port 3000)
 
-Production mode compiles a release web bundle of the Flutter Admin application and serves it via an Nginx reverse proxy alongside the FastAPI backend and test PostgreSQL database.
+Production mode compiles a release web bundle of the Flutter Admin application and serves it via an Nginx reverse proxy alongside the FastAPI backend and all three pre-seeded test databases (PostgreSQL, MySQL, MongoDB).
 
 ### Start Production Stack
 ```bash
@@ -26,6 +26,13 @@ docker compose up -d --build
 docker compose ps
 ```
 
+All 5 services should show `Up` / `healthy`:
+- `altr-stream-app` (Port 8000)
+- `altr-stream-admin` (Port 3000)
+- `altr-postgres-test` (Port 5432)
+- `altr-mysql-test` (Port 3306)
+- `altr-mongodb-test` (Port 27017)
+
 ### View Live Logs
 ```bash
 # All services
@@ -34,9 +41,12 @@ docker compose logs -f
 # Specific service
 docker compose logs -f altr-stream
 docker compose logs -f altr-stream-admin
+docker compose logs -f postgres-test
+docker compose logs -f mysql-test
+docker compose logs -f mongodb-test
 ```
 
-### Stop Production Stack
+### Stop Production Stack (Preserving Persistent Volumes)
 ```bash
 docker compose down
 ```
@@ -56,7 +66,7 @@ docker compose up -d altr-stream-admin
 
 ## 3. Flutter Development Mode (Port 3001)
 
-Development mode mounts your local `frontend/altr_stream_admin/` source code directly into a Flutter development container. Changes made to Dart files on your host machine take effect without rebuilding Docker images.
+Development mode mounts your local `frontend/altr_stream_admin/` source code directly into a Flutter development container. Changes made to Dart files on your host machine take effect with hot reload without rebuilding Docker images.
 
 ### Start Development Stack
 ```bash
@@ -97,158 +107,175 @@ docker compose up -d
 
 ---
 
-## 4. Query Playgrounds Architecture & Usage
+## 4. AltrQL v0.7.6-alpha Language & Compilation Reference
 
-Altr Stream provides a clean separation between **Native Database Playgrounds** (source-scoped) and the **AltrQL Console** (global logical language tool).
+AltrQL provides unified, cross-database declarative querying and mutation across PostgreSQL, MySQL, SQLite, and MongoDB.
 
-### 4.1 AltrQL Console & Interactive Multi-View Execution Inspector (`/altrql`)
-Accessible via the global **"AltrQL Console"** Floating Action Button (FAB) or navigation header:
+### 4.1 `GET` (Cross-DB Retrieval & Parity Semantics)
 
-1. **Language Operations & Syntax (AltrQL v0.5)**:
-   - **`GET` (Logical Retrieval & Two-Valued Logic)**:
-     ```altrql
-     GET users (
-         id,
-         username,
-         email
-     ) WHERE {
-         age = {18..65},
-         created_at = @2026-09-06,
-         status = {"ACTIVE", "PENDING", NULL},
-         metadata = NULL
-     } TOP 10 BY created_at OFFSET 20;
-     ```
-     - Projections with optional aliases (`id AS user_id`).
-     - Rich boolean logic (`AND`, `,`, `OR`, `NOT`, `{ ... }`), ranges (`18..65`), compound bounds (`>=18 & <=65`), value sets (`{"A", "B"}`), and string pattern matchers (`STARTS`, `ENDS`, `HAS`, `NOT HAS`).
-     - **Strict Two-Valued NULL Semantics**: Predicates resolve strictly to `TRUE` or `FALSE` (no SQL `UNKNOWN` in AST/IR):
-       - `field = NULL` compiles to `"field" IS NULL`.
-       - `field != NULL` compiles to `"field" IS NOT NULL`.
-       - `field = {A, B, NULL}` compiles to `((field = $1 OR field = $2) OR field IS NULL)`.
-       - `field != {A, B, NULL}` compiles to `((field NOT IN ($1, $2)) AND field IS NOT NULL)`.
-       - `field != {A, B}` (without NULL) compiles to `((field NOT IN ($1, $2)) OR field IS NULL)`.
-       - `field NOT HAS "sub"` evaluates to `TRUE` for `NULL` column values (`("field" NOT LIKE $1 OR "field" IS NULL)`).
-     - **Precision-Aware Temporal Equality**: Comparing a date-only literal (`@YYYY-MM-DD`) against a `TIMESTAMP`/`TIMESTAMPTZ` field rewrites automatically into a half-open day range `("created_at" >= $1 AND "created_at" < $2)` covering the full calendar day `[00:00:00, 24:00:00)`.
-   - **`CREATE` (Single & Batch Insertions, Explicit NULL vs Omission)**:
-     - *Single-Record Syntax*:
-       ```altrql
-       CREATE users (
-           username: "alice",
-           email: "alice@example.com",
-           metadata: NULL
-       );
-       ```
-     - *Explicit NULL vs Omission*: Assigning `field: NULL` inserts an explicit `NULL` into nullable columns. Omitted columns are excluded from `INSERT`, allowing database column defaults to apply. Non-nullable fields assigned `NULL` fail validation at schema-binding time (`TypeCompatibilityError`).
-     - *Grouped / Batch Syntax*:
-       ```altrql
-       CREATE users (
-           (username: "alice", email: "alice@example.com"),
-           (username: "bob", email: "bob@example.com")
-       );
-       ```
-     - *Consecutive-Only Grouping Lowering*: Homogeneous batches merge into a single multi-row `INSERT INTO ... VALUES ($1, $2), ($3, $4) RETURNING *;`. Heterogeneous records with differing column shapes (e.g. `[A, A, B, A]`) group only across adjacent matching shapes (`[A, A]`, `[B]`, `[A]`), preserving exact logical record order and emitting a `PhysicalQueryBatch`.
-     - *Atomic Batch Transaction*: `execute_batch()` runs statements sequentially inside an explicit database transaction (`async with conn.transaction():`), guaranteeing complete rollback on any error.
-   - **`UPDATE` (Set-Based Mutations & NULL Support)**:
-     ```altrql
-     UPDATE users (
-         full_name: "Alice Updated",
-         metadata: NULL
-     ) WHERE {
-         email = "alice@example.com"
-     };
-     ```
-     - *Mandatory WHERE*: Full-table mutations without a `WHERE` clause are rejected at parse and validation time as a language-level safety invariant.
-     - *NULL Assignments*: Explicitly assigning `field: NULL` sets the column to `NULL` for nullable fields; non-nullable fields are rejected at binding time.
-     - *Validation*: Duplicate assignment fields are rejected during semantic validation via `_validate_mutation_assignments()`.
-     - *Lowering*: Compiles to a single `PhysicalQuery` with deterministic parameter ordering (`$1` for SET assignments before `$2` for WHERE conditions) and `RETURNING *`.
-     - *Execution*: Returns all affected rows. Updating zero matching rows succeeds cleanly, returning 0 rows.
-   - **`DELETE` (Constrained & Mass Mutations)**:
-     - *Constrained DELETE*: `DELETE users WHERE { metadata = NULL };` (any predicate, including `= NULL` or `!= NULL`, is safely classified as `CONSTRAINED`).
-     - *Mass DELETE*: `DELETE users;` (requires explicit `confirm_mass_mutation=true` in execution request, otherwise raising `MassMutationConfirmationRequiredError`).
+```altrql
+GET users (
+    id,
+    username AS user_name,
+    metadata.tier AS user_tier,
+    created_at
+) WHERE {
+    age = {18..65},
+    created_at = @2026-09-06,
+    status != "INACTIVE",
+    email HAS {"@company.com", "@partner.org"},
+    metadata.tier != NULL
+} SORT {
+    created_at DESC,
+    username ASC
+} TOP 10 OFFSET 20;
+```
 
-2. **Compiler Pipeline & Multi-View Execution Inspector**:
-   - **Interactive Language Parsing & Validation**:
-     - Click **"Parse Query"** (`POST /api/v1/altrql/parse`) to validate syntax and inspect normalized `AltrQueryIR`.
-   - **Schema Binding & Type Validation**:
-     - Select any registered data source from the target source dropdown and click **"Bind Against Source"** (`POST /api/v1/altrql/bind`).
-     - Inspect the strongly-typed `BoundAltrQueryIR` annotated with resolved entity metadata, column data types, and logical type categories (`NUMERIC`, `STRING`, `BOOLEAN`, `TEMPORAL`).
-   - **Controlled Query Execution & Physical Lowering**:
-     - Click **"Execute Query"** or press **`⌘ + Enter`** / **`Ctrl + Enter`** (`POST /api/v1/altrql/execute`).
-     - **Multi-View Result Switcher**:
-       - **Results:** Interactive tabular data with execution latency (`X ms`) and affected/returned row count badges.
-       - **Physical Query:** Dialect-specific generated SQL (e.g. PostgreSQL `FROM "public"."users"`) and 100% parameterized placeholder chips (`$1 = ...`), supporting multi-statement batch inspection.
-       - **Bound IR:** Monospace JSON view of the schema-bound AST.
-       - **Canonical IR:** Monospace JSON view of the normalized language AST.
-   - **Mutation Badges & Safety Scoping**:
-     - Visual classification badges (`READ`, `CREATE`, `UPDATE`, `DELETE`, `BATCH`).
-     - Destructive mass mutations trigger safety confirmation dialogs.
-   - **Structured Error Diagnostics**:
-     - Syntax violations (`AltrQueryParseError`), semantic errors (`AltrQuerySemanticError`), schema binding errors (`AltrQueryBindingError`), lowering errors (`AltrQueryLoweringError`), mass mutation gates (`MassMutationConfirmationRequiredError`), and execution failures render diagnostic callouts with `Line N · Column M` indicators and dedicated **"Copy Error"** buttons.
-     - Failed executions preserve pipeline artifacts (`ir`, `bound_ir`, `physical_query`) for rapid debugging.
-   - **Template Selector**:
-     - One-click template insertion conforming to AltrQL v0.5 (`Simple Read`, `Range & Sets`, `String Patterns`, `NULL Predicates`, `Create Single Entity`, `Create Batch Entities`, `Update Entity`, `Constrained Delete`).
+#### Key Capabilities & Parity Rules:
+1. **Projection Aliasing**:
+   - Simple aliases: `username AS user_name`
+   - Nested document path aliases: `metadata.tier AS user_tier`
+2. **Two-Valued NULL Logic**:
+   - `field = NULL` $\rightarrow$ `field IS NULL` (SQL) / `{"field": None}` (MongoDB).
+   - `field != NULL` $\rightarrow$ `field IS NOT NULL` (SQL) / `{"field": {"$ne": None}}` (MongoDB).
+   - Scalar inequality `field != "val"` includes `NULL` values: `("field" != $1 OR "field" IS NULL)` in SQL, native `{"field": {"$ne": "val"}}` in MongoDB.
+   - ValueSet equality `field = {"A", "B", NULL}` $\rightarrow$ `((field = $1 OR field = $2) OR field IS NULL)`.
+   - ValueSet inequality `field != {"A", "B", NULL}` $\rightarrow$ `((field NOT IN ($1, $2)) AND field IS NOT NULL)`.
+   - ValueSet inequality `field != {"A", "B"}` $\rightarrow$ `((field NOT IN ($1, $2)) OR field IS NULL)`.
+3. **String Pattern Matching & Wildcard Escaping**:
+   - `STARTS`, `ENDS`, `HAS`, `NOT HAS` support single values and ValueSets (`HAS {"a", "b"}`).
+   - Special SQL wildcard characters (`%`, `_`, `\`) are safely escaped across all engines with explicit dialect escape clauses (`ESCAPE '\'` in PostgreSQL/SQLite, `ESCAPE '\\'` in MySQL, `re.escape()` in MongoDB).
+   - `field NOT HAS "sub"` evaluates to `TRUE` for `NULL` fields (`("field" NOT LIKE $1 OR "field" IS NULL)`).
+4. **Explicit `SORT` NULL Ordering Parity**:
+   - `ASC` orders `NULL` / missing values **FIRST** across all backends.
+   - `DESC` orders `NULL` / missing values **LAST** across all backends.
+5. **Precision-Aware Temporal Equality**:
+   - `@YYYY-MM-DD` literal comparisons against timestamp fields automatically expand into a half-open interval `[YYYY-MM-DD 00:00:00, YYYY-MM-DD+1 00:00:00)`.
 
-### 4.2 Source-Scoped Native Database Playground
-Accessible inside any Data Source detail page (`Data Sources → Select Source → Playground` tab):
-1. **Source Selection & Schema Snapshot**:
-   - Selecting a source automatically loads its cached schema snapshot without redundant discovery calls.
-   - Click the **"Refresh / Discover Schema"** button (`↻`) in the Schema Explorer header to trigger on-demand catalog re-introspection.
-2. **Schema Tree Navigation**:
-   - Filter tables and columns with the real-time search field.
-   - Expand table rows to inspect column native data types, nullability indicators, and primary key badges (`🔑`).
-   - Click the code icon (`</>`) on any table to insert a `SELECT * FROM <table> LIMIT 100;` query template into the editor.
-   - Click any column to insert its name into the query editor at the cursor position.
-3. **Query Execution**:
-   - Write and edit arbitrary single-statement queries in the monospace editor.
-   - Press **`⌘ + Enter`** (macOS) or **`Ctrl + Enter`** (Windows/Linux) to execute.
-   - **Result-returning queries** (`SELECT`, `WITH`, `EXPLAIN`, `SHOW`) render interactive paginated data tables with column copy.
-   - **Command/mutation queries** (`INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `ALTER`, `TRUNCATE`) render a **Command Outcome Panel** displaying affected rows and latency.
-4. **UX Safety Guardrail**:
-   - Queries beginning with `DROP`, `TRUNCATE`, `DELETE`, or `ALTER` (even with leading comments) trigger a **Destructive Operation Confirmation** modal before execution.
+### 4.2 `CREATE` (Single & Batch Insertions)
+
+- **Single Record**:
+  ```altrql
+  CREATE users (
+      username: "alice",
+      email: "alice@example.com",
+      metadata: NULL
+  );
+  ```
+- **Batch Insertion**:
+  ```altrql
+  CREATE users (
+      (username: "alice", email: "alice@example.com"),
+      (username: "bob", email: "bob@example.com")
+  );
+  ```
+- **Consecutive-Only Grouping**: Adjacent records with identical column shapes compile into a single multi-row `INSERT` (or MongoDB `insert_many`). Heterogeneous batches are split into minimal adjacent batches preserving logical ordering within an atomic transaction.
+
+### 4.3 `UPDATE` (Set-Based Mutations)
+
+```altrql
+UPDATE users (
+    full_name: "Alice Updated",
+    metadata: NULL
+) WHERE {
+    email = "alice@example.com"
+};
+```
+- **Mandatory WHERE**: Full-table updates without a `WHERE` clause are rejected at compile time.
+- **NULL Assignments**: Nullable fields accept `field: NULL`. Non-nullable assignments are rejected during schema binding.
+
+### 4.4 `DELETE` (Constrained & Mass Mutations)
+
+- **Constrained DELETE**:
+  ```altrql
+  DELETE users WHERE { metadata = NULL };
+  ```
+- **Mass DELETE (Gated)**:
+  ```altrql
+  DELETE users;
+  ```
+  Requires passing `confirm_mass_mutation=true` in execution requests.
 
 ---
 
-## 5. Testing & Static Analysis
+## 5. Logical Model & Source Mapping Registry
 
-### Backend Tests (Pytest)
+Altr Stream provides unified business entity abstractions that map to physical database tables and collections.
+
+### 5.1 REST API Endpoints
+
+- **List Models**: `GET /api/v1/models`
+- **Create Model**: `POST /api/v1/models`
+- **Get Model Details**: `GET /api/v1/models/{model_id}`
+- **List Model Mappings**: `GET /api/v1/models/{model_id}/mappings`
+- **Create Source Mapping**: `POST /api/v1/models/{model_id}/mappings`
+- **Validate Mapping**: `POST /api/v1/models/{model_id}/mappings/{mapping_id}/validate`
+
+### 5.2 Mapping Lifecycle
+1. **`DRAFT`**: Initial mapping created with source table/collection and field mappings.
+2. **`VALIDATED`**: Schema validator verifies physical existence and data type compatibility.
+3. **`ACTIVE`**: Mapping activated for runtime translation.
+4. **`ERROR`**: Validation failure due to schema divergence or incompatible types.
+
+---
+
+## 6. Admin UI Features & Playgrounds
+
+### 6.1 Global AltrQL Console (`/altrql`)
+- Access via navigation sidebar or global FAB button.
+- **Parse Query**: Validates syntax and outputs Canonical AST (`AltrQueryIR`).
+- **Bind Query**: Validates against target source schema and outputs Bound AST (`BoundAltrQueryIR`).
+- **Execute Query** (`⌘ + Enter` / `Ctrl + Enter`): Lowers and executes against physical database.
+- **Multi-View Tabs**: Results table, Physical Query (dialect SQL / Mongo BSON), Bound IR, Canonical IR.
+- **Copy Actions**: Dedicated "Copy Response" and "Copy Error" buttons.
+
+### 6.2 Source-Scoped Database Playground
+- Access via `Data Sources → Select Source → Playground` tab.
+- **Relational Sources (Postgres, MySQL, SQLite)**: Interactive SQL editor, schema explorer tree, and table templates.
+- **Document Sources (MongoDB)**: Interactive Mongo Shell query interface, collection tree, and BSON result viewer.
+- **Destructive Operation Safety**: Modal confirmation on `DROP`, `TRUNCATE`, `DELETE`, or `ALTER`.
+
+---
+
+## 7. Testing & Static Analysis
+
+### Backend Test Suite (Pytest)
 ```bash
-# Using virtual environment
+# Run all 653 backend tests
 .venv/bin/pytest tests/ -v
 
-# Or using uv
-uv run pytest tests/ -v
+# Run cross-database semantic parity tests only
+.venv/bin/pytest tests/integration/test_cross_db_parity.py -v
+
+# Run compiler unit tests only
+.venv/bin/pytest tests/unit/ -v
 ```
 
-### Flutter Widget Tests
+### Flutter Widget Tests & Analysis
 ```bash
 cd frontend/altr_stream_admin
+
+# Run all 51 Flutter widget tests
 flutter test
-```
 
-### Flutter Static Analysis
-```bash
-cd frontend/altr_stream_admin
+# Run Flutter static analysis
 flutter analyze
 ```
 
 ---
 
-## 6. Full Clean Reset (Destructive)
+## 8. Full Clean Reset (Destructive)
 
 > [!WARNING]
-> This command completely stops all containers, deletes all persistent SQLite and PostgreSQL Docker volumes, and resets the database state to initial seed data.
+> This command completely stops all containers, deletes all persistent SQLite, PostgreSQL, MySQL, and MongoDB Docker volumes, and resets the system to clean seed data.
 
 ```bash
 docker compose down -v --remove-orphans
 ```
 
-### Optional: Clean Docker Build Cache
-```bash
-docker builder prune -af
-```
-
 ---
 
-## 7. Common Development Scenarios Cheat Sheet
+## 9. Developer Scenarios Cheat Sheet
 
 | Scenario | Command |
 | :--- | :--- |
@@ -261,8 +288,9 @@ docker builder prune -af
 | **Force Rebuild Without Cache** | `docker compose build --no-cache altr-stream-admin && docker compose up -d` |
 | **Check Container Status** | `docker compose ps` |
 | **View Live Tail Logs** | `docker compose logs -f` |
-| **Run Backend Tests** | `.venv/bin/pytest tests/ -v` |
-| **Run Frontend Tests** | `cd frontend/altr_stream_admin && flutter test` |
+| **Run Backend Tests (653 tests)** | `.venv/bin/pytest tests/ -v` |
+| **Run Parity Tests** | `.venv/bin/pytest tests/integration/test_cross_db_parity.py -v` |
+| **Run Frontend Tests (51 tests)** | `cd frontend/altr_stream_admin && flutter test` |
 | **Run Frontend Analysis** | `cd frontend/altr_stream_admin && flutter analyze` |
 | **Full Reset (Drop DB Volumes)** | `docker compose down -v --remove-orphans` |
 | **Update Knowledge Graph** | `graphify update .` |

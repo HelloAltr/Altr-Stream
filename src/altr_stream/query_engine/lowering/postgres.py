@@ -35,6 +35,7 @@ from altr_stream.query_engine.domain.bound_ast import (
 from altr_stream.query_engine.domain.operators import (
     ComparisonOperator,
     RankingDirection,
+    SortDirection,
     StringOperator,
     TemporalKeyword,
 )
@@ -90,6 +91,11 @@ def _invert_operator(op: ComparisonOperator) -> ComparisonOperator:
         ComparisonOperator.LTE: ComparisonOperator.GT,
     }
     return inversion_map[op]
+
+
+def _escape_like_operand(val: str) -> str:
+    """Escape backslash, percent, and underscore for literal SQL LIKE pattern matching."""
+    return val.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class PostgreSQLLowerer(QueryLowerer):
@@ -240,7 +246,8 @@ class PostgreSQLLowerer(QueryLowerer):
                                 elem_preds.append(f"{col} BETWEEN {lower_literal(elem.start)} AND {lower_literal(elem.end)}")
                             else:
                                 val_str = str(getattr(elem, "value", ""))
-                                elem_preds.append(f"{col} LIKE {add_param(f'%{val_str}%')}")
+                                escaped_val = _escape_like_operand(val_str)
+                                elem_preds.append(f"{col} LIKE {add_param(f'%{escaped_val}%')} ESCAPE '\\'")
 
                         if not elem_preds:
                             return "1=1"
@@ -255,7 +262,8 @@ class PostgreSQLLowerer(QueryLowerer):
                                 not_likes.append(f"({col} < {lower_literal(elem.start)} OR {col} > {lower_literal(elem.end)})")
                             else:
                                 val_str = str(getattr(elem, "value", ""))
-                                not_likes.append(f"{col} NOT LIKE {add_param(f'%{val_str}%')}")
+                                escaped_val = _escape_like_operand(val_str)
+                                not_likes.append(f"{col} NOT LIKE {add_param(f'%{escaped_val}%')} ESCAPE '\\'")
 
                         if has_null:
                             if not not_likes:
@@ -271,14 +279,15 @@ class PostgreSQLLowerer(QueryLowerer):
                             return f"(({' AND '.join(not_likes)}) OR {col} IS NULL)"
 
                 val_str = str(getattr(operand, "value", ""))
+                escaped_val = _escape_like_operand(val_str)
                 if op == StringOperator.STARTS:
-                    return f"{col} LIKE {add_param(f'{val_str}%')}"
+                    return f"{col} LIKE {add_param(f'{escaped_val}%')} ESCAPE '\\'"
                 if op == StringOperator.ENDS:
-                    return f"{col} LIKE {add_param(f'%{val_str}')}"
+                    return f"{col} LIKE {add_param(f'%{escaped_val}')} ESCAPE '\\'"
                 if op == StringOperator.HAS:
-                    return f"{col} LIKE {add_param(f'%{val_str}%')}"
+                    return f"{col} LIKE {add_param(f'%{escaped_val}%')} ESCAPE '\\'"
                 if op == StringOperator.NOT_HAS:
-                    return f"({col} NOT LIKE {add_param(f'%{val_str}%')} OR {col} IS NULL)"
+                    return f"({col} NOT LIKE {add_param(f'%{escaped_val}%')} ESCAPE '\\' OR {col} IS NULL)"
 
             # Comparison operators (=, !=, >, <, >=, <=)
             if isinstance(op, ComparisonOperator):
@@ -319,6 +328,8 @@ class PostgreSQLLowerer(QueryLowerer):
                         p1 = add_param(start_dt)
                         p2 = add_param(end_dt)
                         return f"({col} >= {p1} AND {col} < {p2})"
+                    if operand.operator == ComparisonOperator.NEQ:
+                        return f"({col} != {lower_literal(operand.value)} OR {col} IS NULL)"
                     return f"{col} {operand.operator.value} {lower_literal(operand.value)}"
 
                 # ValueSet operand
@@ -461,6 +472,8 @@ class PostgreSQLLowerer(QueryLowerer):
                     return f"{col} {op.value} {lower_literal(operand)}"
 
                 if isinstance(operand, LiteralValue):  # type: ignore[misc]
+                    if op == ComparisonOperator.NEQ:
+                        return f"({col} != {lower_literal(operand)} OR {col} IS NULL)"
                     return f"{col} {op.value} {lower_literal(operand)}"
 
             # Fallback
@@ -520,7 +533,8 @@ class PostgreSQLLowerer(QueryLowerer):
             if query.sort:
                 for s in query.sort:
                     sort_col = lower_field_path(s.field)
-                    order_by_items.append(f"{sort_col} {s.direction.value}")
+                    null_order = "NULLS FIRST" if s.direction == SortDirection.ASC else "NULLS LAST"
+                    order_by_items.append(f"{sort_col} {s.direction.value} {null_order}")
 
             if not query.ranking and not query.sort and query.entity.primary_key:
                 for pk_col in query.entity.primary_key:

@@ -116,15 +116,15 @@ def test_combined_where_predicates_and_has_parsing_and_binding(sample_schema: So
     # Postgres lowering
     pg_lowerer = PostgreSQLLowerer()
     pg_query = pg_lowerer.lower(bound)
-    assert 'WHERE (("email" LIKE $1 OR "email" LIKE $2) AND ("is_active" = $3 AND "metadata" IS NULL))' in pg_query.query
-    assert pg_query.parameters == ["%edith%", "%group_a1%", True]
+    assert 'WHERE (("email" LIKE $1 ESCAPE \'\\\' OR "email" LIKE $2 ESCAPE \'\\\') AND ("is_active" = $3 AND "metadata" IS NULL))' in pg_query.query
+    assert pg_query.parameters == ["%edith%", "%group\\_a1%", True]
     assert pg_query.query.endswith('ORDER BY "id" ASC;')
 
     # SQLite lowering
     sqlite_lowerer = SQLiteLowerer()
     sq_query = sqlite_lowerer.lower(bound)
-    assert 'WHERE (("email" LIKE ? OR "email" LIKE ?) AND ("is_active" = ? AND "metadata" IS NULL))' in sq_query.query
-    assert sq_query.parameters == ["%edith%", "%group_a1%", 1]
+    assert 'WHERE (("email" LIKE ? ESCAPE \'\\\' OR "email" LIKE ? ESCAPE \'\\\') AND ("is_active" = ? AND "metadata" IS NULL))' in sq_query.query
+    assert sq_query.parameters == ["%edith%", "%group\\_a1%", 1]
     assert sq_query.query.endswith('ORDER BY "id" ASC;')
 
 
@@ -134,11 +134,11 @@ def test_has_single_and_valueset_substring_semantics(sample_schema: SourceSchema
     bound_single = bind_altrql(ir_single, sample_schema)
 
     pg_single = PostgreSQLLowerer().lower(bound_single)
-    assert 'WHERE "email" LIKE $1' in pg_single.query
+    assert 'WHERE "email" LIKE $1 ESCAPE \'\\\'' in pg_single.query
     assert pg_single.parameters == ["%alice%"]
 
     sq_single = SQLiteLowerer().lower(bound_single)
-    assert 'WHERE "email" LIKE ?' in sq_single.query
+    assert 'WHERE "email" LIKE ? ESCAPE \'\\\'' in sq_single.query
     assert sq_single.parameters == ["%alice%"]
 
     # 2. HAS {"alice"}: behaves identically to HAS "alice"
@@ -146,11 +146,11 @@ def test_has_single_and_valueset_substring_semantics(sample_schema: SourceSchema
     bound_single_set = bind_altrql(ir_single_set, sample_schema)
 
     pg_single_set = PostgreSQLLowerer().lower(bound_single_set)
-    assert 'WHERE "email" LIKE $1' in pg_single_set.query
+    assert 'WHERE "email" LIKE $1 ESCAPE \'\\\'' in pg_single_set.query
     assert pg_single_set.parameters == ["%alice%"]
 
     sq_single_set = SQLiteLowerer().lower(bound_single_set)
-    assert 'WHERE "email" LIKE ?' in sq_single_set.query
+    assert 'WHERE "email" LIKE ? ESCAPE \'\\\'' in sq_single_set.query
     assert sq_single_set.parameters == ["%alice%"]
 
     # 3. HAS {"alice", "carol"}: substring match against any supplied value
@@ -158,18 +158,18 @@ def test_has_single_and_valueset_substring_semantics(sample_schema: SourceSchema
     bound_multi_set = bind_altrql(ir_multi_set, sample_schema)
 
     pg_multi_set = PostgreSQLLowerer().lower(bound_multi_set)
-    assert 'WHERE ("email" LIKE $1 OR "email" LIKE $2)' in pg_multi_set.query
+    assert 'WHERE ("email" LIKE $1 ESCAPE \'\\\' OR "email" LIKE $2 ESCAPE \'\\\')' in pg_multi_set.query
     assert pg_multi_set.parameters == ["%alice%", "%carol%"]
 
     sq_multi_set = SQLiteLowerer().lower(bound_multi_set)
-    assert 'WHERE ("email" LIKE ? OR "email" LIKE ?)' in sq_multi_set.query
+    assert 'WHERE ("email" LIKE ? ESCAPE \'\\\' OR "email" LIKE ? ESCAPE \'\\\')' in sq_multi_set.query
     assert sq_multi_set.parameters == ["%alice%", "%carol%"]
 
     # 4. HAS {"alice@example.com"}: still performs substring matching
     ir_full = parse_altrql('GET users WHERE { email HAS {"alice@example.com"} };')
     bound_full = bind_altrql(ir_full, sample_schema)
     pg_full = PostgreSQLLowerer().lower(bound_full)
-    assert 'WHERE "email" LIKE $1' in pg_full.query
+    assert 'WHERE "email" LIKE $1 ESCAPE \'\\\'' in pg_full.query
     assert pg_full.parameters == ["%alice@example.com%"]
 
 
@@ -193,22 +193,22 @@ def test_not_has_valueset_substring_negation(sample_schema: SourceSchema):
     bound = bind_altrql(ir, sample_schema)
 
     pg = PostgreSQLLowerer().lower(bound)
-    assert 'WHERE (("role" NOT LIKE $1 AND "role" NOT LIKE $2) OR "role" IS NULL)' in pg.query
+    assert 'WHERE (("role" NOT LIKE $1 ESCAPE \'\\\' AND "role" NOT LIKE $2 ESCAPE \'\\\') OR "role" IS NULL)' in pg.query
     assert pg.parameters == ["%admin%", "%superadmin%"]
 
     sq = SQLiteLowerer().lower(bound)
-    assert 'WHERE (("role" NOT LIKE ? AND "role" NOT LIKE ?) OR "role" IS NULL)' in sq.query
+    assert 'WHERE (("role" NOT LIKE ? ESCAPE \'\\\' AND "role" NOT LIKE ? ESCAPE \'\\\') OR "role" IS NULL)' in sq.query
     assert sq.parameters == ["%admin%", "%superadmin%"]
 
     # NOT HAS {"admin"}: behaves identically to single NOT HAS "admin"
     ir_single = parse_altrql('GET users WHERE { role NOT HAS {"admin"} };')
     bound_single = bind_altrql(ir_single, sample_schema)
     pg_single = PostgreSQLLowerer().lower(bound_single)
-    assert 'WHERE ("role" NOT LIKE $1 OR "role" IS NULL)' in pg_single.query
+    assert 'WHERE ("role" NOT LIKE $1 ESCAPE \'\\\' OR "role" IS NULL)' in pg_single.query
     assert pg_single.parameters == ["%admin%"]
 
     sq_single = SQLiteLowerer().lower(bound_single)
-    assert 'WHERE ("role" NOT LIKE ? OR "role" IS NULL)' in sq_single.query
+    assert 'WHERE ("role" NOT LIKE ? ESCAPE \'\\\' OR "role" IS NULL)' in sq_single.query
     assert sq_single.parameters == ["%admin%"]
 
 
@@ -301,13 +301,13 @@ def test_sort_block_parsing_and_lowering(sample_schema: SourceSchema):
 
     bound_asc = bind_altrql(ir_asc, sample_schema)
     pg_asc = PostgreSQLLowerer().lower(bound_asc)
-    assert 'ORDER BY "id" ASC LIMIT 3;' in pg_asc.query
+    assert 'ORDER BY "id" ASC NULLS FIRST LIMIT 3;' in pg_asc.query
 
     query_desc = "GET users SORT { id DESC } LIMIT 3;"
     ir_desc = parse_altrql(query_desc)
     bound_desc = bind_altrql(ir_desc, sample_schema)
     pg_desc = PostgreSQLLowerer().lower(bound_desc)
-    assert 'ORDER BY "id" DESC LIMIT 3;' in pg_desc.query
+    assert 'ORDER BY "id" DESC NULLS LAST LIMIT 3;' in pg_desc.query
 
 
 def test_sort_multi_field_with_commas_and_newlines(sample_schema: SourceSchema):
@@ -328,7 +328,7 @@ def test_sort_multi_field_with_commas_and_newlines(sample_schema: SourceSchema):
 
     bound = bind_altrql(ir, sample_schema)
     pg = PostgreSQLLowerer().lower(bound)
-    assert 'ORDER BY "score" DESC, "username" ASC LIMIT 10 OFFSET 20;' in pg.query
+    assert 'ORDER BY "score" DESC NULLS LAST, "username" ASC NULLS FIRST LIMIT 10 OFFSET 20;' in pg.query
 
     sq = SQLiteLowerer().lower(bound)
     assert 'ORDER BY "score" DESC, "username" ASC LIMIT 10 OFFSET 20;' in sq.query
@@ -395,8 +395,8 @@ def test_explicit_sort_strictly_overrides_default_pk(sample_schema: SourceSchema
     bound = bind_altrql(ir, sample_schema)
 
     pg = PostgreSQLLowerer().lower(bound)
-    # Must ONLY sort by id DESC, not id ASC
-    assert pg.query == 'SELECT * FROM "public"."users" ORDER BY "id" DESC LIMIT 3;'
+    # Must ONLY sort by id DESC NULLS LAST, not id ASC
+    assert pg.query == 'SELECT * FROM "public"."users" ORDER BY "id" DESC NULLS LAST LIMIT 3;'
 
     sq = SQLiteLowerer().lower(bound)
     assert sq.query == 'SELECT * FROM "users" ORDER BY "id" DESC LIMIT 3;'

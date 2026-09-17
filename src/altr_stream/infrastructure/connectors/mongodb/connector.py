@@ -270,8 +270,31 @@ class MongoDBConnector(BaseConnector):
         fetch_length = int(limit_val) if limit_val is not None and int(limit_val) > 0 else 1000
         raw_docs = await cursor.to_list(length=fetch_length)
 
-        normalized_rows = [normalize_bson_document(d) for d in raw_docs]
-        columns = extract_columns_from_documents(raw_docs, projection=projection)
+        normalized_docs = [normalize_bson_document(d) for d in raw_docs]
+
+        projection_fields = spec.get("projection_fields")
+        if projection_fields and isinstance(projection_fields, list):
+            mapped_rows: list[dict[str, Any]] = []
+            for doc in normalized_docs:
+                row: dict[str, Any] = {}
+                for pf in projection_fields:
+                    col_name = pf["name"]
+                    path_segments = pf["path"]
+                    val: Any = doc
+                    for seg in path_segments:
+                        if isinstance(val, dict):
+                            val = val.get(seg)
+                        else:
+                            val = None
+                            break
+                    row[col_name] = val
+                mapped_rows.append(row)
+            normalized_rows = mapped_rows
+            columns = [pf["name"] for pf in projection_fields]
+        else:
+            normalized_rows = normalized_docs
+            columns = extract_columns_from_documents(raw_docs, projection=projection)
+
         execution_time_ms = round((time_module.perf_counter() - start_time) * 1000, 2)
 
         return QueryResult(

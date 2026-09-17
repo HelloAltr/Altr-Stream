@@ -475,15 +475,22 @@ class MongoDBLowerer(QueryLowerer):
         # Projection handling
         if not query.is_wildcard_projection and query.projection:
             proj_dict: dict[str, int] = {}
+            projection_fields: List[dict[str, Any]] = []
             has_id = False
             for sel in query.projection:
                 col = sel.field.path.full_path
                 proj_dict[col] = 1
                 if col == "_id":
                     has_id = True
+                projection_fields.append({
+                    "path": sel.field.path.segments,
+                    "alias": sel.alias,
+                    "name": sel.alias if sel.alias else col,
+                })
             if not has_id:
                 proj_dict["_id"] = 0
             find_spec["projection"] = proj_dict
+            find_spec["projection_fields"] = projection_fields
         else:
             find_spec["projection"] = None
 

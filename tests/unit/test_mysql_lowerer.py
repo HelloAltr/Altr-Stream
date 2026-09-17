@@ -112,7 +112,7 @@ def test_mysql_lower_string_has_single(mysql_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { email HAS "alice" };'), mysql_schema)
     lowerer = MySQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == "SELECT * FROM `users` WHERE `email` LIKE %s ORDER BY `id` ASC;"
+    assert res.query == "SELECT * FROM `users` WHERE `email` LIKE %s ESCAPE '\\\\' ORDER BY `id` ASC;"
     assert res.parameters == ["%alice%"]
 
 
@@ -120,7 +120,7 @@ def test_mysql_lower_string_has_valueset(mysql_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { email HAS {"alice", "bob"} };'), mysql_schema)
     lowerer = MySQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == "SELECT * FROM `users` WHERE (`email` LIKE %s OR `email` LIKE %s) ORDER BY `id` ASC;"
+    assert res.query == "SELECT * FROM `users` WHERE (`email` LIKE %s ESCAPE '\\\\' OR `email` LIKE %s ESCAPE '\\\\') ORDER BY `id` ASC;"
     assert res.parameters == ["%alice%", "%bob%"]
 
 
@@ -128,7 +128,7 @@ def test_mysql_lower_string_not_has_single(mysql_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { email NOT HAS "alice" };'), mysql_schema)
     lowerer = MySQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == "SELECT * FROM `users` WHERE (`email` NOT LIKE %s OR `email` IS NULL) ORDER BY `id` ASC;"
+    assert res.query == "SELECT * FROM `users` WHERE (`email` NOT LIKE %s ESCAPE '\\\\' OR `email` IS NULL) ORDER BY `id` ASC;"
     assert res.parameters == ["%alice%"]
 
 
@@ -136,8 +136,24 @@ def test_mysql_lower_string_not_has_valueset(mysql_schema: SourceSchema):
     bound = bind_altrql(parse_altrql('GET users WHERE { email NOT HAS {"alice", "bob"} };'), mysql_schema)
     lowerer = MySQLLowerer()
     res = lowerer.lower(bound)
-    assert res.query == "SELECT * FROM `users` WHERE ((`email` NOT LIKE %s AND `email` NOT LIKE %s) OR `email` IS NULL) ORDER BY `id` ASC;"
+    assert res.query == "SELECT * FROM `users` WHERE ((`email` NOT LIKE %s ESCAPE '\\\\' AND `email` NOT LIKE %s ESCAPE '\\\\') OR `email` IS NULL) ORDER BY `id` ASC;"
     assert res.parameters == ["%alice%", "%bob%"]
+
+
+def test_mysql_lower_scalar_inequality_with_null_parity(mysql_schema: SourceSchema):
+    bound = bind_altrql(parse_altrql('GET users WHERE { status != "ACTIVE" };'), mysql_schema)
+    lowerer = MySQLLowerer()
+    res = lowerer.lower(bound)
+    assert res.query == "SELECT * FROM `users` WHERE (`status` != %s OR `status` IS NULL) ORDER BY `id` ASC;"
+    assert res.parameters == ["ACTIVE"]
+
+
+def test_mysql_lower_like_escaping_special_characters(mysql_schema: SourceSchema):
+    bound = bind_altrql(parse_altrql('GET users WHERE { email HAS "100%", email HAS "a_b", email HAS "c\\\\d" };'), mysql_schema)
+    lowerer = MySQLLowerer()
+    res = lowerer.lower(bound)
+    assert res.query == "SELECT * FROM `users` WHERE ((`email` LIKE %s ESCAPE '\\\\' AND `email` LIKE %s ESCAPE '\\\\') AND `email` LIKE %s ESCAPE '\\\\') ORDER BY `id` ASC;"
+    assert res.parameters == ["%100\\%%", "%a\\_b%", "%c\\\\d%"]
 
 
 # ---------------------------------------------------------------------------
