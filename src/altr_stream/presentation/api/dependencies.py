@@ -10,6 +10,8 @@ from altr_stream.application.source_service import SourceService
 from altr_stream.infrastructure.database.registry_repository import SqliteRegistryRepository
 from altr_stream.infrastructure.database.repository import SqliteSourceRepository
 from altr_stream.infrastructure.database.session import get_session
+from altr_stream.query_engine.planning import QueryPlanner
+
 
 
 def get_source_service(session: AsyncSession = Depends(get_session)) -> SourceService:
@@ -36,5 +38,16 @@ def get_registry_service(session: AsyncSession = Depends(get_session)) -> Regist
     source_repo = SqliteSourceRepository(session)
     schema_service = SchemaService(source_repo)
     return RegistryService(registry_repo, source_repo, schema_service)
+
+
+def get_query_planner(
+    registry_service: RegistryService = Depends(get_registry_service),
+    schema_service: SchemaService = Depends(get_schema_service),
+    source_service: SourceService = Depends(get_source_service),
+) -> QueryPlanner:
+    """Provide a scoped QueryPlanner instance for source-agnostic query compilation."""
+    return QueryPlanner(registry_service, schema_service, source_service)
+
+
 
 

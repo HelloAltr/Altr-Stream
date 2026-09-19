@@ -141,9 +141,10 @@ class MockTestApiClient extends ApiClient {
   @override
   Future<AltrQLBindResponseModel> bindAltrQL({
     required String query,
-    required String sourceId,
+    String? sourceId,
     String? mappingId,
     String? logicalModelId,
+    bool normalize = false,
   }) async {
     return altrqlBindResponseToReturn ??
         AltrQLBindResponseModel(
@@ -157,7 +158,7 @@ class MockTestApiClient extends ApiClient {
             'offset': null,
           },
           boundIr: {
-            'source_id': sourceId,
+            'source_id': sourceId ?? 'mock-source',
             'source_name': 'Mock Source',
             'entity': {'name': 'users', 'namespace': 'public', 'entity_type': 'TABLE'},
             'projection': [],
@@ -172,9 +173,10 @@ class MockTestApiClient extends ApiClient {
   @override
   Future<AltrQLExecuteResponseModel> executeAltrQL({
     required String query,
-    required String sourceId,
+    String? sourceId,
     String? mappingId,
     String? logicalModelId,
+    bool normalize = false,
     bool confirmMassMutation = false,
   }) async {
     return altrqlExecuteResponseToReturn ??
@@ -202,7 +204,7 @@ class MockTestApiClient extends ApiClient {
             dialect: 'postgresql',
             query: 'SELECT * FROM "public"."users";',
             parameters: [],
-            sourceId: sourceId,
+            sourceId: sourceId ?? 'mock-source',
             sourceName: 'Mock Source',
           ),
           columns: ['id', 'username'],

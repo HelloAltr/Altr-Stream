@@ -237,18 +237,20 @@ class ApiClient {
     return AltrQLParseResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
   }
 
-  /// Bind a parsed AltrQL query against a registered data source's discovered schema snapshot
+  /// Bind a parsed AltrQL query against a registered data source or logical model
   Future<AltrQLBindResponseModel> bindAltrQL({
     required String query,
-    required String sourceId,
+    String? sourceId,
     String? mappingId,
     String? logicalModelId,
+    bool normalize = false,
   }) async {
     final body = jsonEncode({
       'query': query,
-      'source_id': sourceId,
+      if (sourceId != null && sourceId.isNotEmpty) 'source_id': sourceId,
       if (mappingId != null && mappingId.isNotEmpty) 'mapping_id': mappingId,
       if (logicalModelId != null && logicalModelId.isNotEmpty) 'logical_model_id': logicalModelId,
+      'normalize': normalize,
     });
 
     final res = await _client.post(
@@ -259,19 +261,21 @@ class ApiClient {
     return AltrQLBindResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
   }
 
-  /// Execute an AltrQL query against a registered data source through the complete compiler and execution pipeline
+  /// Execute an AltrQL query against a registered data source or federated across all eligible sources
   Future<AltrQLExecuteResponseModel> executeAltrQL({
     required String query,
-    required String sourceId,
+    String? sourceId,
     String? mappingId,
     String? logicalModelId,
+    bool normalize = false,
     bool confirmMassMutation = false,
   }) async {
     final body = jsonEncode({
       'query': query,
-      'source_id': sourceId,
+      if (sourceId != null && sourceId.isNotEmpty) 'source_id': sourceId,
       if (mappingId != null && mappingId.isNotEmpty) 'mapping_id': mappingId,
       if (logicalModelId != null && logicalModelId.isNotEmpty) 'logical_model_id': logicalModelId,
+      'normalize': normalize,
       'confirm_mass_mutation': confirmMassMutation,
     });
 

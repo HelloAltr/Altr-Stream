@@ -38,6 +38,12 @@ class _AltrQLPlaygroundScreenState extends State<AltrQLPlaygroundScreen> {
   bool _isBinding = false;
   bool _isExecuting = false;
 
+  bool _normalizeThroughLogicalSchema = false;
+  String _executionMode = 'single';
+  List<String> _sourcesExecuted = [];
+  List<PhysicalQueryModel> _physicalQueries = [];
+  int _selectedPhysicalQueryIndex = 0;
+
   Map<String, dynamic>? _ir;
   Map<String, dynamic>? _boundIr;
   PhysicalQueryModel? _physicalQuery;
@@ -152,6 +158,7 @@ DELETE users;''',
           _boundIr = null;
           _classification = null;
           _physicalQuery = null;
+          _physicalQueries = [];
           _columns = [];
           _rows = [];
           _metadata = null;
@@ -162,6 +169,7 @@ DELETE users;''',
           _boundIr = null;
           _classification = null;
           _physicalQuery = null;
+          _physicalQueries = [];
           _columns = [];
           _rows = [];
           _metadata = null;
@@ -181,6 +189,7 @@ DELETE users;''',
         _boundIr = null;
         _classification = null;
         _physicalQuery = null;
+        _physicalQueries = [];
         _columns = [];
         _rows = [];
         _metadata = null;
@@ -194,7 +203,7 @@ DELETE users;''',
 
   Future<void> _handleBind() async {
     final queryText = _queryController.text.trim();
-    if (queryText.isEmpty || _isBusy || _selectedSource == null) return;
+    if (queryText.isEmpty || _isBusy) return;
 
     setState(() {
       _isBinding = true;
@@ -204,17 +213,20 @@ DELETE users;''',
     try {
       final response = await _apiClient.bindAltrQL(
         query: queryText,
-        sourceId: _selectedSource!.id,
+        sourceId: _selectedSource?.id,
+        normalize: _selectedSource == null ? true : _normalizeThroughLogicalSchema,
       );
       if (!mounted) return;
 
       setState(() {
         _isBinding = false;
+        _executionMode = response.executionMode;
         if (response.success) {
           _ir = response.ir;
           _boundIr = response.boundIr;
           _classification = response.classification;
           _physicalQuery = null;
+          _physicalQueries = [];
           _columns = [];
           _rows = [];
           _metadata = null;
@@ -225,6 +237,7 @@ DELETE users;''',
           _boundIr = null;
           _classification = null;
           _physicalQuery = null;
+          _physicalQueries = [];
           _columns = [];
           _rows = [];
           _metadata = null;
@@ -243,6 +256,7 @@ DELETE users;''',
         _boundIr = null;
         _classification = null;
         _physicalQuery = null;
+        _physicalQueries = [];
         _columns = [];
         _rows = [];
         _metadata = null;
@@ -256,7 +270,7 @@ DELETE users;''',
 
   Future<void> _handleExecute({bool confirmMassMutation = false}) async {
     final queryText = _queryController.text.trim();
-    if (queryText.isEmpty || _isBusy || _selectedSource == null) return;
+    if (queryText.isEmpty || _isBusy) return;
 
     setState(() {
       _isExecuting = true;
@@ -266,17 +280,24 @@ DELETE users;''',
     try {
       final response = await _apiClient.executeAltrQL(
         query: queryText,
-        sourceId: _selectedSource!.id,
+        sourceId: _selectedSource?.id,
+        normalize: _selectedSource == null ? true : _normalizeThroughLogicalSchema,
         confirmMassMutation: confirmMassMutation,
       );
       if (!mounted) return;
 
       setState(() {
         _isExecuting = false;
+        _executionMode = response.executionMode;
+        _sourcesExecuted = response.sourcesExecuted;
         _ir = response.ir;
         _boundIr = response.boundIr;
         _classification = response.classification;
         _physicalQuery = response.physicalQuery;
+        _physicalQueries = response.physicalQueries.isNotEmpty
+            ? response.physicalQueries
+            : (_physicalQuery != null ? [_physicalQuery!] : []);
+        _selectedPhysicalQueryIndex = 0;
 
         if (response.success) {
           _columns = response.columns;
@@ -295,7 +316,7 @@ DELETE users;''',
                 message: 'Query execution failed',
               );
           // If we have a physical query even on error, default to physical query tab
-          if (_physicalQuery != null) {
+          if (_physicalQuery != null || _physicalQueries.isNotEmpty) {
             _activeResultTab = 1;
           }
         }
@@ -646,128 +667,239 @@ DELETE users;''',
                         ),
                       ),
                       const Spacer(),
-                      if (widget.sources.isNotEmpty) ...[
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Target Source:',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: colorScheme.outlineVariant.withValues(
-                                    alpha: 0.8,
-                                  ),
-                                  width: 1.0,
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          reverse: true,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Target Source:',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<SourceModel>(
-                                  value: _selectedSource,
-                                  isDense: true,
-                                  dropdownColor:
-                                      colorScheme.surfaceContainerHighest,
-                                  icon: Icon(
-                                    Icons.arrow_drop_down_rounded,
-                                    size: 20,
-                                    color: colorScheme.primary,
-                                  ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerLow,
                                   borderRadius: BorderRadius.circular(8),
-                                  items: widget.sources.map((src) {
-                                    return DropdownMenuItem<SourceModel>(
-                                      value: src,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            src.type == 'SQLITE'
-                                                ? Icons.insert_drive_file_outlined
-                                                : Icons.storage_rounded,
-                                            size: 14,
-                                            color: colorScheme.primary,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            src.name,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: colorScheme.onSurface,
+                                  border: Border.all(
+                                    color: colorScheme.outlineVariant.withValues(
+                                      alpha: 0.8,
+                                    ),
+                                    width: 1.0,
+                                  ),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String?>(
+                                    value: _selectedSource?.id,
+                                    isDense: true,
+                                    dropdownColor:
+                                        colorScheme.surfaceContainerHighest,
+                                    icon: Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                      size: 20,
+                                      color: colorScheme.primary,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    items: [
+                                      DropdownMenuItem<String?>(
+                                        value: null,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.hub_rounded,
+                                              size: 14,
+                                              color: colorScheme.primary,
                                             ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 5,
-                                              vertical: 1,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: colorScheme
-                                                  .surfaceContainerHigh,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                              border: Border.all(
-                                                color: colorScheme
-                                                    .outlineVariant
-                                                    .withValues(alpha: 0.5),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              src.type,
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Auto-Select / All Sources',
                                               style: TextStyle(
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w500,
-                                                color: colorScheme
-                                                    .onSurfaceVariant,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: colorScheme.onSurface,
                                               ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 5,
+                                                vertical: 1,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: colorScheme.primaryContainer.withValues(alpha: 0.8),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'FEDERATED',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: colorScheme.onPrimaryContainer,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      ...widget.sources.map((src) {
+                                        return DropdownMenuItem<String?>(
+                                          value: src.id,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                src.type == 'SQLITE'
+                                                    ? Icons.insert_drive_file_outlined
+                                                    : Icons.storage_rounded,
+                                                size: 14,
+                                                color: colorScheme.primary,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                src.name,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: colorScheme.onSurface,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 5,
+                                                  vertical: 1,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: colorScheme
+                                                      .surfaceContainerHigh,
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                  border: Border.all(
+                                                    color: colorScheme
+                                                        .outlineVariant
+                                                        .withValues(alpha: 0.5),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  src.type,
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        if (val == null) {
+                                          _selectedSource = null;
+                                        } else {
+                                          _selectedSource = widget.sources
+                                              .firstWhere((s) => s.id == val);
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: Checkbox(
+                                      value: _selectedSource == null
+                                          ? true
+                                          : _normalizeThroughLogicalSchema,
+                                      onChanged: _selectedSource == null
+                                          ? null
+                                          : (val) {
+                                              setState(() {
+                                                _normalizeThroughLogicalSchema =
+                                                    val ?? false;
+                                              });
+                                            },
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Tooltip(
+                                    message: _selectedSource == null
+                                        ? 'Normalization is mandatory for federated multi-source execution'
+                                        : 'When enabled, translates physical column names to canonical logical field names',
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Normalize (Logical)',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: _selectedSource == null
+                                                ? colorScheme.onSurface
+                                                    .withValues(alpha: 0.7)
+                                                : colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        if (_selectedSource == null) ...[
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '(Auto)',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontStyle: FontStyle.italic,
+                                              color: colorScheme.outline,
                                             ),
                                           ),
                                         ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      setState(() => _selectedSource = val);
-                                    }
-                                  },
-                                ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.refresh, size: 14),
-                        label: const Text(
-                          'Reset Query',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
+                              const SizedBox(width: 12),
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.refresh, size: 14),
+                                label: const Text(
+                                  'Reset Query',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  setState(() => _queryController.clear());
+                                  _focusNode.requestFocus();
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        onPressed: () {
-                          setState(() => _queryController.clear());
-                          _focusNode.requestFocus();
-                        },
                       ),
                     ],
                   ),
@@ -1069,7 +1201,7 @@ DELETE users;''',
 
     final hasResults =
         _columns.isNotEmpty || _rows.isNotEmpty || _metadata != null;
-    final hasPhysicalQuery = _physicalQuery != null;
+    final hasPhysicalQuery = _physicalQuery != null || _physicalQueries.isNotEmpty;
     final hasBoundIr = _boundIr != null;
     final hasCanonicalIr = _ir != null;
 
@@ -1186,6 +1318,28 @@ DELETE users;''',
                                 : colorScheme.error,
                           ),
                         ),
+                        if (_executionMode == 'federated') ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _sourcesExecuted.isNotEmpty
+                                  ? 'FEDERATED (${_sourcesExecuted.length} Sources)'
+                                  : 'FEDERATED',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                        ],
                         if (_metadata != null) ...[
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -1551,10 +1705,70 @@ DELETE users;''',
     }
 
     // 1: Physical Query
-    if (_activeResultTab == 1 && _physicalQuery != null) {
+    final queriesToDisplay = _physicalQueries.isNotEmpty
+        ? _physicalQueries
+        : (_physicalQuery != null ? [_physicalQuery!] : <PhysicalQueryModel>[]);
+
+    if (_activeResultTab == 1 && queriesToDisplay.isNotEmpty) {
+      final selectedIdx = _selectedPhysicalQueryIndex.clamp(0, queriesToDisplay.length - 1);
+      final currentQuery = queriesToDisplay[selectedIdx];
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (queriesToDisplay.length > 1) ...[
+            Text(
+              'Federated Physical Plans (${queriesToDisplay.length} Data Sources):',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: List.generate(queriesToDisplay.length, (idx) {
+                final q = queriesToDisplay[idx];
+                final isSelected = idx == selectedIdx;
+                return ChoiceChip(
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        q.dialect == 'SQLITE'
+                            ? Icons.insert_drive_file_outlined
+                            : Icons.storage_rounded,
+                        size: 13,
+                        color: isSelected
+                            ? colorScheme.onPrimaryContainer
+                            : colorScheme.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${q.sourceName} (${q.dialect.toUpperCase()})',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      setState(() {
+                        _selectedPhysicalQueryIndex = idx;
+                      });
+                    }
+                  },
+                  visualDensity: VisualDensity.compact,
+                );
+              }),
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
             children: [
               Container(
@@ -1564,7 +1778,7 @@ DELETE users;''',
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  '${_physicalQuery!.dialect.toUpperCase()} Dialect',
+                  '${currentQuery.dialect.toUpperCase()} Dialect',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
@@ -1574,7 +1788,7 @@ DELETE users;''',
               ),
               const SizedBox(width: 8),
               Text(
-                'Source: ${_physicalQuery!.sourceName}',
+                'Source: ${currentQuery.sourceName}',
                 style: TextStyle(
                   fontSize: 11,
                   color: colorScheme.onSurfaceVariant,
@@ -1594,7 +1808,7 @@ DELETE users;''',
               ),
             ),
             child: SelectableText(
-              _physicalQuery!.query,
+              currentQuery.query,
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 12,
@@ -1603,7 +1817,7 @@ DELETE users;''',
               ),
             ),
           ),
-          if (_physicalQuery!.parameters.isNotEmpty) ...[
+          if (currentQuery.parameters.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
               'Query Parameters:',
@@ -1617,8 +1831,8 @@ DELETE users;''',
             Wrap(
               spacing: 8,
               runSpacing: 6,
-              children: List.generate(_physicalQuery!.parameters.length, (idx) {
-                final param = _physicalQuery!.parameters[idx];
+              children: List.generate(currentQuery.parameters.length, (idx) {
+                final param = currentQuery.parameters[idx];
                 return Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,

@@ -2,7 +2,7 @@
 
 > **Physical source abstraction, multi-database query compilation, and data infrastructure service for the HelloAltr / Altr Mesh ecosystem.**
 
-Altr Stream is responsible for knowing *how* to physically connect to, introspect, and operate across heterogeneous physical data sources (**PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB**). It encapsulates connection pools, catalog discovery, schema normalization, native pushdown operations, the **AltrQL logical query compiler (v0.7.6-alpha)**, the **Logical Model & Source Mapping Registry**, and future Change Data Capture (CDC).
+Altr Stream is responsible for knowing *how* to physically connect to, introspect, and operate across heterogeneous physical data sources (**PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB**). It encapsulates connection pools, catalog discovery, schema normalization, native pushdown operations, the **AltrQL Federated Query Engine (v0.9.0-alpha)**, the **Logical Model & Source Mapping Registry**, and future Change Data Capture (CDC).
 
 ---
 
@@ -21,6 +21,7 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │        - Overview, Data Sources, Logical Models, Activity, Settings         │
 │        - Schema Explorer & Source-Scoped Native Database Playground         │
 │        - Global AltrQL Console & Multi-View Compiler Inspector (/altrql)    │
+│        - Auto-Select / All Sources Federated Multi-DB Query Execution       │
 │        - 4-step guided source onboarding wizard                             │
 │        - Serves pre-compiled static Flutter Web bundle                      │
 │        - Proxies /api/* to backend service                                  │
@@ -31,9 +32,10 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │                       altr-stream-app (Port 8000)                           │
 │                           FastAPI Backend Service                           │
 │        - Source registration & connection lifecycle management              │
-│        - AltrQL v0.7.6-alpha Query Engine & Pure Compiler Pipeline          │
-│        - Logical Model & Source Mapping Registry (Lifecycle & Validation)   │
+│        - AltrQL v0.9.0-alpha Federated Query Engine & Compiler Pipeline     │
+│        - Source Selector & Federated Multi-Source Execution Engine          │
 │        - Canonical Schema Catalog Introspection & Normalization Engine      │
+│        - Logical Model & Source Mapping Registry (Lifecycle & Validation)   │
 │        - Internal Metadata Store (SQLite / aiosqlite)                       │
 │        - Multi-database physical connectors & pure dialect lowerers         │
 └───────┬──────────────────────┬──────────────────────┬───────────────────────┘
@@ -47,9 +49,9 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 
 ---
 
-## ⚡ AltrQL Query Engine (v0.7.6-alpha)
+## ⚡ AltrQL Federated Query Engine (v0.9.0-alpha)
 
-AltrQL is a declarative, database-neutral logical query and mutation language designed for the Altr platform. The query engine compiles AltrQL queries through pure, isolated compiler phases into 100% parameterized dialect-specific physical queries (SQL for relational engines, BSON operation pipelines for document stores):
+AltrQL is a declarative, database-neutral logical query and mutation language designed for the Altr platform. The query engine supports both single-source targeted execution and federated multi-source logical execution across heterogeneous physical databases:
 
 ```text
 Raw AltrQL String
@@ -162,6 +164,84 @@ Altr Stream provides a centralized registry for abstract business entities (Logi
 
 ---
 
+## 🌐 Federated Multi-Source Logical Query Execution (v0.9.0-alpha)
+
+Altr Stream v0.9 introduces declarative, multi-database query federation across **PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB** through the Logical Model & Source Mapping Registry.
+
+### 1. Auto-Select / All Sources (Federated Execution)
+Executing a query with `Auto-Select / All Sources` targets the canonical Logical Schema and fans out across all currently eligible active source mappings:
+```altrql
+GET students;
+```
+1. **Logical Entity Resolution**: Resolves the target logical entity with case-insensitive and singular/plural alignment.
+2. **Active Mapping Discovery**: Discovers all active source mappings registered for the entity.
+3. **Physical Plan Generation & Lowering**: Lowers the logical IR into parameterized physical plans tailored to each backend dialect (PostgreSQL SQL, MySQL SQL, SQLite SQL, MongoDB aggregation pipelines).
+4. **Parallel Execution**: Dispatches queries concurrently across participating physical database connections.
+5. **Canonical Result Normalization**: Translates dialect-specific physical column names into canonical logical fields (e.g., PostgreSQL `full_name`, MySQL `student_name`, SQLite `name` $\rightarrow$ canonical `name`) and strips physical engine artifacts (e.g., MongoDB `_id`).
+6. **Unified Merging & Global Operations**: Merges streams, applies global logical sorting across the merged dataset, and enforces global `LIMIT`/`OFFSET`/`TOP` pagination semantics.
+
+> [!IMPORTANT]
+> **Auto-Select / All Sources** means **federated logical execution across all currently eligible active mappings**. It does *not* mean picking a single source or falling back on error.
+
+### 2. Explicit-Source Execution & Normalization Control
+When querying a specific physical source (e.g., Target Source = `PostgreSQL`), two operational modes are supported:
+- **`Normalize = OFF`**: Returns raw physical database columns/keys directly from the connector.
+- **`Normalize = ON`**: Normalizes rows into the canonical logical schema using the active source mapping.
+
+### 3. Execution & Observability Metadata Contract
+Every query executed via `POST /api/v1/altrql/execute` returns machine-readable execution metadata in the response envelope:
+```json
+{
+  "data": [...],
+  "meta": {
+    "execution_mode": "federated",
+    "normalized": true,
+    "source_count": 4,
+    "row_count": 32,
+    "duration_ms": 28.45,
+    "sources": [
+      {
+        "source_id": "postgres-prod",
+        "source_name": "PostgreSQL Primary",
+        "source_type": "postgresql",
+        "status": "success",
+        "rows": 8,
+        "execution_time_ms": 12.3
+      },
+      {
+        "source_id": "mysql-prod",
+        "source_name": "MySQL Replica",
+        "source_type": "mysql",
+        "status": "success",
+        "rows": 8,
+        "execution_time_ms": 10.1
+      },
+      {
+        "source_id": "sqlite-local",
+        "source_name": "SQLite Edge",
+        "source_type": "sqlite",
+        "status": "success",
+        "rows": 8,
+        "execution_time_ms": 2.4
+      },
+      {
+        "source_id": "mongo-analytics",
+        "source_name": "MongoDB Cluster",
+        "source_type": "mongodb",
+        "status": "success",
+        "rows": 8,
+        "execution_time_ms": 14.2
+      }
+    ]
+  }
+}
+```
+
+> [!NOTE]
+> **Planned for v0.10**: Partial logical-model discovery fallback (e.g., executing `GET users;` when `users` is not yet a mapped logical entity but exists in physical source catalogs) is deferred to milestone v0.10.
+
+---
+
 ## 🚀 Quick Start with Docker Compose
 
 The complete multi-database system (Flutter Web Admin, FastAPI backend, PostgreSQL, MySQL, and MongoDB pre-seeded instances) can be launched using Docker Compose.
@@ -201,7 +281,7 @@ docker compose down -v
 | **Backend REST API** | [http://localhost:8000](http://localhost:8000) | Core data infrastructure REST API |
 | **Interactive API Docs** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger UI for exploring and testing API endpoints |
 | **API Health Check** | [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) | Service health and engine version status |
-| **AltrQL Compiler APIs** | `POST /api/v1/altrql/parse`<br>`POST /api/v1/altrql/bind`<br>`POST /api/v1/altrql/execute` | End-to-end query parsing, semantic validation, schema binding, physical lowering & execution |
+| **AltrQL Compiler APIs** | `POST /api/v1/altrql/parse`<br>`POST /api/v1/altrql/bind`<br>`POST /api/v1/altrql/execute` | End-to-end query parsing, semantic validation, schema binding, physical lowering, federated planning & execution |
 | **Logical Models APIs** | `GET /api/v1/models`<br>`POST /api/v1/models`<br>`POST /api/v1/models/{id}/mappings` | Logical model definition and physical source mapping registry |
 | **PostgreSQL Test DB** | `localhost:5432` (`altr_test_db`) | User: `altr_test_user` • Password: `altr_test_pass` |
 | **MySQL Test DB** | `localhost:3306` (`altr_test_db`) | User: `altr_test_user` • Password: `altr_test_pass` |
@@ -221,7 +301,7 @@ uv pip install -e ".[dev]"
 # Run FastAPI backend with hot reload
 uvicorn altr_stream.main:app --reload --host 0.0.0.0 --port 8000
 
-# Run complete backend test suite (653 tests)
+# Run complete backend test suite (688 tests)
 pytest tests/ -v
 ```
 
@@ -235,7 +315,7 @@ flutter pub get
 # Run Flutter Web development server with Chrome
 flutter run -d chrome
 
-# Run multi-viewport Flutter widget tests (51 tests)
+# Run multi-viewport Flutter widget & integration tests (86 tests)
 flutter test
 
 # Run Flutter static analysis

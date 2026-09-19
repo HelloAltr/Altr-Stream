@@ -143,3 +143,48 @@ class DuplicateMappingError(AltrStreamError):
         self.version = version
 
 
+class MissingPlanningContextError(AltrStreamError):
+    """Raised when a request provides neither source_id nor logical_model_id."""
+
+    def __init__(self, message: str = "Must provide either 'source_id' for direct physical execution or 'logical_model_id' for source-agnostic query planning."):
+        super().__init__(message)
+
+
+class NoActiveSourceMappingError(AltrStreamError):
+    """Raised when no active source mapping exists for a logical entity."""
+
+    def __init__(self, entity_name: str, model_id: str):
+        super().__init__(f"No ACTIVE source mapping found for entity '{entity_name}' in logical model '{model_id}'.")
+        self.entity_name = entity_name
+        self.model_id = model_id
+
+
+class IncompleteFieldMappingError(AltrStreamError):
+    """Raised when candidate source mappings do not map all requested logical fields."""
+
+    def __init__(self, entity_name: str, unmapped_fields: list[str], source_id: str | None = None):
+        fields_str = ", ".join(f"'{f}'" for f in unmapped_fields)
+        if source_id:
+            msg = f"Candidate source '{source_id}' does not map required logical field(s): {fields_str} on entity '{entity_name}'."
+        else:
+            msg = f"No candidate source mapping covers all required logical field(s): {fields_str} on entity '{entity_name}'."
+        super().__init__(msg)
+        self.entity_name = entity_name
+        self.unmapped_fields = unmapped_fields
+        self.source_id = source_id
+
+
+class SourceCapabilityMismatchError(AltrStreamError):
+    """Raised when no candidate source supports the required capabilities of a query."""
+
+    def __init__(self, entity_name: str, capability: str, details: str | None = None):
+        msg = f"No active source mapping for entity '{entity_name}' supports required capability '{capability}'."
+        if details:
+            msg += f" {details}"
+        super().__init__(msg)
+        self.entity_name = entity_name
+        self.capability = capability
+        self.details = details
+
+
+

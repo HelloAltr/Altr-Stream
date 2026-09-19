@@ -106,6 +106,17 @@ class QueryExecuteRequestDTO(BaseModel):
     mode: str | None = Field(default=None, description="Optional MongoDB query mode: 'shell' or 'physical'")
 
 
+class SourceExecutionInfoDTO(BaseModel):
+    """Execution information for an individual source in single or federated execution."""
+
+    source_id: str = Field(..., description="Physical data source ID")
+    source_name: str | None = Field(default=None, description="Physical data source name")
+    source_type: str | None = Field(default=None, description="Physical data source dialect/type")
+    status: str = Field(default="success", description="Per-source execution status")
+    rows: int = Field(default=0, description="Rows contributed by this source")
+    execution_time_ms: float | None = Field(default=None, description="Per-source execution time in milliseconds")
+
+
 class QueryMetadataDTO(BaseModel):
     """Execution metadata for a query result."""
 
@@ -115,6 +126,10 @@ class QueryMetadataDTO(BaseModel):
     message: str | None = Field(default=None, description="Command status or outcome message")
     operation: str | None = Field(default=None, description="Query operation type (READ, CREATE, UPDATE, DELETE)")
     mutation_scope: str | None = Field(default=None, description="Mutation scope (NOT_APPLICABLE, CONSTRAINED, MASS)")
+    execution_mode: str = Field(default="single_source", description="Execution mode ('single_source' or 'federated')")
+    normalized: bool = Field(default=False, description="Whether canonical logical schema normalization was applied")
+    source_count: int = Field(default=1, description="Total number of sources participating in execution")
+    sources: list[SourceExecutionInfoDTO] = Field(default_factory=list, description="Per-source execution details")
 
 
 class QueryExecuteResponseDTO(BaseModel):
@@ -167,9 +182,10 @@ class AltrQLBindRequestDTO(BaseModel):
     """Request payload for binding an AltrQL query against a registered data source schema."""
 
     query: str = Field(..., min_length=1, description="AltrQL query string to bind")
-    source_id: str = Field(..., min_length=1, description="Registered data source ID to bind against")
+    source_id: str | None = Field(default=None, description="Registered data source ID to bind against (optional if logical_model_id provided)")
     mapping_id: str | None = Field(default=None, description="Optional SourceMapping ID for logical resolution")
     logical_model_id: str | None = Field(default=None, description="Optional LogicalModel ID for logical resolution")
+    normalize: bool = Field(default=False, description="Whether to normalize physical field names to logical field names")
 
 
 class AltrQLBindResponseDTO(BaseModel):
@@ -179,6 +195,9 @@ class AltrQLBindResponseDTO(BaseModel):
     ir: dict[str, Any] | None = Field(default=None, description="Canonical AltrQueryIR AST")
     bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST if successful")
     classification: MutationClassificationDTO | None = Field(default=None, description="Mutation classification metadata if successful")
+    execution_mode: str = Field(default="single", description="Execution mode ('single' or 'federated')")
+    selected_source_id: str | None = Field(default=None, description="Selected physical data source ID if single source")
+    selected_mapping_id: str | None = Field(default=None, description="Selected SourceMapping ID if single source")
     error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
 
 
@@ -202,13 +221,26 @@ class PhysicalQueryBatchDTO(BaseModel):
     source_name: str = Field(..., description="Target source name")
 
 
+class PhysicalPlanItemDTO(BaseModel):
+    """Physical execution plan representation for an individual data source in a federated query."""
+
+    source_id: str = Field(..., description="Target datasource ID")
+    source_name: str = Field(..., description="Target datasource name")
+    source_type: str = Field(..., description="Target datasource dialect")
+    mapping_id: str = Field(..., description="Associated SourceMapping ID")
+    physical_entity: str = Field(..., description="Physical table or collection name")
+    physical_query: PhysicalQueryDTO | PhysicalQueryBatchDTO | None = Field(default=None, description="Compiled physical query")
+    bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound AST")
+
+
 class AltrQLExecuteRequestDTO(BaseModel):
     """Request payload for executing an AltrQL query against a registered data source."""
 
     query: str = Field(..., min_length=1, description="AltrQL query string to execute")
-    source_id: str = Field(..., min_length=1, description="Registered data source ID to execute against")
+    source_id: str | None = Field(default=None, description="Registered data source ID to execute against (optional if logical_model_id provided)")
     mapping_id: str | None = Field(default=None, description="Optional SourceMapping ID for logical resolution")
     logical_model_id: str | None = Field(default=None, description="Optional LogicalModel ID for logical resolution")
+    normalize: bool = Field(default=False, description="Whether to normalize physical field names to logical field names (forced True for Auto-Select)")
     confirm_mass_mutation: bool = Field(default=False, description="Explicit confirmation for mass mutations without WHERE filter")
 
 
@@ -220,10 +252,39 @@ class AltrQLExecuteResponseDTO(BaseModel):
     bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST")
     classification: MutationClassificationDTO | None = Field(default=None, description="Mutation classification metadata")
     physical_query: PhysicalQueryDTO | PhysicalQueryBatchDTO | None = Field(default=None, description="Lowered PhysicalQuery representation")
+    physical_queries: list[PhysicalQueryDTO | PhysicalQueryBatchDTO] = Field(default_factory=list, description="List of physical queries executed across federated sources")
     columns: list[str] = Field(default_factory=list, description="Ordered list of column names")
     rows: list[dict[str, Any]] = Field(default_factory=list, description="Normalized rows formatted as JSON dictionaries")
     metadata: QueryMetadataDTO | None = Field(default=None, description="Query execution performance metadata")
+    execution_mode: str = Field(default="single", description="Execution mode ('single' or 'federated')")
+    sources_executed: list[str] = Field(default_factory=list, description="List of source IDs executed in this request")
+    selected_source_id: str | None = Field(default=None, description="Selected physical data source ID if single source")
+    selected_mapping_id: str | None = Field(default=None, description="Selected SourceMapping ID if single source")
     error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
+
+
+class AltrQLPlanResponseDTO(BaseModel):
+    """Response payload for AltrQL dry-run plan inspection requests."""
+
+    success: bool = Field(..., description="Whether query planning succeeded")
+    logical_model_id: str | None = Field(default=None, description="Logical model ID")
+    target_entity: str | None = Field(default=None, description="Target logical entity")
+    execution_mode: str = Field(default="single", description="Execution mode ('single' or 'federated')")
+    selected_source_id: str | None = Field(default=None, description="Selected physical data source ID if single source")
+    selected_source_name: str | None = Field(default=None, description="Selected physical data source name if single source")
+    selected_source_type: str | None = Field(default=None, description="Selected physical data source dialect type if single source")
+    selected_mapping_id: str | None = Field(default=None, description="Selected SourceMapping ID if single source")
+    physical_entity: str | None = Field(default=None, description="Target physical table or collection name if single source")
+    ir: dict[str, Any] | None = Field(default=None, description="Canonical AltrQueryIR AST")
+    bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST")
+    classification: MutationClassificationDTO | None = Field(default=None, description="Mutation classification metadata")
+    physical_query: PhysicalQueryDTO | PhysicalQueryBatchDTO | None = Field(default=None, description="Lowered PhysicalQuery representation")
+    physical_plans: list[PhysicalPlanItemDTO] = Field(default_factory=list, description="List of physical execution plans across all candidate sources")
+    total_sources_planned: int = Field(default=1, description="Total number of physical sources participating in execution")
+    candidates_evaluated: list[dict[str, Any]] = Field(default_factory=list, description="List of evaluated candidate sources and eligibility rationale")
+    error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if planning failed")
+
+
 
 
 # ==========================================

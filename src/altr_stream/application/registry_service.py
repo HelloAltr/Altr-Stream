@@ -67,9 +67,15 @@ class RegistryService:
         return await self.registry_repo.create_model(model)
 
     async def get_model(self, model_id: str) -> LogicalModel:
-        """Get logical model by ID."""
+        """Get logical model by ID or name."""
         model = await self.registry_repo.get_model_by_id(model_id)
         if not model:
+            model = await self.registry_repo.get_model_by_name(model_id)
+        if not model:
+            all_models = await self.registry_repo.list_models()
+            for m in all_models:
+                if m.name.lower() == model_id.lower():
+                    return m
             raise LogicalModelNotFoundError(model_id)
         return model
 
@@ -659,21 +665,54 @@ class RegistryService:
         target_entity = model.get_entity_by_name(entity_name)
         if not target_entity:
             target_entity = model.get_entity_by_id(entity_name)
+
+        all_mappings = await self.registry_repo.list_source_mappings(logical_model_id=model.id)
+        active_mappings = [m for m in all_mappings if m.status == MappingStatus.ACTIVE]
+
+        # If not found directly in model, check active source mappings for physical/logical entity aliases
+        if not target_entity:
+            target_lower = entity_name.strip().lower()
+            target_clean = target_lower.rstrip("s")
+            for mapping in active_mappings:
+                for em in mapping.entity_mappings:
+                    phys_lower = em.physical_entity_name.lower() if em.physical_entity_name else ""
+                    log_lower = em.logical_entity_name.lower() if em.logical_entity_name else ""
+                    if (
+                        phys_lower == target_lower
+                        or (phys_lower and phys_lower.rstrip("s") == target_clean)
+                        or log_lower == target_lower
+                        or (log_lower and log_lower.rstrip("s") == target_clean)
+                        or (em.logical_entity_id and em.logical_entity_id.lower() == target_lower)
+                    ):
+                        target_entity = (
+                            model.get_entity_by_id(em.logical_entity_id)
+                            or model.get_entity_by_name(em.logical_entity_name)
+                        )
+                        if target_entity:
+                            break
+                if target_entity:
+                    break
+
         if not target_entity:
             raise LogicalEntityNotFoundError(
                 f"Logical entity '{entity_name}' was not found in model '{model.name}'."
             )
 
-        all_mappings = await self.registry_repo.list_source_mappings(logical_model_id=model_id)
-        active_mappings = [m for m in all_mappings if m.status == MappingStatus.ACTIVE]
+        target_clean = target_entity.name.strip().lower().rstrip("s")
+        target_lower = target_entity.name.strip().lower()
 
         candidates: list[ResolvedSourceCandidate] = []
         for mapping in active_mappings:
             matching_em = None
             for em in mapping.entity_mappings:
+                log_name_lower = em.logical_entity_name.lower() if em.logical_entity_name else ""
+                phys_name_lower = em.physical_entity_name.lower() if em.physical_entity_name else ""
                 if (
                     em.logical_entity_id == target_entity.id
-                    or (em.logical_entity_name and em.logical_entity_name.lower() == target_entity.name.lower())
+                    or log_name_lower == target_lower
+                    or (log_name_lower and log_name_lower.rstrip("s") == target_clean)
+                    or phys_name_lower == target_lower
+                    or (phys_name_lower and phys_name_lower.rstrip("s") == target_clean)
                 ):
                     matching_em = em
                     break

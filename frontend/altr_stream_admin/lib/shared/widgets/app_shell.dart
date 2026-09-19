@@ -149,7 +149,7 @@ class AppShell extends StatelessWidget {
                         _buildNavItem(
                           context: context,
                           title: 'API Explorer',
-                          route: '/docs',
+                          route: '/api-explorer',
                           icon: Icons.api_outlined,
                           activeIcon: Icons.api,
                         ),
@@ -190,7 +190,7 @@ class AppShell extends StatelessWidget {
   Widget _buildTabletLayout(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final navRoutes = ['/', '/sources', '/registry', '/activity', '/settings', '/docs'];
+    final navRoutes = ['/', '/sources', '/registry', '/activity', '/settings', '/api-explorer'];
     int selectedIndex = 0;
     if (activeRoute == '/sources' || activeRoute.startsWith('/sources/')) {
       selectedIndex = 1;
@@ -200,7 +200,7 @@ class AppShell extends StatelessWidget {
       selectedIndex = 3;
     } else if (activeRoute == '/settings') {
       selectedIndex = 4;
-    } else if (activeRoute == '/docs' || activeRoute == '/api-docs') {
+    } else if (activeRoute == '/api-explorer' || activeRoute == '/docs' || activeRoute == '/api-docs') {
       selectedIndex = 5;
     }
 
@@ -399,10 +399,10 @@ class AppShell extends StatelessWidget {
               leading: const Icon(Icons.api_outlined),
               title: const Text('API Explorer'),
               subtitle: const Text('OpenAPI / Swagger', style: TextStyle(fontSize: 11)),
-              selected: activeRoute == '/docs' || activeRoute == '/api-docs',
+              selected: activeRoute == '/api-explorer' || activeRoute == '/docs' || activeRoute == '/api-docs',
               onTap: () {
                 Navigator.of(context).pop();
-                onNavigate('/docs');
+                onNavigate('/api-explorer');
               },
             ),
           ],
@@ -533,7 +533,10 @@ class AppShell extends StatelessWidget {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final bool isActive = (route == '/' && activeRoute == '/') ||
-        (route != '/' && (activeRoute == route || (route == '/sources' && activeRoute.startsWith('/sources/'))));
+        (route != '/' &&
+            (activeRoute == route ||
+                (route == '/sources' && activeRoute.startsWith('/sources/')) ||
+                (route == '/api-explorer' && (activeRoute == '/api-docs' || activeRoute == '/docs'))));
 
     return InkWell(
       onTap: () => onNavigate(route),

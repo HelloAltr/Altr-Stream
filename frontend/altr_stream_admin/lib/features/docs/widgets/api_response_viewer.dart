@@ -183,9 +183,23 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                 bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
               ),
             ),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                // Status Badge
+                // 1. Section Title
+                Text(
+                  'Execution Response',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+
+                // 2. Status Badge
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
@@ -214,9 +228,8 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
 
-                // Duration Badge
+                // 3. Duration Badge
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -240,30 +253,42 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                     ],
                   ),
                 ),
-                const Spacer(),
 
-                // Copy actions
-                IconButton(
-                  icon: const Icon(Icons.code, size: 16),
-                  tooltip: 'Copy cURL Command',
-                  onPressed: () => _copyToClipboard(context, curlCommand, 'cURL command'),
+                // 4. Copy actions & Clear
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.code, size: 16),
+                      tooltip: 'Copy cURL Command',
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      onPressed: () => _copyToClipboard(context, curlCommand, 'cURL command'),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.link, size: 16),
+                      tooltip: 'Copy Request URL',
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      onPressed: () => _copyToClipboard(context, widget.result.requestUrl, 'Request URL'),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 16),
+                      tooltip: 'Copy Response Body',
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: const EdgeInsets.all(4),
+                      onPressed: () => _copyToClipboard(context, formattedBody, 'Response body'),
+                    ),
+                    if (widget.onClear != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 16),
+                        tooltip: 'Clear Response',
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        padding: const EdgeInsets.all(4),
+                        onPressed: widget.onClear,
+                      ),
+                  ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.link, size: 16),
-                  tooltip: 'Copy Request URL',
-                  onPressed: () => _copyToClipboard(context, widget.result.requestUrl, 'Request URL'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.copy, size: 16),
-                  tooltip: 'Copy Response Body',
-                  onPressed: () => _copyToClipboard(context, formattedBody, 'Response body'),
-                ),
-                if (widget.onClear != null)
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    tooltip: 'Clear Response',
-                    onPressed: widget.onClear,
-                  ),
               ],
             ),
           ),
@@ -308,10 +333,12 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Icon(Icons.gpp_maybe, size: 18, color: colorScheme.error),
-                      const SizedBox(width: 8),
                       Text(
                         'Request validation failed',
                         style: TextStyle(
@@ -320,7 +347,6 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                           color: colorScheme.error,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(

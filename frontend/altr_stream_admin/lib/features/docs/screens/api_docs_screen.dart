@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/config/app_config.dart';
-import '../../../shared/widgets/page_header.dart';
 import '../models/api_endpoint_model.dart';
 import '../services/openapi_parser.dart';
-import '../widgets/api_endpoint_detail_panel.dart';
-import '../widgets/api_endpoint_list.dart';
-import '../widgets/api_search_filter_bar.dart';
+import '../widgets/api_console_header.dart';
+import '../widgets/api_endpoint_documentation.dart';
+import '../widgets/api_endpoint_sidebar.dart';
+import '../widgets/api_try_it_out_panel.dart';
 
+/// Altr Stream Dedicated API Console screen.
+///
+/// Features a dedicated global top header (`ApiConsoleHeader`) sitting above
+/// a three-region workspace:
+///   - Left: Tag-grouped Endpoint Navigation & Filters (`ApiEndpointSidebar`)
+///   - Center: Authoritative Documentation & Schemas (`ApiEndpointDocumentation`)
+///   - Right: Interactive "Try It Out" Execution Console (`ApiTryItOutPanel`)
 class ApiDocsScreen extends StatefulWidget {
   final ApiClient apiClient;
   final List<SourceModel> sources;
   final String nodeStatus;
   final VoidCallback? onNodeStatusTap;
+  final VoidCallback? onBackToAdmin;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   ApiDocsScreen({
     super.key,
@@ -23,6 +32,9 @@ class ApiDocsScreen extends StatefulWidget {
     this.sources = const [],
     this.nodeStatus = 'ACTIVE',
     this.onNodeStatusTap,
+    this.onBackToAdmin,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
   }) : apiClient = apiClient ?? ApiClient();
 
   @override
@@ -165,396 +177,459 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
     }
   }
 
-  void _copyToClipboard(BuildContext context, String text, String label) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied to clipboard'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final filtered = _filteredEndpoints;
 
+    // Ensure active endpoint selection is valid within filtered results
+    final effectiveEndpoint = (_selectedEndpoint != null && filtered.contains(_selectedEndpoint))
+        ? _selectedEndpoint
+        : (filtered.isNotEmpty ? filtered.first : _selectedEndpoint);
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 960;
+        final isDesktopWide = constraints.maxWidth >= 1100;
+        final isTablet = constraints.maxWidth >= 720 && constraints.maxWidth < 1100;
+        final hasBoundedHeight = constraints.hasBoundedHeight;
 
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              PageHeader(
-                title: 'API Explorer',
-                description: 'Live FastAPI OpenAPI discovery, real-time search, parameter inspection, and native request execution.',
-                nodeStatus: widget.nodeStatus,
-                onNodeStatusTap: widget.onNodeStatusTap,
-                primaryAction: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.refresh, size: 18),
-                      tooltip: 'Reload OpenAPI Specification',
-                      onPressed: _isLoading ? null : _loadOpenApiSpec,
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: const Text('Open Swagger UI'),
-                      onPressed: () => _openUrl(context, AppConfig.apiDocsUrl),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
+        Widget content;
+        if (_isLoading) {
+          content = _buildLoadingState(context);
+        } else if (_errorMessage != null) {
+          content = _buildErrorState(context);
+        } else if (isDesktopWide) {
+          content = _buildDesktopThreeRegionWorkspace(
+            context,
+            filtered: filtered,
+            endpoint: effectiveEndpoint,
+            hasBoundedHeight: hasBoundedHeight,
+          );
+        } else if (isTablet) {
+          content = _buildTabletWorkspace(
+            context,
+            filtered: filtered,
+            endpoint: effectiveEndpoint,
+            hasBoundedHeight: hasBoundedHeight,
+          );
+        } else {
+          content = _buildMobileWorkspace(
+            context,
+            filtered: filtered,
+            endpoint: effectiveEndpoint,
+            hasBoundedHeight: hasBoundedHeight,
+          );
+        }
 
-              // Loading state
-              if (_isLoading) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(48),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Discovering API schema from OpenAPI 3.1...',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          AppConfig.openApiJsonUrl,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 12,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ] else if (_errorMessage != null) ...[
-                // Error state with retry
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: colorScheme.errorContainer.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.error_outline, color: colorScheme.error, size: 22),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Failed to Load OpenAPI Specification',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.error,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _errorMessage!,
-                        style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.error,
-                          foregroundColor: colorScheme.onError,
-                        ),
-                        icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('Retry Loading OpenAPI'),
-                        onPressed: _loadOpenApiSpec,
-                      ),
-                    ],
-                  ),
-                ),
-              ] else ...[
-                // Search & Filter Bar
-                ApiSearchFilterBar(
-                  searchQuery: _searchQuery,
-                  onSearchChanged: (q) => setState(() => _searchQuery = q),
-                  selectedMethod: _selectedMethod,
-                  onMethodChanged: (m) => setState(() => _selectedMethod = m),
-                  selectedTag: _selectedTag,
-                  onTagChanged: (t) => setState(() => _selectedTag = t),
-                  availableMethods: _specData.discoveredMethods,
-                  availableTags: _specData.discoveredTags,
-                  totalCount: _specData.endpoints.length,
-                  filteredCount: filtered.length,
-                  onClearAll: _clearFilters,
-                ),
-                const SizedBox(height: 20),
+        final header = ApiConsoleHeader(
+          searchQuery: _searchQuery,
+          onSearchChanged: (q) => setState(() => _searchQuery = q),
+          onBackToAdmin: widget.onBackToAdmin ?? () => Navigator.of(context).maybePop(),
+          onRefreshSpec: _loadOpenApiSpec,
+          isLoading: _isLoading,
+          nodeStatus: widget.nodeStatus,
+          onNodeStatusTap: widget.onNodeStatusTap,
+          themeMode: widget.themeMode,
+          onThemeModeChanged: widget.onThemeModeChanged,
+          onOpenExternalUrl: (url) => _openUrl(context, url),
+        );
 
-                // Main Explorer Area: Split View on Desktop, Stacked on Mobile
-                if (isDesktop) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Left Column: Endpoint List
-                      Expanded(
-                        flex: 4,
-                        child: ApiEndpointList(
-                          endpoints: filtered,
-                          selectedEndpoint: _selectedEndpoint,
-                          onSelectEndpoint: (ep) => setState(() => _selectedEndpoint = ep),
-                          onClearFilters: _clearFilters,
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-
-                      // Right Column: Endpoint Detail & Execution Panel
-                      Expanded(
-                        flex: 6,
-                        child: _selectedEndpoint != null
-                            ? ApiEndpointDetailPanel(
-                                key: ValueKey('${_selectedEndpoint!.method}_${_selectedEndpoint!.path}'),
-                                endpoint: _selectedEndpoint!,
-                                apiClient: widget.apiClient,
-                                sources: _sources,
-                                logicalModels: _logicalModels,
-                                sourceMappings: _sourceMappings,
-                                onOpenSwagger: () => _openUrl(context, AppConfig.apiDocsUrl),
-                              )
-                            : Container(
-                                padding: const EdgeInsets.all(48),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerLow,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    'Select an endpoint from the left to view details and execute requests.',
-                                    style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
-                                  ),
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  // Mobile Layout: Stacked
-                  ApiEndpointList(
-                    endpoints: filtered,
-                    selectedEndpoint: _selectedEndpoint,
-                    onSelectEndpoint: (ep) {
-                      setState(() => _selectedEndpoint = ep);
-                      // Scroll down or open modal in mobile
-                      _showMobileDetailModal(context, ep);
-                    },
-                    onClearFilters: _clearFilters,
-                  ),
+        if (hasBoundedHeight) {
+          return Scaffold(
+            backgroundColor: colorScheme.surface,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  header,
+                  Expanded(child: content),
                 ],
-              ],
-
-              const SizedBox(height: 36),
-
-              // Secondary Section: External Documentation & Swagger Fallback
-              _buildExternalDocsSection(context),
-              const SizedBox(height: 24),
-
-              // Quick cURL Reference
-              _buildCurlReferenceCard(context),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showMobileDetailModal(BuildContext context, ApiEndpoint ep) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.88,
-          minChildSize: 0.5,
-          maxChildSize: 0.96,
-          expand: false,
-          builder: (_, scrollController) {
-            return SingleChildScrollView(
-              controller: scrollController,
-              padding: const EdgeInsets.all(16),
-              child: ApiEndpointDetailPanel(
-                endpoint: ep,
-                apiClient: widget.apiClient,
-                sources: _sources,
-                logicalModels: _logicalModels,
-                sourceMappings: _sourceMappings,
-                onOpenSwagger: () => _openUrl(context, AppConfig.apiDocsUrl),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildExternalDocsSection(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.library_books_outlined, size: 18, color: colorScheme.primary),
-              const SizedBox(width: 10),
-              Text(
-                'OpenAPI / Swagger Documentation',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'FastAPI serves the authoritative OpenAPI 3.1 specification. Access external Swagger UI or ReDoc below.',
-            style: TextStyle(
-              fontSize: 13,
-              color: colorScheme.onSurfaceVariant,
             ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            children: [
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                icon: const Icon(Icons.rocket_launch, size: 16),
-                label: const Text('Launch Swagger UI (/docs)'),
-                onPressed: () => _openUrl(context, AppConfig.apiDocsUrl),
-              ),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                icon: const Icon(Icons.article_outlined, size: 16),
-                label: const Text('Open ReDoc (/redoc)'),
-                onPressed: () => _openUrl(context, AppConfig.redocDocsUrl),
-              ),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                icon: const Icon(Icons.code, size: 16),
-                label: const Text('OpenAPI JSON (/openapi.json)'),
-                onPressed: () => _openUrl(context, AppConfig.openApiJsonUrl),
-              ),
-            ],
-          ),
-        ],
-      ),
+          );
+        } else {
+          return Container(
+            color: colorScheme.surface,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                header,
+                content,
+              ],
+            ),
+          );
+        }
+      },
     );
   }
 
-  Widget _buildCurlReferenceCard(BuildContext context) {
+  // --- 1. DESKTOP THREE-REGION WORKSPACE ---
+  Widget _buildDesktopThreeRegionWorkspace(
+    BuildContext context, {
+    required List<ApiEndpoint> filtered,
+    required ApiEndpoint? endpoint,
+    bool hasBoundedHeight = true,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+    return Row(
+      crossAxisAlignment: hasBoundedHeight ? CrossAxisAlignment.stretch : CrossAxisAlignment.start,
+      children: [
+        // Region 1 (Left): Endpoint Navigation Sidebar (tag grouped + filters)
+        SizedBox(
+          width: 290,
+          child: ApiEndpointSidebar(
+            endpoints: filtered,
+            selectedEndpoint: endpoint,
+            onSelectEndpoint: (ep) => setState(() => _selectedEndpoint = ep),
+            selectedMethod: _selectedMethod,
+            onMethodChanged: (m) => setState(() => _selectedMethod = m),
+            selectedTag: _selectedTag,
+            onTagChanged: (t) => setState(() => _selectedTag = t),
+            availableMethods: _specData.discoveredMethods,
+            availableTags: _specData.discoveredTags,
+            totalCount: _specData.endpoints.length,
+            filteredCount: filtered.length,
+            onClearFilters: _clearFilters,
+          ),
+        ),
+
+        // Vertical Divider 1
+        VerticalDivider(
+          width: 1,
+          thickness: 1,
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+
+        // Region 2 (Center): Documentation & Schema Details (Major Focus - flex 6)
+        Expanded(
+          flex: 6,
+          child: endpoint != null
+              ? ApiEndpointDocumentation(
+                  key: ValueKey('doc_${endpoint.method}_${endpoint.path}'),
+                  endpoint: endpoint,
+                  onOpenSwagger: (url) => _openUrl(context, url),
+                )
+              : _buildEmptyCenterSelection(context),
+        ),
+
+        // Vertical Divider 2
+        VerticalDivider(
+          width: 1,
+          thickness: 1,
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+
+        // Region 3 (Right): Interactive "Try It Out" Execution Console (Compact - flex 4)
+        Expanded(
+          flex: 4,
+          child: endpoint != null
+              ? ApiTryItOutPanel(
+                  key: ValueKey('try_${endpoint.method}_${endpoint.path}'),
+                  endpoint: endpoint,
+                  apiClient: widget.apiClient,
+                  sources: _sources,
+                  logicalModels: _logicalModels,
+                  sourceMappings: _sourceMappings,
+                )
+              : _buildEmptyRightSelection(context),
+        ),
+      ],
+    );
+  }
+
+  // --- 2. TABLET WORKSPACE (Sidebar + Tabbed Doc / Try) ---
+  Widget _buildTabletWorkspace(
+    BuildContext context, {
+    required List<ApiEndpoint> filtered,
+    required ApiEndpoint? endpoint,
+    bool hasBoundedHeight = true,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final tabViews = [
+      ApiEndpointDocumentation(
+        key: ValueKey('tab_doc_${endpoint?.method}_${endpoint?.path}'),
+        endpoint: endpoint ?? filtered.first,
+        onOpenSwagger: (url) => _openUrl(context, url),
       ),
+      ApiTryItOutPanel(
+        key: ValueKey('tab_try_${endpoint?.method}_${endpoint?.path}'),
+        endpoint: endpoint ?? filtered.first,
+        apiClient: widget.apiClient,
+        sources: _sources,
+        logicalModels: _logicalModels,
+        sourceMappings: _sourceMappings,
+      ),
+    ];
+
+    return Row(
+      crossAxisAlignment: hasBoundedHeight ? CrossAxisAlignment.stretch : CrossAxisAlignment.start,
+      children: [
+        // Left: Endpoint Navigation Sidebar
+        SizedBox(
+          width: 260,
+          child: ApiEndpointSidebar(
+            endpoints: filtered,
+            selectedEndpoint: endpoint,
+            onSelectEndpoint: (ep) => setState(() => _selectedEndpoint = ep),
+            selectedMethod: _selectedMethod,
+            onMethodChanged: (m) => setState(() => _selectedMethod = m),
+            selectedTag: _selectedTag,
+            onTagChanged: (t) => setState(() => _selectedTag = t),
+            availableMethods: _specData.discoveredMethods,
+            availableTags: _specData.discoveredTags,
+            totalCount: _specData.endpoints.length,
+            filteredCount: filtered.length,
+            onClearFilters: _clearFilters,
+          ),
+        ),
+
+        VerticalDivider(
+          width: 1,
+          thickness: 1,
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+
+        // Right: Tabbed Documentation & Try It Out
+        Expanded(
+          child: endpoint != null
+              ? DefaultTabController(
+                  length: 2,
+                  child: Column(
+                    mainAxisSize: hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
+                    children: [
+                      TabBar(
+                        tabs: const [
+                          Tab(icon: Icon(Icons.description_outlined, size: 16), text: 'Documentation'),
+                          Tab(icon: Icon(Icons.play_circle_outline, size: 16), text: 'Try It Out'),
+                        ],
+                      ),
+                      if (hasBoundedHeight)
+                        Expanded(child: TabBarView(children: tabViews))
+                      else
+                        SizedBox(height: 700, child: TabBarView(children: tabViews)),
+                    ],
+                  ),
+                )
+              : _buildEmptyCenterSelection(context),
+        ),
+      ],
+    );
+  }
+
+  // --- 3. MOBILE WORKSPACE (Full Tabbed View) ---
+  Widget _buildMobileWorkspace(
+    BuildContext context, {
+    required List<ApiEndpoint> filtered,
+    required ApiEndpoint? endpoint,
+    bool hasBoundedHeight = true,
+  }) {
+    final tabViews = [
+      // Tab 1: Endpoints
+      ApiEndpointSidebar(
+        endpoints: filtered,
+        selectedEndpoint: endpoint,
+        onSelectEndpoint: (ep) => setState(() => _selectedEndpoint = ep),
+        selectedMethod: _selectedMethod,
+        onMethodChanged: (m) => setState(() => _selectedMethod = m),
+        selectedTag: _selectedTag,
+        onTagChanged: (t) => setState(() => _selectedTag = t),
+        availableMethods: _specData.discoveredMethods,
+        availableTags: _specData.discoveredTags,
+        totalCount: _specData.endpoints.length,
+        filteredCount: filtered.length,
+        onClearFilters: _clearFilters,
+      ),
+      // Tab 2: Documentation
+      endpoint != null
+          ? ApiEndpointDocumentation(
+              key: ValueKey('mob_doc_${endpoint.method}_${endpoint.path}'),
+              endpoint: endpoint,
+              onOpenSwagger: (url) => _openUrl(context, url),
+            )
+          : _buildEmptyCenterSelection(context),
+      // Tab 3: Try It Out
+      endpoint != null
+          ? ApiTryItOutPanel(
+              key: ValueKey('mob_try_${endpoint.method}_${endpoint.path}'),
+              endpoint: endpoint,
+              apiClient: widget.apiClient,
+              sources: _sources,
+              logicalModels: _logicalModels,
+              sourceMappings: _sourceMappings,
+            )
+          : _buildEmptyRightSelection(context),
+    ];
+
+    return DefaultTabController(
+      length: 3,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Quick cURL Request Reference',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.copy, size: 16),
-                tooltip: 'Copy cURL command',
-                onPressed: () => _copyToClipboard(
-                  context,
-                  'curl -X POST "${AppConfig.apiBaseUrl}/execute" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"query": "SELECT u.id, u.name FROM users u"}\'',
-                  'cURL command',
-                ),
-              ),
+          const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.list_alt, size: 16), text: 'Endpoints'),
+              Tab(icon: Icon(Icons.description_outlined, size: 16), text: 'Docs'),
+              Tab(icon: Icon(Icons.play_circle_outline, size: 16), text: 'Try It'),
             ],
           ),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.35),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: SelectableText(
-              'curl -X POST "${AppConfig.apiBaseUrl}/execute" \\\n'
-              '  -H "Content-Type: application/json" \\\n'
-              '  -d \'{"query": "SELECT u.id, u.name FROM users u"}\'',
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                color: Color(0xFF68D391),
+          if (hasBoundedHeight)
+            Expanded(child: TabBarView(children: tabViews))
+          else
+            SizedBox(height: 700, child: TabBarView(children: tabViews)),
+        ],
+      ),
+    );
+  }
+
+  // --- LOADING STATE ---
+  Widget _buildLoadingState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(36),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 18),
+            Text(
+              'Discovering API schema from OpenAPI 3.1...',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              AppConfig.openApiJsonUrl,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- ERROR STATE ---
+  Widget _buildErrorState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 560),
+        padding: const EdgeInsets.all(28),
+        margin: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: colorScheme.errorContainer.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: colorScheme.error, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Failed to Load OpenAPI Specification',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _errorMessage ?? 'Unknown error occurred while parsing OpenAPI specification.',
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Retry Loading OpenAPI'),
+              onPressed: _loadOpenApiSpec,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- EMPTY STATES ---
+  Widget _buildEmptyCenterSelection(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.api_outlined, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+            const SizedBox(height: 12),
+            Text(
+              'No Endpoint Selected',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Select an endpoint from the left navigation panel to view its documentation.',
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyRightSelection(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.play_circle_outline, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+            const SizedBox(height: 12),
+            Text(
+              'Try It Out Console',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Select an endpoint from the left to test execution with interactive parameters and live responses.',
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

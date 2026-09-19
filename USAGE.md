@@ -107,7 +107,7 @@ docker compose up -d
 
 ---
 
-## 4. AltrQL v0.7.6-alpha Language & Compilation Reference
+## 4. AltrQL v0.9.0-alpha Language & Federated Query Engine
 
 AltrQL provides unified, cross-database declarative querying and mutation across PostgreSQL, MySQL, SQLite, and MongoDB.
 
@@ -196,6 +196,32 @@ UPDATE users (
   ```
   Requires passing `confirm_mass_mutation=true` in execution requests.
 
+### 4.5 Federated Multi-Source Logical Execution (v0.9.0-alpha)
+
+Altr Stream executes logical queries across multiple heterogeneous physical databases through the Logical Model and Source Mapping Registry.
+
+#### Auto-Select / All Sources (Federation Mode):
+Targeting `Auto-Select / All Sources` evaluates the active logical model, discovers all active source mappings, lowers the logical query into dialect-specific physical queries, executes across all participating sources in parallel, normalizes columns into canonical logical fields, strips physical IDs (such as MongoDB `_id`), merges rows, and applies global logical sorting and pagination (`LIMIT`/`OFFSET`/`TOP`).
+
+> [!IMPORTANT]
+> **Auto-Select / All Sources** means **federated execution across all eligible active mappings**. It is **not** single-source selection or round-robin selection.
+
+#### Explicit-Source Execution & Normalization Control:
+- **`Normalize = OFF`**: Returns physical column names and raw engine types.
+- **`Normalize = ON`**: Translates physical column names into the canonical logical entity schema.
+
+#### Execution & Result Metadata Contract:
+Every execution via `POST /api/v1/altrql/execute` returns machine-readable metadata in `meta`:
+- `execution_mode`: `"federated"` or `"single"`
+- `normalized`: `true` or `false`
+- `source_count`: Number of participating sources
+- `row_count`: Total rows returned
+- `duration_ms`: Total execution latency in milliseconds
+- `sources`: Array of per-source details (`source_id`, `source_name`, `source_type`, `status`, `rows`, `execution_time_ms`)
+
+> [!NOTE]
+> **Deferred to v0.10**: Partial logical-model discovery fallback (e.g. querying `GET users;` when `users` exists in physical databases but is not yet mapped to an active logical entity) is scheduled for v0.10.
+
 ---
 
 ## 5. Logical Model & Source Mapping Registry
@@ -223,10 +249,12 @@ Altr Stream provides unified business entity abstractions that map to physical d
 
 ### 6.1 Global AltrQL Console (`/altrql`)
 - Access via navigation sidebar or global FAB button.
+- **Target Source**: Select explicit physical source or `Auto-Select / All Sources` for federated multi-DB queries.
+- **Normalize (Logical)**: Toggle canonical logical schema translation on/off.
 - **Parse Query**: Validates syntax and outputs Canonical AST (`AltrQueryIR`).
 - **Bind Query**: Validates against target source schema and outputs Bound AST (`BoundAltrQueryIR`).
-- **Execute Query** (`⌘ + Enter` / `Ctrl + Enter`): Lowers and executes against physical database.
-- **Multi-View Tabs**: Results table, Physical Query (dialect SQL / Mongo BSON), Bound IR, Canonical IR.
+- **Execute Query** (`⌘ + Enter` / `Ctrl + Enter`): Lowers and executes across targeted/federated physical databases.
+- **Multi-View Tabs**: Results table with execution telemetry badge, Physical Query (dialect SQL / Mongo BSON), Bound IR, Canonical IR.
 - **Copy Actions**: Dedicated "Copy Response" and "Copy Error" buttons.
 
 ### 6.2 Source-Scoped Database Playground
@@ -241,21 +269,21 @@ Altr Stream provides unified business entity abstractions that map to physical d
 
 ### Backend Test Suite (Pytest)
 ```bash
-# Run all 653 backend tests
-.venv/bin/pytest tests/ -v
+# Run all 688 backend tests
+uv run pytest tests/ -v
 
 # Run cross-database semantic parity tests only
-.venv/bin/pytest tests/integration/test_cross_db_parity.py -v
+uv run pytest tests/integration/test_cross_db_parity.py -v
 
 # Run compiler unit tests only
-.venv/bin/pytest tests/unit/ -v
+uv run pytest tests/unit/ -v
 ```
 
 ### Flutter Widget Tests & Analysis
 ```bash
 cd frontend/altr_stream_admin
 
-# Run all 51 Flutter widget tests
+# Run all 86 Flutter widget & integration tests
 flutter test
 
 # Run Flutter static analysis
@@ -288,9 +316,9 @@ docker compose down -v --remove-orphans
 | **Force Rebuild Without Cache** | `docker compose build --no-cache altr-stream-admin && docker compose up -d` |
 | **Check Container Status** | `docker compose ps` |
 | **View Live Tail Logs** | `docker compose logs -f` |
-| **Run Backend Tests (653 tests)** | `.venv/bin/pytest tests/ -v` |
-| **Run Parity Tests** | `.venv/bin/pytest tests/integration/test_cross_db_parity.py -v` |
-| **Run Frontend Tests (51 tests)** | `cd frontend/altr_stream_admin && flutter test` |
+| **Run Backend Tests (688 tests)** | `uv run pytest tests/ -v` |
+| **Run Parity Tests** | `uv run pytest tests/integration/test_cross_db_parity.py -v` |
+| **Run Frontend Tests (86 tests)** | `cd frontend/altr_stream_admin && flutter test` |
 | **Run Frontend Analysis** | `cd frontend/altr_stream_admin && flutter analyze` |
 | **Full Reset (Drop DB Volumes)** | `docker compose down -v --remove-orphans` |
 | **Update Knowledge Graph** | `graphify update .` |

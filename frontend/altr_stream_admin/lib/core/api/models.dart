@@ -271,6 +271,35 @@ class ActivityLogModel {
   });
 }
 
+class SourceExecutionInfoModel {
+  final String sourceId;
+  final String? sourceName;
+  final String? sourceType;
+  final String status;
+  final int rows;
+  final double? executionTimeMs;
+
+  SourceExecutionInfoModel({
+    required this.sourceId,
+    this.sourceName,
+    this.sourceType,
+    this.status = 'success',
+    this.rows = 0,
+    this.executionTimeMs,
+  });
+
+  factory SourceExecutionInfoModel.fromJson(Map<String, dynamic> json) {
+    return SourceExecutionInfoModel(
+      sourceId: json['source_id'] as String? ?? '',
+      sourceName: json['source_name'] as String?,
+      sourceType: json['source_type'] as String?,
+      status: json['status'] as String? ?? 'success',
+      rows: (json['rows'] as num?)?.toInt() ?? 0,
+      executionTimeMs: (json['execution_time_ms'] as num?)?.toDouble(),
+    );
+  }
+}
+
 class QueryMetadataModel {
   final int rowCount;
   final int? affectedRows;
@@ -278,6 +307,10 @@ class QueryMetadataModel {
   final double executionTimeMs;
   final String? operation;
   final String? mutationScope;
+  final String executionMode;
+  final bool normalized;
+  final int sourceCount;
+  final List<SourceExecutionInfoModel> sources;
 
   QueryMetadataModel({
     required this.rowCount,
@@ -286,9 +319,17 @@ class QueryMetadataModel {
     required this.executionTimeMs,
     this.operation,
     this.mutationScope,
+    this.executionMode = 'single_source',
+    this.normalized = false,
+    this.sourceCount = 1,
+    this.sources = const [],
   });
 
   factory QueryMetadataModel.fromJson(Map<String, dynamic> json) {
+    final sourcesList = (json['sources'] as List<dynamic>?)
+            ?.map((e) => SourceExecutionInfoModel.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [];
     return QueryMetadataModel(
       rowCount: (json['row_count'] as num?)?.toInt() ?? 0,
       affectedRows: (json['affected_rows'] as num?)?.toInt(),
@@ -296,6 +337,10 @@ class QueryMetadataModel {
       executionTimeMs: (json['execution_time_ms'] as num?)?.toDouble() ?? 0.0,
       operation: json['operation'] as String?,
       mutationScope: json['mutation_scope'] as String?,
+      executionMode: json['execution_mode'] as String? ?? 'single_source',
+      normalized: json['normalized'] as bool? ?? false,
+      sourceCount: (json['source_count'] as num?)?.toInt() ?? (sourcesList.isNotEmpty ? sourcesList.length : 1),
+      sources: sourcesList,
     );
   }
 }
@@ -418,6 +463,9 @@ class AltrQLBindResponseModel {
   final Map<String, dynamic>? ir;
   final Map<String, dynamic>? boundIr;
   final MutationClassificationModel? classification;
+  final String executionMode;
+  final String? selectedSourceId;
+  final String? selectedMappingId;
   final AltrQLErrorDetailModel? error;
 
   AltrQLBindResponseModel({
@@ -425,6 +473,9 @@ class AltrQLBindResponseModel {
     this.ir,
     this.boundIr,
     this.classification,
+    this.executionMode = 'single',
+    this.selectedSourceId,
+    this.selectedMappingId,
     this.error,
   });
 
@@ -436,6 +487,9 @@ class AltrQLBindResponseModel {
       classification: json['classification'] != null
           ? MutationClassificationModel.fromJson(json['classification'] as Map<String, dynamic>)
           : null,
+      executionMode: json['execution_mode'] as String? ?? 'single',
+      selectedSourceId: json['selected_source_id'] as String?,
+      selectedMappingId: json['selected_mapping_id'] as String?,
       error: json['error'] != null
           ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
           : null,
@@ -475,9 +529,14 @@ class AltrQLExecuteResponseModel {
   final Map<String, dynamic>? boundIr;
   final MutationClassificationModel? classification;
   final PhysicalQueryModel? physicalQuery;
+  final List<PhysicalQueryModel> physicalQueries;
   final List<String> columns;
   final List<Map<String, dynamic>> rows;
   final QueryMetadataModel? metadata;
+  final String executionMode;
+  final List<String> sourcesExecuted;
+  final String? selectedSourceId;
+  final String? selectedMappingId;
   final AltrQLErrorDetailModel? error;
 
   AltrQLExecuteResponseModel({
@@ -486,13 +545,23 @@ class AltrQLExecuteResponseModel {
     this.boundIr,
     this.classification,
     this.physicalQuery,
+    this.physicalQueries = const [],
     required this.columns,
     required this.rows,
     this.metadata,
+    this.executionMode = 'single',
+    this.sourcesExecuted = const [],
+    this.selectedSourceId,
+    this.selectedMappingId,
     this.error,
   });
 
   factory AltrQLExecuteResponseModel.fromJson(Map<String, dynamic> json) {
+    final physicalQueriesList = (json['physical_queries'] as List<dynamic>?)
+            ?.map((e) => PhysicalQueryModel.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [];
+
     return AltrQLExecuteResponseModel(
       success: json['success'] as bool? ?? false,
       ir: json['ir'] as Map<String, dynamic>?,
@@ -503,6 +572,7 @@ class AltrQLExecuteResponseModel {
       physicalQuery: json['physical_query'] != null
           ? PhysicalQueryModel.fromJson(json['physical_query'] as Map<String, dynamic>)
           : null,
+      physicalQueries: physicalQueriesList,
       columns: (json['columns'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       rows: (json['rows'] as List<dynamic>?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
@@ -511,6 +581,13 @@ class AltrQLExecuteResponseModel {
       metadata: json['metadata'] != null
           ? QueryMetadataModel.fromJson(json['metadata'] as Map<String, dynamic>)
           : null,
+      executionMode: json['execution_mode'] as String? ?? 'single',
+      sourcesExecuted: (json['sources_executed'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      selectedSourceId: json['selected_source_id'] as String?,
+      selectedMappingId: json['selected_mapping_id'] as String?,
       error: json['error'] != null
           ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
           : null,

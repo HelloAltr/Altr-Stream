@@ -38,10 +38,18 @@ def resolve_logical_ir(ir: AltrQueryIR, mapping: SourceMapping) -> AltrQueryIR:
     """
     # 1. Find matching EntityMapping for the root entity
     entity_mapping = None
+    target_clean = ir.entity.strip().lower().rstrip("s")
     for em in mapping.entity_mappings:
+        log_name = em.logical_entity_name.lower() if em.logical_entity_name else ""
+        phys_name = em.physical_entity_name.lower() if em.physical_entity_name else ""
+        log_id = em.logical_entity_id.lower() if em.logical_entity_id else ""
+
         if (
-            em.logical_entity_name.lower() == ir.entity.lower()
-            or em.logical_entity_id == ir.entity
+            log_name == ir.entity.lower()
+            or log_id == ir.entity.lower()
+            or phys_name == ir.entity.lower()
+            or (log_name and log_name.rstrip("s") == target_clean)
+            or (phys_name and phys_name.rstrip("s") == target_clean)
         ):
             entity_mapping = em
             break
@@ -52,11 +60,13 @@ def resolve_logical_ir(ir: AltrQueryIR, mapping: SourceMapping) -> AltrQueryIR:
             model_id=mapping.logical_model_id,
         )
 
-    # 2. Build fast lookup map for fields: logical_field_name / logical_field_id -> physical_field_name
+    # 2. Build fast lookup map for fields: logical_field_name / logical_field_id / physical_field_name -> physical_field_name
     field_map: dict[str, str] = {}
     for fm in entity_mapping.field_mappings:
         field_map[fm.logical_field_name.lower()] = fm.physical_field_name
         field_map[fm.logical_field_id] = fm.physical_field_name
+        field_map[fm.physical_field_name.lower()] = fm.physical_field_name
+        field_map[fm.physical_field_name] = fm.physical_field_name
 
     def _resolve_field_path(fp: FieldPath) -> FieldPath:
         root_key = fp.root.lower()
@@ -93,10 +103,17 @@ def resolve_logical_ir(ir: AltrQueryIR, mapping: SourceMapping) -> AltrQueryIR:
     # 3. Resolve Projections
     resolved_projections: list[FieldSelection] = []
     for sel in ir.projection:
+        resolved_path = _resolve_field_path(sel.path)
+        # If no explicit alias was specified and the physical column differs from the logical field,
+        # alias it back to the original logical field name so SQL/MQL outputs logical field names.
+        alias = sel.alias
+        if alias is None and resolved_path.leaf != sel.path.leaf:
+            alias = sel.path.leaf
+
         resolved_projections.append(
             FieldSelection(
-                path=_resolve_field_path(sel.path),
-                alias=sel.alias,
+                path=resolved_path,
+                alias=alias,
             )
         )
 

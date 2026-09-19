@@ -47,8 +47,18 @@ class LogicalEntity(BaseModel):
         return None
 
     def get_field_by_name(self, field_name: str) -> LogicalField | None:
+        if not field_name:
+            return None
         for f in self.fields:
             if f.name == field_name:
+                return f
+        fn_lower = field_name.lower()
+        for f in self.fields:
+            if f.name.lower() == fn_lower:
+                return f
+        fn_clean = fn_lower.rstrip("s")
+        for f in self.fields:
+            if f.name.lower().rstrip("s") == fn_clean:
                 return f
         return None
 
@@ -79,7 +89,17 @@ class LogicalModel(BaseModel):
         return None
 
     def get_entity_by_name(self, entity_name: str) -> LogicalEntity | None:
+        if not entity_name:
+            return None
         for e in self.entities:
             if e.name == entity_name:
+                return e
+        en_lower = entity_name.lower()
+        for e in self.entities:
+            if e.name.lower() == en_lower:
+                return e
+        en_clean = en_lower.rstrip("s")
+        for e in self.entities:
+            if e.name.lower().rstrip("s") == en_clean:
                 return e
         return None

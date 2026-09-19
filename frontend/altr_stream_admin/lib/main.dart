@@ -319,6 +319,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         sources: _sources,
         nodeStatus: _nodeStatus,
         onNodeStatusTap: _showNodeStatusDialog,
+        themeMode: widget.themeMode,
+        onThemeModeChanged: widget.onThemeModeChanged,
+        onBackToAdmin: () => setState(() => _activeRoute = _previousRoute ?? '/'),
       );
     }
 
@@ -393,6 +396,22 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_activeRoute == '/api-explorer' || _activeRoute == '/api-docs' || _activeRoute == '/docs') {
+      return ApiDocsScreen(
+        apiClient: _apiClient,
+        sources: _sources,
+        nodeStatus: _nodeStatus,
+        onNodeStatusTap: _showNodeStatusDialog,
+        themeMode: widget.themeMode,
+        onThemeModeChanged: widget.onThemeModeChanged,
+        onBackToAdmin: () {
+          setState(() {
+            _activeRoute = _previousRoute ?? '/';
+          });
+        },
+      );
+    }
+
     return AppShell(
       activeRoute: _activeRoute,
       nodeStatus: _nodeStatus,
