@@ -192,6 +192,14 @@ async def test_registry_mappings_api_and_validation(client: AsyncClient, test_se
     assert mapping_data["status"] in ["VALIDATED", "DRAFT"]
     assert mapping_data["entity_mapping_count"] == 1
 
+    # Attempting to create duplicate mapping with existing version '1.0.0' for same model and source
+    dup_res = await client.post("/api/v1/registry/mappings", json=mapping_payload)
+    assert dup_res.status_code == 409
+    assert dup_res.json()["detail"] == (
+        "A mapping with version '1.0.0' already exists for this logical model and physical source. "
+        "Create a new version or edit the existing mapping."
+    )
+
     # Validate Mapping via API
     val_res = await client.post(f"/api/v1/registry/mappings/{mapping_id}/validate")
     assert val_res.status_code == 200
@@ -223,6 +231,17 @@ async def test_registry_mappings_api_and_validation(client: AsyncClient, test_se
     assert updated_data["version"] == "1.0.1"
     assert updated_data["total_field_mapping_count"] == 2
     assert updated_data["status"] == "DRAFT"  # Reset to DRAFT upon edit
+
+    # Attempting to create duplicate mapping with updated version '1.0.1' for same model and source
+    dup_res_v101 = await client.post(
+        "/api/v1/registry/mappings",
+        json={**mapping_payload, "version": "1.0.1"},
+    )
+    assert dup_res_v101.status_code == 409
+    assert dup_res_v101.json()["detail"] == (
+        "A mapping with version '1.0.1' already exists for this logical model and physical source. "
+        "Create a new version or edit the existing mapping."
+    )
 
     # Summary Endpoint
     sum_res = await client.get("/api/v1/registry/summary")
@@ -457,15 +476,54 @@ async def test_source_mapping_lifecycle_invariants(client: AsyncClient, test_ses
     assert val_m2.status_code == 200
     assert val_m2.json()["mapping"]["status"] == "VALIDATED"
 
-    # Activate m2 -> m2 becomes ACTIVE, m1 is reverted from ACTIVE to VALIDATED
+    # Invariant 7 (v0.8.0): Multi-source active mapping rule:
+    # Activate m2 (source2) -> m2 becomes ACTIVE, m1 (source1) REMAINS ACTIVE
     act_m2 = await client.post(f"/api/v1/registry/mappings/{m2_id}/activate")
     assert act_m2.status_code == 200
     assert act_m2.json()["status"] == "ACTIVE"
 
-    # Check m1 status is no longer ACTIVE
+    # Check m1 status is STILL ACTIVE (multi-source active coexistence)
     get_m1 = await client.get(f"/api/v1/registry/mappings/{m1_id}")
     assert get_m1.status_code == 200
-    assert get_m1.json()["status"] == "VALIDATED"
+    assert get_m1.json()["status"] == "ACTIVE"
+
+    # Invariant 8 (v0.8.0): Same-source replacement:
+    # Create m3 for source1, validate and activate m3 -> m3 becomes ACTIVE, m1 becomes VALIDATED, m2 remains ACTIVE
+    create3_res = await client.post(
+        "/api/v1/registry/mappings",
+        json={
+            "logical_model_id": model_id,
+            "source_id": saved_source.id,
+            "version": "2.0.0",
+            "status": "DRAFT",
+            "entity_mappings": [
+                {
+                    "logical_entity_id": entity_id,
+                    "physical_entity_name": "users",
+                    "physical_namespace": "public",
+                    "field_mappings": [{"logical_field_id": f_id, "physical_field_name": "id"}],
+                }
+            ],
+        },
+    )
+    assert create3_res.status_code == 201
+    m3_id = create3_res.json()["id"]
+    val_m3 = await client.post(f"/api/v1/registry/mappings/{m3_id}/validate")
+    assert val_m3.status_code == 200
+    assert val_m3.json()["mapping"]["status"] == "VALIDATED"
+
+    act_m3 = await client.post(f"/api/v1/registry/mappings/{m3_id}/activate")
+    assert act_m3.status_code == 200
+    assert act_m3.json()["status"] == "ACTIVE"
+
+    # m1 (same source) was demoted
+    get_m1_after = await client.get(f"/api/v1/registry/mappings/{m1_id}")
+    assert get_m1_after.json()["status"] == "VALIDATED"
+
+    # m2 (different source) remains ACTIVE
+    get_m2_after = await client.get(f"/api/v1/registry/mappings/{m2_id}")
+    assert get_m2_after.json()["status"] == "ACTIVE"
+
 
 
 @pytest.mark.asyncio

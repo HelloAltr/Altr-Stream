@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:altr_stream_admin/main.dart';
+import 'package:altr_stream_admin/core/config/app_config.dart';
 import 'package:altr_stream_admin/core/api/api_client.dart';
 import 'package:altr_stream_admin/core/api/models.dart';
 import 'package:altr_stream_admin/core/theme/app_theme.dart';
@@ -496,14 +497,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.text('Theme & Appearance'), findsOneWidget);
+
+    // Scroll to theme segmented button
+    await tester.scrollUntilVisible(
+      find.byType(SegmentedButton<ThemeMode>),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
 
     // Change theme mode via Settings SegmentedButton
-    await tester.tap(find.text('Light'));
+    await tester.tap(find.byIcon(Icons.light_mode).last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Dark'));
+    await tester.tap(find.byIcon(Icons.dark_mode).last);
     await tester.pumpAndSettle();
   });
 
@@ -2602,7 +2612,7 @@ void main() {
     expect(find.text('New Logical Model'), findsOneWidget);
   });
 
-  testWidgets('LogicalModelDetailScreen displays schema and mappings tabs', (WidgetTester tester) async {
+  testWidgets('LogicalModelDetailScreen displays overview, schema, and mappings tabs', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -2628,16 +2638,241 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('CoreCommerce'), findsOneWidget);
-    expect(find.text('Customer'), findsOneWidget);
-    expect(find.text('Add Entity'), findsOneWidget);
-    expect(find.text('Map Source'), findsOneWidget);
+    // 1. Overview Tab is open by default
+    expect(find.text('Logical Model Summary'), findsOneWidget);
+    expect(find.text('Model Management Actions'), findsOneWidget);
+    expect(find.text('Danger Zone'), findsOneWidget);
+    expect(find.text('Add Logical Entity'), findsOneWidget);
+    expect(find.text('Map New Data Source'), findsOneWidget);
 
-    // Switch to Source Mappings Tab
-    await tester.tap(find.text('Source Mappings (1 sources)'));
+    // 2. Switch to Logical Schema Tab
+    await tester.tap(find.widgetWithText(Tab, 'Logical Schema (1 entities, 2 fields)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Customer'), findsOneWidget);
+
+    // 3. Switch to Source Mappings Tab
+    await tester.tap(find.widgetWithText(Tab, 'Source Mappings (1 sources)'));
     await tester.pumpAndSettle();
 
     expect(find.text('Active'), findsOneWidget);
+  });
+
+  testWidgets('LogicalModelDetailScreen Overview tab renders summary fields, actions, and source badges', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSource = SourceModel(
+      id: 'mock-src-1',
+      name: 'Analytics Postgres',
+      type: 'POSTGRESQL',
+      host: 'localhost',
+      port: 5432,
+      databaseName: 'analytics_db',
+      username: 'altr_user',
+      status: 'ACTIVE',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final mockClient = MockTestApiClient();
+    final model = (await mockClient.listLogicalModels()).first;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: LogicalModelDetailScreen(
+            model: model,
+            sources: [mockSource],
+            apiClient: mockClient,
+            onBack: () {},
+            onModelDeleted: () {},
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify Overview Tab content
+    expect(find.text('Logical Model Summary'), findsOneWidget);
+    expect(find.text('Model Name'), findsOneWidget);
+    expect(find.text('CoreCommerce'), findsWidgets); // Found in header and overview card
+    expect(find.text('Model Version'), findsOneWidget);
+    expect(find.text('v1.0.0'), findsWidgets);
+    expect(find.text('Defined Entities'), findsOneWidget);
+    expect(find.text('1 entity (2 fields)'), findsOneWidget);
+    expect(find.text('Source Mappings'), findsWidgets); // Label in summary and tab
+    expect(find.text('Mapped Data Sources'), findsOneWidget);
+    expect(find.text('Analytics Postgres'), findsOneWidget);
+    expect(find.text('Model ID (UUID)'), findsOneWidget);
+    expect(find.text('Created Date'), findsOneWidget);
+    expect(find.text('Last Updated'), findsOneWidget);
+
+    // Verify Actions
+    expect(find.text('Model Management Actions'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Add Logical Entity'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Map New Data Source'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Edit Model Details'), findsOneWidget);
+
+    // Verify Danger Zone
+    expect(find.text('Danger Zone'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Delete Logical Model'), findsOneWidget);
+  });
+
+  testWidgets('LogicalModelDetailScreen clicking Model ID text copies UUID and reacts with Copied feedback', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+    final model = (await mockClient.listLogicalModels()).first;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: LogicalModelDetailScreen(
+              model: model,
+              sources: const [],
+              apiClient: mockClient,
+              onBack: () {},
+              onModelDeleted: () {},
+              onNodeStatusTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify initial Model ID is visible
+    expect(find.byKey(const ValueKey('copy_model_id_btn')), findsOneWidget);
+    expect(find.text(model.id), findsOneWidget);
+    expect(find.text('Copied'), findsNothing);
+
+    // Tap the Model ID text button
+    await tester.tap(find.byKey(const ValueKey('copy_model_id_btn')));
+    await tester.pump();
+
+    // Verify 'Copied' feedback is displayed
+    expect(find.text('Copied'), findsOneWidget);
+    expect(find.text('Model ID copied to clipboard'), findsOneWidget);
+
+    // Advance timer past 2 seconds and settle AnimatedSwitcher animation
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    // Verify it reverts back to model ID
+    expect(find.text(model.id), findsOneWidget);
+    expect(find.text('Copied'), findsNothing);
+  });
+
+  testWidgets('LogicalModelDetailScreen renders multiple connected data source chips stacked in a column without overflow on slim displays', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(375, 812); // Slim mobile / small viewport
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'src-pg',
+        name: 'PostgreSQL Analytics Production',
+        type: 'POSTGRESQL',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      SourceModel(
+        id: 'src-mongo',
+        name: 'MongoDB Document Cluster',
+        type: 'MONGODB',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      SourceModel(
+        id: 'src-sqlite',
+        name: 'SQLite Local Store',
+        type: 'SQLITE',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockMappings = [
+      SourceMappingModel(
+        id: 'map-1',
+        logicalModelId: 'mock-model-1',
+        sourceId: 'src-pg',
+        version: '1.0.0',
+        status: 'ACTIVE',
+        provenance: 'USER',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      SourceMappingModel(
+        id: 'map-2',
+        logicalModelId: 'mock-model-1',
+        sourceId: 'src-mongo',
+        version: '1.0.0',
+        status: 'ACTIVE',
+        provenance: 'USER',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      SourceMappingModel(
+        id: 'map-3',
+        logicalModelId: 'mock-model-1',
+        sourceId: 'src-sqlite',
+        version: '1.0.0',
+        status: 'VALIDATED',
+        provenance: 'USER',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    final mockClient = MockTestApiClient(mappingsToReturn: mockMappings);
+    final model = (await mockClient.listLogicalModels()).first;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: LogicalModelDetailScreen(
+              model: model,
+              sources: mockSources,
+              apiClient: mockClient,
+              onBack: () {},
+              onModelDeleted: () {},
+              onNodeStatusTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify all 3 mapped data sources are rendered in the overview tab
+    expect(find.text('PostgreSQL Analytics Production'), findsOneWidget);
+    expect(find.text('MongoDB Document Cluster'), findsOneWidget);
+    expect(find.text('SQLite Local Store'), findsOneWidget);
+
+    // Verify type badges
+    expect(find.text('POSTGRESQL'), findsWidgets);
+    expect(find.text('MONGODB'), findsWidgets);
+    expect(find.text('SQLITE'), findsWidgets);
+
+    // Verify no overflow errors occurred
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('LogicalModelDetailScreen opens Edit Model, Edit Entity, and Edit Field dialogs', (WidgetTester tester) async {
@@ -2674,6 +2909,10 @@ void main() {
     expect(find.text('Edit Logical Data Model'), findsOneWidget);
     expect(find.text('Save Changes'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Switch to Logical Schema Tab to test Entity & Field edit dialogs
+    await tester.tap(find.widgetWithText(Tab, 'Logical Schema (1 entities, 2 fields)'));
     await tester.pumpAndSettle();
 
     // 2. Open Edit Entity Dialog
@@ -3597,7 +3836,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Switch to Source Mappings tab
-    await tester.tap(find.textContaining('Source Mappings'));
+    await tester.tap(find.widgetWithText(Tab, 'Source Mappings (1 sources)'));
     await tester.pumpAndSettle();
 
     // Verify Table Headers are rendered
@@ -3906,6 +4145,73 @@ void main() {
     // Now in Physical Command mode
     expect(find.text('Physical Command'), findsOneWidget);
     expect(find.text('Type a physical JSON command, e.g. {"collection": "users", "filter": {}}'), findsOneWidget);
+  });
+
+  test('AppConfig resolves apiDocsUrl and openApiJsonUrl correctly from base URL', () {
+    // Defaults to local FastAPI 8000
+    expect(AppConfig.apiBaseUrl, 'http://localhost:8000/api/v1');
+    expect(AppConfig.apiDocsUrl, 'http://localhost:8000/docs');
+    expect(AppConfig.openApiJsonUrl, 'http://localhost:8000/openapi.json');
+  });
+
+  testWidgets('SettingsScreen renders API Documentation card with Swagger and OpenAPI links', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SettingsScreen(
+              apiClient: mockClient,
+              onNodeStatusTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify API Documentation section
+    expect(find.text('API Documentation'), findsOneWidget);
+    expect(find.text('OpenAPI / Swagger'), findsOneWidget);
+    expect(find.text('Open Swagger UI'), findsOneWidget);
+    expect(find.text('Swagger UI Endpoint'), findsOneWidget);
+    expect(find.text('OpenAPI Specification (JSON)'), findsOneWidget);
+    expect(find.text('View JSON'), findsOneWidget);
+    expect(find.text(AppConfig.apiDocsUrl), findsOneWidget);
+    expect(find.text(AppConfig.openApiJsonUrl), findsOneWidget);
+  });
+
+  testWidgets('AppShell desktop and mobile layouts include API Explorer navigation', (WidgetTester tester) async {
+    // 1. Desktop Layout
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const AltrStreamAdminApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('API Explorer'), findsOneWidget);
+
+    // 2. Mobile Layout
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    await tester.pumpWidget(const AltrStreamAdminApp());
+    await tester.pumpAndSettle();
+
+    // Open Drawer
+    final ScaffoldState scaffoldState = tester.firstState(find.byType(Scaffold));
+    scaffoldState.openDrawer();
+    await tester.pumpAndSettle();
+
+    expect(find.text('API Explorer'), findsOneWidget);
+    expect(find.text('OpenAPI / Swagger'), findsOneWidget);
   });
 }
 

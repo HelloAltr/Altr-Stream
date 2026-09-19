@@ -104,3 +104,44 @@ class SourceMapping(BaseModel):
             if em.logical_entity_id == entity_id:
                 return em
         return None
+
+
+class ResolvedFieldInfo(BaseModel):
+    """Resolved field mapping with data types for planning discovery."""
+
+    logical_field_id: str
+    logical_field_name: str
+    physical_field_name: str
+    transformation_rule: str | None = None
+    logical_data_type: str | None = None
+    physical_data_type: str | None = None
+
+
+class ResolvedSourceCandidate(BaseModel):
+    """Physical candidate capable of resolving a logical entity."""
+
+    mapping_id: str
+    mapping_status: MappingStatus
+    mapping_provenance: MappingProvenance
+    source_id: str
+    source_name: str
+    source_type: str
+    entity_mapping_id: str
+    physical_entity_name: str
+    physical_namespace: str
+    field_mappings: list[ResolvedFieldInfo] = Field(default_factory=list)
+
+
+class EntityResolutionResult(BaseModel):
+    """Resolution discovery result exposing all ACTIVE physical candidate mappings for a logical entity."""
+
+    logical_model_id: str
+    logical_model_name: str
+    logical_entity_id: str
+    logical_entity_name: str
+    candidates: list[ResolvedSourceCandidate] = Field(default_factory=list)
+
+    @property
+    def candidate_count(self) -> int:
+        return len(self.candidates)
+

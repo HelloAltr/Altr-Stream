@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/config/app_config.dart';
 import '../../../shared/widgets/page_header.dart';
@@ -59,6 +61,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _isProbing = false);
       }
     }
+  }
+
+  Future<void> _launchExternalUrl(String urlString) async {
+    final uri = Uri.parse(urlString);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open $urlString'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open documentation: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _copyToClipboard(String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -171,6 +207,125 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             );
           },
+        ),
+        const SizedBox(height: 16),
+
+        // API Documentation Card
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.menu_book_outlined, color: colorScheme.primary, size: 18),
+                        const SizedBox(width: 8),
+                        Text('API Documentation', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'OpenAPI / Swagger',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onPrimaryContainer),
+                          ),
+                        ),
+                      ],
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _launchExternalUrl(AppConfig.apiDocsUrl),
+                      icon: const Icon(Icons.open_in_new, size: 14),
+                      label: const Text('Open Swagger UI'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Access the live, interactive OpenAPI Swagger documentation generated directly by the Altr Stream FastAPI backend service.',
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                _buildRow(
+                  context,
+                  'Swagger UI Endpoint',
+                  AppConfig.apiDocsUrl,
+                  isMonospace: true,
+                  customWidget: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SelectableText(
+                        AppConfig.apiDocsUrl,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 14),
+                        tooltip: 'Copy Swagger UI URL',
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        padding: EdgeInsets.zero,
+                        onPressed: () => _copyToClipboard(AppConfig.apiDocsUrl, 'Swagger UI URL'),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildDivider(context),
+                _buildRow(
+                  context,
+                  'OpenAPI Specification (JSON)',
+                  AppConfig.openApiJsonUrl,
+                  isMonospace: true,
+                  customWidget: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SelectableText(
+                        AppConfig.openApiJsonUrl,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 14),
+                        tooltip: 'Copy OpenAPI JSON URL',
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        padding: EdgeInsets.zero,
+                        onPressed: () => _copyToClipboard(AppConfig.openApiJsonUrl, 'OpenAPI JSON URL'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => _launchExternalUrl(AppConfig.openApiJsonUrl),
+                        icon: const Icon(Icons.code, size: 12),
+                        label: const Text('View JSON', style: TextStyle(fontSize: 11)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 16),
 

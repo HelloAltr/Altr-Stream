@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../widgets/add_entity_dialog.dart';
 import '../widgets/add_field_dialog.dart';
@@ -50,10 +54,14 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
   final Map<String, SourceSchemaModel> _sourceSchemas = {};
   final Set<String> _loadingSchemaSourceIds = {};
 
+  // Copy Model ID feedback state
+  bool _copiedModelId = false;
+  Timer? _copiedModelIdTimer;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
@@ -65,7 +73,30 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
   @override
   void dispose() {
     _tabController.dispose();
+    _copiedModelIdTimer?.cancel();
     super.dispose();
+  }
+
+  void _copyModelId() {
+    Clipboard.setData(ClipboardData(text: _currentModel.id));
+    _copiedModelIdTimer?.cancel();
+    setState(() {
+      _copiedModelId = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Model ID copied to clipboard'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    _copiedModelIdTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _copiedModelId = false;
+        });
+      }
+    });
   }
 
   Future<void> _refreshModel() async {
@@ -547,12 +578,14 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Top Header
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             IconButton(
               onPressed: widget.onBack,
@@ -564,7 +597,10 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       Text(
                         _currentModel.name,
@@ -574,7 +610,6 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                           color: colorScheme.onSurface,
                         ),
                       ),
-                      const SizedBox(width: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
@@ -587,7 +622,6 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.primary),
                         ),
                       ),
-                      const SizedBox(width: 8),
                       IconButton(
                         onPressed: _showEditModelDialog,
                         icon: const Icon(Icons.edit_outlined, size: 16),
@@ -606,18 +640,6 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                 ],
               ),
             ),
-            OutlinedButton.icon(
-              onPressed: _showAddEntityDialog,
-              icon: const Icon(Icons.add, size: 14),
-              label: const Text('Add Entity'),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: _showAddMappingDialog,
-              icon: const Icon(Icons.compare_arrows, size: 14),
-              label: const Text('Map Source'),
-            ),
-            const SizedBox(width: 8),
             IconButton(
               onPressed: _deleteModel,
               icon: const Icon(Icons.delete_outline, size: 18),
@@ -631,10 +653,16 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
         // Tab Bar
         TabBar(
           controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           labelColor: colorScheme.primary,
           unselectedLabelColor: colorScheme.onSurfaceVariant,
           indicatorColor: colorScheme.primary,
           tabs: [
+            const Tab(
+              icon: Icon(Icons.info_outline, size: 16),
+              text: 'Overview',
+            ),
             Tab(
               icon: const Icon(Icons.schema_outlined, size: 16),
               text: 'Logical Schema (${_currentModel.entityCount} entities, ${_currentModel.totalFieldCount} fields)',
@@ -652,6 +680,8 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
           animation: _tabController,
           builder: (context, _) {
             if (_tabController.index == 0) {
+              return _buildOverviewTab(context, dateFormat);
+            } else if (_tabController.index == 1) {
               return _buildLogicalSchemaTab(context);
             } else {
               return _buildSourceMappingsTab(context);
@@ -686,7 +716,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
               ElevatedButton.icon(
                 onPressed: _showAddEntityDialog,
                 icon: const Icon(Icons.add, size: 16),
-                label: const Text('Add Entity'),
+                label: const Text('Add Logical Entity'),
               ),
             ],
           ),
@@ -694,12 +724,34 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
       );
     }
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _currentModel.entities.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 16),
-      itemBuilder: (context, idx) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Logical Entities (${_currentModel.entities.length})',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _showAddEntityDialog,
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('Add Logical Entity'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _currentModel.entities.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 16),
+          itemBuilder: (context, idx) {
         final entity = _currentModel.entities[idx];
         return Card(
           child: Padding(
@@ -892,7 +944,9 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
           ),
         );
       },
-    );
+    ),
+  ],
+);
   }
 
   Widget _buildCompatibilityBadge({
@@ -1577,7 +1631,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
               ElevatedButton.icon(
                 onPressed: _showAddMappingDialog,
                 icon: const Icon(Icons.compare_arrows, size: 16),
-                label: const Text('Map Data Source'),
+                label: const Text('Add Source Mapping'),
               ),
             ],
           ),
@@ -1585,15 +1639,455 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
       );
     }
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _mappings.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 16),
-      itemBuilder: (context, idx) {
-        final mapping = _mappings[idx];
-        return _buildSourceMappingCard(context, mapping);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Connected Sources (${_mappings.length})',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _showAddMappingDialog,
+              icon: const Icon(Icons.compare_arrows, size: 14),
+              label: const Text('Add Source Mapping'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _mappings.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 16),
+          itemBuilder: (context, idx) {
+            final mapping = _mappings[idx];
+            return _buildSourceMappingCard(context, mapping);
+          },
+        ),
+      ],
+    );
+  }
+
+  // --- TAB 1: OVERVIEW ---
+  Widget _buildOverviewTab(BuildContext context, DateFormat dateFormat) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final activeCount = _mappings.where((m) => m.status == 'ACTIVE').length;
+    final validatedCount = _mappings.where((m) => m.status == 'VALIDATED').length;
+    final draftCount = _mappings.where((m) => m.status == 'DRAFT').length;
+
+    final leftCard = Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Logical Model Summary',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            ),
+            const SizedBox(height: 16),
+            _buildInfoRow(context, 'Model Name', _currentModel.name),
+            _buildDivider(context),
+            _buildInfoRow(context, 'Model Version', 'v${_currentModel.version}', isMonospace: true),
+            _buildDivider(context),
+            _buildInfoRow(
+              context,
+              'Description',
+              (_currentModel.description != null && _currentModel.description!.isNotEmpty)
+                  ? _currentModel.description!
+                  : 'No description provided',
+              crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            _buildDivider(context),
+            _buildInfoRow(
+              context,
+              'Defined Entities',
+              '${_currentModel.entityCount} ${_currentModel.entityCount == 1 ? "entity" : "entities"} (${_currentModel.totalFieldCount} fields)',
+            ),
+            _buildDivider(context),
+            _buildInfoRow(
+              context,
+              'Source Mappings',
+              '${_mappings.length} ${_mappings.length == 1 ? "mapping" : "mappings"} ($activeCount Active, $validatedCount Validated, $draftCount Draft)',
+            ),
+            _buildDivider(context),
+            _buildInfoRow(
+              context,
+              'Mapped Data Sources',
+              '',
+              crossAxisAlignment: CrossAxisAlignment.start,
+              customWidget: _mappings.isEmpty
+                  ? Text(
+                      'No sources mapped yet',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                    )
+                  : Align(
+                      alignment: Alignment.centerRight,
+                      child: Table(
+                        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                        columnWidths: const {
+                          0: IntrinsicColumnWidth(),
+                          1: IntrinsicColumnWidth(),
+                          2: IntrinsicColumnWidth(),
+                        },
+                        children: _mappings.map((m) {
+                          final src = widget.sources.where((s) => s.id == m.sourceId).firstOrNull;
+                          final srcName = src?.name ?? m.sourceId;
+                          final srcType = src?.type ?? 'SOURCE';
+
+                          Widget indicator;
+                          if (m.status == 'ACTIVE') {
+                            indicator = Tooltip(
+                              message: 'Active',
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.getStatusColor('ACTIVE', context),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          } else if (m.status == 'ERROR') {
+                            indicator = Tooltip(
+                              message: 'Error',
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.getStatusColor('ERROR', context),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          } else if (m.status == 'DRAFT') {
+                            indicator = Tooltip(
+                              message: 'Draft (Pending Validation)',
+                              child: Icon(
+                                Icons.warning_amber_rounded,
+                                size: 14,
+                                color: AppTheme.getStatusColor('DRAFT', context),
+                              ),
+                            );
+                          } else {
+                            indicator = Tooltip(
+                              message: m.status,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.getStatusColor(m.status, context),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          }
+
+                          return TableRow(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 6),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    srcName,
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 6),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      srcType.toUpperCase(),
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'monospace',
+                                        color: colorScheme.primary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4, top: 3, bottom: 3),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: indicator,
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+            ),
+            _buildDivider(context),
+            _buildInfoRow(
+              context,
+              'Model ID (UUID)',
+              '',
+              customWidget: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  key: const ValueKey('copy_model_id_btn'),
+                  onPressed: _copyModelId,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: colorScheme.onSurface,
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _copiedModelId
+                        ? Row(
+                            key: const ValueKey('model_id_copied'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle_rounded, size: 14, color: colorScheme.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Copied',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Tooltip(
+                            key: const ValueKey('model_id_text'),
+                            message: 'Click to copy Model ID',
+                            child: Text(
+                              _currentModel.id,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'monospace',
+                                color: colorScheme.onSurface,
+                                decoration: TextDecoration.underline,
+                                decorationStyle: TextDecorationStyle.dotted,
+                                decorationColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            _buildDivider(context),
+            _buildInfoRow(context, 'Created Date', dateFormat.format(_currentModel.createdAt)),
+            _buildDivider(context),
+            _buildInfoRow(context, 'Last Updated', dateFormat.format(_currentModel.updatedAt)),
+          ],
+        ),
+      ),
+    );
+
+    final rightColumn = Column(
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Model Management Actions',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Define canonical entities, map physical database sources (PostgreSQL, MySQL, SQLite, MongoDB), or edit model metadata.',
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _showAddEntityDialog,
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text('Add Logical Entity'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _showAddMappingDialog,
+                    icon: const Icon(Icons.compare_arrows, size: 14),
+                    label: const Text('Map New Data Source'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _showEditModelDialog,
+                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    label: const Text('Edit Model Details'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Danger Zone Card
+        Card(
+          color: colorScheme.errorContainer.withValues(alpha: 0.2),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Danger Zone',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.error),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Deleting this logical model permanently removes all associated entity definitions, field schemas, and physical source mapping rules.',
+                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _deleteModel,
+                  icon: Icon(Icons.delete_outline, size: 14, color: colorScheme.error),
+                  label: Text('Delete Logical Model', style: TextStyle(color: colorScheme.error, fontSize: 12)),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: colorScheme.error)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 800;
+
+        if (isNarrow) {
+          return Column(
+            children: [
+              leftCard,
+              const SizedBox(height: 16),
+              rightColumn,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 3, child: leftCard),
+            const SizedBox(width: 20),
+            Expanded(flex: 2, child: rightColumn),
+          ],
+        );
       },
     );
+  }
+
+  Widget _buildInfoRow(
+    BuildContext context,
+    String label,
+    String value, {
+    bool isMonospace = false,
+    Widget? customWidget,
+    CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
+    bool isVertical = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (isVertical) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            if (customWidget != null)
+              customWidget
+            else
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: isMonospace ? 'monospace' : null,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: crossAxisAlignment,
+        children: [
+          Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+          const SizedBox(width: 12),
+          if (customWidget != null)
+            Flexible(child: customWidget)
+          else
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: isMonospace ? 'monospace' : null,
+                  color: colorScheme.onSurface,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5));
   }
 }

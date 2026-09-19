@@ -514,3 +514,110 @@ class RegistrySummaryDTO(BaseModel):
     active_mappings_count: int
     draft_mappings_count: int
 
+
+class AlignFieldSuggestionDTO(BaseModel):
+    """Field mapping proposal from Altr Align."""
+
+    logical_field_id: str | None = Field(default=None, description="Logical field ID if known")
+    logical_field_name: str | None = Field(default=None, description="Logical field name")
+    physical_field_name: str = Field(..., min_length=1, description="Physical field/column name")
+    transformation_rule: str | None = Field(default=None, description="Optional transformation rule")
+    confidence: float | None = Field(default=None, description="Alignment confidence score (0.0 - 1.0)")
+
+
+class AlignEntitySuggestionDTO(BaseModel):
+    """Entity mapping proposal from Altr Align."""
+
+    logical_entity_id: str | None = Field(default=None, description="Logical entity ID if known")
+    logical_entity_name: str | None = Field(default=None, description="Logical entity name")
+    physical_entity_name: str = Field(..., min_length=1, description="Physical table/view/collection name")
+    physical_namespace: str = Field(default="public", description="Physical schema/namespace/database")
+    field_mappings: list[AlignFieldSuggestionDTO] = Field(default_factory=list, description="Proposed field mappings")
+    confidence: float | None = Field(default=None, description="Entity alignment confidence score")
+
+
+class AlignSuggestionRequestDTO(BaseModel):
+    """Request payload for ingesting alignment suggestions produced by Altr Align."""
+
+    source_id: str = Field(..., description="Target physical data source ID")
+    version: str = Field(default="1.0.0", max_length=50, description="Mapping version")
+    entity_mappings: list[AlignEntitySuggestionDTO] = Field(default_factory=list, description="Entity mapping suggestions")
+    metadata: dict[str, Any] | None = Field(default=None, description="Optional alignment metadata")
+
+
+class ResolvedFieldMappingDTO(BaseModel):
+    """Detailed field mapping for logical entity resolution discovery."""
+
+    logical_field_id: str
+    logical_field_name: str
+    physical_field_name: str
+    transformation_rule: str | None = None
+    logical_data_type: str | None = None
+    physical_data_type: str | None = None
+
+
+class ResolvedSourceCandidateDTO(BaseModel):
+    """Active physical source candidate capable of resolving a logical entity."""
+
+    mapping_id: str
+    mapping_status: str
+    mapping_provenance: str
+    source_id: str
+    source_name: str
+    source_type: str
+    entity_mapping_id: str
+    physical_entity_name: str
+    physical_namespace: str
+    field_mappings: list[ResolvedFieldMappingDTO] = Field(default_factory=list)
+
+
+class EntityResolutionResponseDTO(BaseModel):
+    """Response payload exposing all ACTIVE physical candidate mappings for a logical entity."""
+
+    logical_model_id: str
+    logical_model_name: str
+    logical_entity_id: str
+    logical_entity_name: str
+    candidates: list[ResolvedSourceCandidateDTO] = Field(default_factory=list)
+    candidate_count: int
+
+    @classmethod
+    def from_domain(cls, result: Any) -> "EntityResolutionResponseDTO":
+        candidate_dtos: list[ResolvedSourceCandidateDTO] = []
+        for c in result.candidates:
+            f_dtos = [
+                ResolvedFieldMappingDTO(
+                    logical_field_id=f.logical_field_id,
+                    logical_field_name=f.logical_field_name,
+                    physical_field_name=f.physical_field_name,
+                    transformation_rule=f.transformation_rule,
+                    logical_data_type=f.logical_data_type,
+                    physical_data_type=f.physical_data_type,
+                )
+                for f in c.field_mappings
+            ]
+            candidate_dtos.append(
+                ResolvedSourceCandidateDTO(
+                    mapping_id=c.mapping_id,
+                    mapping_status=c.mapping_status.value if hasattr(c.mapping_status, "value") else str(c.mapping_status),
+                    mapping_provenance=c.mapping_provenance.value if hasattr(c.mapping_provenance, "value") else str(c.mapping_provenance),
+                    source_id=c.source_id,
+                    source_name=c.source_name,
+                    source_type=c.source_type,
+                    entity_mapping_id=c.entity_mapping_id,
+                    physical_entity_name=c.physical_entity_name,
+                    physical_namespace=c.physical_namespace,
+                    field_mappings=f_dtos,
+                )
+            )
+        return cls(
+            logical_model_id=result.logical_model_id,
+            logical_model_name=result.logical_model_name,
+            logical_entity_id=result.logical_entity_id,
+            logical_entity_name=result.logical_entity_name,
+            candidates=candidate_dtos,
+            candidate_count=len(candidate_dtos),
+        )
+
+
+

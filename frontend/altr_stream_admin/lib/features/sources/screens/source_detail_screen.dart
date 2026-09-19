@@ -937,30 +937,40 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, String label, String value, {bool isMonospace = false, Widget? customWidget}) {
+  Widget _buildInfoRow(
+    BuildContext context,
+    String label,
+    String value, {
+    bool isMonospace = false,
+    Widget? customWidget,
+    CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: crossAxisAlignment,
         children: [
           Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
           const SizedBox(width: 12),
-          customWidget ??
-              Flexible(
-                child: Text(
-                  value,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: isMonospace ? 'monospace' : null,
-                    color: colorScheme.onSurface,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+          if (customWidget != null)
+            Flexible(child: customWidget)
+          else
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: isMonospace ? 'monospace' : null,
+                  color: colorScheme.onSurface,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
+            ),
         ],
       ),
     );

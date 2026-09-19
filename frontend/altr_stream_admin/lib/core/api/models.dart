@@ -908,3 +908,38 @@ bool areDataTypesCompatible(String? logicalType, String? physicalType) {
   return false;
 }
 
+class ApiExecutionResult {
+  final int statusCode;
+  final String statusText;
+  final Duration duration;
+  final String requestMethod;
+  final String requestUrl;
+  final Map<String, String> requestHeaders;
+  final String? requestBody;
+  final Map<String, String> responseHeaders;
+  final dynamic responseBody;
+  final String? errorMessage;
+  final bool isSuccess;
+
+  ApiExecutionResult({
+    required this.statusCode,
+    required this.statusText,
+    required this.duration,
+    required this.requestMethod,
+    required this.requestUrl,
+    required this.requestHeaders,
+    this.requestBody,
+    required this.responseHeaders,
+    this.responseBody,
+    this.errorMessage,
+    required this.isSuccess,
+  });
+
+  String get formattedDuration {
+    final ms = duration.inMilliseconds;
+    if (ms < 1000) {
+      return '${ms}ms';
+    }
+    return '${(ms / 1000).toStringAsFixed(2)}s';
+  }
+}

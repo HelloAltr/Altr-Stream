@@ -4,6 +4,7 @@ import 'core/api/models.dart';
 import 'core/theme/app_theme.dart';
 import 'features/activity/screens/activity_screen.dart';
 import 'features/altrql_playground/screens/altrql_playground_screen.dart';
+import 'features/docs/screens/api_docs_screen.dart';
 import 'features/overview/screens/overview_screen.dart';
 import 'features/registry/screens/logical_model_detail_screen.dart';
 import 'features/registry/screens/registry_screen.dart';
@@ -309,6 +310,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         onNodeStatusTap: _showNodeStatusDialog,
         themeMode: widget.themeMode,
         onThemeModeChanged: widget.onThemeModeChanged,
+      );
+    }
+
+    if (_activeRoute == '/docs' || _activeRoute == '/api-docs' || _activeRoute == '/api-explorer') {
+      return ApiDocsScreen(
+        apiClient: _apiClient,
+        sources: _sources,
+        nodeStatus: _nodeStatus,
+        onNodeStatusTap: _showNodeStatusDialog,
       );
     }
 

@@ -23,4 +23,57 @@ class AppConfig {
     }
     return 'http://localhost:8000/api/v1';
   }
+
+  /// Returns the FastAPI OpenAPI documentation URL derived from the configured API base URL.
+  /// For local development, resolves to `http://localhost:8000/docs`.
+  /// When served behind a reverse proxy (/api/v1), resolves to `/docs`.
+  /// Can be overridden explicitly using `--dart-define=ALTR_DOCS_URL=...`.
+  static String get apiDocsUrl {
+    const customDocs = String.fromEnvironment('ALTR_DOCS_URL');
+    if (customDocs.isNotEmpty) {
+      return customDocs;
+    }
+    return _deriveDocsPath('/docs');
+  }
+
+  /// Alias for apiDocsUrl (Swagger UI)
+  static String get swaggerDocsUrl => apiDocsUrl;
+
+  /// Returns the FastAPI ReDoc documentation URL derived from the configured API base URL.
+  /// For local development, resolves to `http://localhost:8000/redoc`.
+  /// When served behind a reverse proxy (/api/v1), resolves to `/redoc`.
+  /// Can be overridden explicitly using `--dart-define=ALTR_REDOC_URL=...`.
+  static String get redocDocsUrl {
+    const customRedoc = String.fromEnvironment('ALTR_REDOC_URL');
+    if (customRedoc.isNotEmpty) {
+      return customRedoc;
+    }
+    return _deriveDocsPath('/redoc');
+  }
+
+  /// Returns the OpenAPI JSON schema URL derived from the configured API base URL.
+  /// For local development, resolves to `http://localhost:8000/openapi.json`.
+  /// When served behind a reverse proxy (/api/v1), resolves to `/openapi.json`.
+  /// Can be overridden explicitly using `--dart-define=ALTR_OPENAPI_URL=...`.
+  static String get openApiJsonUrl {
+    const customOpenApi = String.fromEnvironment('ALTR_OPENAPI_URL');
+    if (customOpenApi.isNotEmpty) {
+      return customOpenApi;
+    }
+    return _deriveDocsPath('/openapi.json');
+  }
+
+  static String _deriveDocsPath(String path) {
+    final base = apiBaseUrl;
+    if (base.endsWith('/api/v1')) {
+      return '${base.substring(0, base.length - 7)}$path';
+    } else if (base.endsWith('/api/v1/')) {
+      return '${base.substring(0, base.length - 8)}$path';
+    }
+    if (base.startsWith('http://') || base.startsWith('https://')) {
+      final uri = Uri.parse(base);
+      return uri.replace(path: path, query: '', fragment: '').toString();
+    }
+    return path;
+  }
 }

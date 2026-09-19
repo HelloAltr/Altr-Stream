@@ -130,6 +130,16 @@ class MappingValidationError(AltrStreamError):
 class DuplicateMappingError(AltrStreamError):
     """Raised when a duplicate mapping is registered."""
 
-    def __init__(self, message: str):
+    def __init__(
+        self,
+        message: str,
+        logical_model_id: str | None = None,
+        source_id: str | None = None,
+        version: str | None = None,
+    ):
         super().__init__(message)
+        self.logical_model_id = logical_model_id
+        self.source_id = source_id
+        self.version = version
+
 

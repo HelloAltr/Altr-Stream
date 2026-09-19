@@ -6,7 +6,12 @@ from altr_stream.application.query_service import QueryService
 from altr_stream.application.registry_service import RegistryService
 from altr_stream.application.schema_service import SchemaService
 from altr_stream.application.source_service import SourceService
-from altr_stream.domain.errors import AltrStreamError, SourceNotFoundError
+from altr_stream.domain.errors import (
+    AltrStreamError,
+    MappingValidationError,
+    SourceNotFoundError,
+)
+from altr_stream.domain.mapping import MappingStatus
 from altr_stream.presentation.api.dependencies import (
     get_query_service,
     get_registry_service,
@@ -102,12 +107,24 @@ async def bind_altrql_query(
             mapping = None
             if dto.mapping_id:
                 mapping = await registry_service.get_source_mapping(dto.mapping_id)
+                if mapping.status != MappingStatus.ACTIVE:
+                    raise MappingValidationError(
+                        f"Cannot resolve query with mapping '{dto.mapping_id}' in '{mapping.status.value}' status. Only ACTIVE mappings can be used for execution."
+                    )
             elif dto.logical_model_id:
                 mappings = await registry_service.list_source_mappings(
                     logical_model_id=dto.logical_model_id, source_id=dto.source_id
                 )
-                if mappings:
-                    mapping = mappings[0]
+                active_mappings = [m for m in mappings if m.status == MappingStatus.ACTIVE]
+                if not active_mappings:
+                    raise MappingValidationError(
+                        f"No ACTIVE mapping found for logical model '{dto.logical_model_id}' and source '{dto.source_id}'."
+                    )
+                if len(active_mappings) > 1:
+                    raise MappingValidationError(
+                        f"Ambiguous active mappings for logical model '{dto.logical_model_id}' and source '{dto.source_id}'."
+                    )
+                mapping = active_mappings[0]
 
             if mapping:
                 ir = resolve_logical_ir(ir, mapping)
@@ -223,12 +240,24 @@ async def execute_altrql_query(
             mapping = None
             if dto.mapping_id:
                 mapping = await registry_service.get_source_mapping(dto.mapping_id)
+                if mapping.status != MappingStatus.ACTIVE:
+                    raise MappingValidationError(
+                        f"Cannot resolve query with mapping '{dto.mapping_id}' in '{mapping.status.value}' status. Only ACTIVE mappings can be used for execution."
+                    )
             elif dto.logical_model_id:
                 mappings = await registry_service.list_source_mappings(
                     logical_model_id=dto.logical_model_id, source_id=dto.source_id
                 )
-                if mappings:
-                    mapping = mappings[0]
+                active_mappings = [m for m in mappings if m.status == MappingStatus.ACTIVE]
+                if not active_mappings:
+                    raise MappingValidationError(
+                        f"No ACTIVE mapping found for logical model '{dto.logical_model_id}' and source '{dto.source_id}'."
+                    )
+                if len(active_mappings) > 1:
+                    raise MappingValidationError(
+                        f"Ambiguous active mappings for logical model '{dto.logical_model_id}' and source '{dto.source_id}'."
+                    )
+                mapping = active_mappings[0]
 
             if mapping:
                 ir = resolve_logical_ir(ir, mapping)

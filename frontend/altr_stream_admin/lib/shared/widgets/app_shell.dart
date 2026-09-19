@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 
 class AppShell extends StatelessWidget {
@@ -20,6 +22,30 @@ class AppShell extends StatelessWidget {
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
   });
+
+  Future<void> _launchDocs(BuildContext context) async {
+    final uri = Uri.parse(AppConfig.apiDocsUrl);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open documentation at ${AppConfig.apiDocsUrl}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open documentation: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +145,14 @@ class AppShell extends StatelessWidget {
                           icon: Icons.settings_outlined,
                           activeIcon: Icons.settings,
                         ),
+                        const SizedBox(height: 4),
+                        _buildNavItem(
+                          context: context,
+                          title: 'API Explorer',
+                          route: '/docs',
+                          icon: Icons.api_outlined,
+                          activeIcon: Icons.api,
+                        ),
                       ],
                     ),
                   ),
@@ -156,7 +190,7 @@ class AppShell extends StatelessWidget {
   Widget _buildTabletLayout(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final navRoutes = ['/', '/sources', '/registry', '/activity', '/settings'];
+    final navRoutes = ['/', '/sources', '/registry', '/activity', '/settings', '/docs'];
     int selectedIndex = 0;
     if (activeRoute == '/sources' || activeRoute.startsWith('/sources/')) {
       selectedIndex = 1;
@@ -166,6 +200,8 @@ class AppShell extends StatelessWidget {
       selectedIndex = 3;
     } else if (activeRoute == '/settings') {
       selectedIndex = 4;
+    } else if (activeRoute == '/docs' || activeRoute == '/api-docs') {
+      selectedIndex = 5;
     }
 
     return Scaffold(
@@ -188,7 +224,18 @@ class AppShell extends StatelessWidget {
                 alignment: Alignment.bottomCenter,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: _buildThemeToggleButton(context),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.menu_book_outlined, size: 18),
+                        tooltip: 'API Documentation (Swagger UI)',
+                        onPressed: () => _launchDocs(context),
+                      ),
+                      const SizedBox(height: 4),
+                      _buildThemeToggleButton(context),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -217,6 +264,11 @@ class AppShell extends StatelessWidget {
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings),
                 label: Text('Settings', style: TextStyle(fontSize: 11)),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.api_outlined),
+                selectedIcon: Icon(Icons.api),
+                label: Text('API Explorer', style: TextStyle(fontSize: 11)),
               ),
             ],
           ),
@@ -341,6 +393,16 @@ class AppShell extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).pop();
                 onNavigate('/settings');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.api_outlined),
+              title: const Text('API Explorer'),
+              subtitle: const Text('OpenAPI / Swagger', style: TextStyle(fontSize: 11)),
+              selected: activeRoute == '/docs' || activeRoute == '/api-docs',
+              onTap: () {
+                Navigator.of(context).pop();
+                onNavigate('/docs');
               },
             ),
           ],
@@ -588,4 +650,3 @@ class AppShell extends StatelessWidget {
     );
   }
 }
-

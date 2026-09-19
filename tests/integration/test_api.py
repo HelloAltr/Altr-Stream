@@ -9,6 +9,31 @@ from altr_stream.domain.schema import EntitySchema, FieldSchema, SourceSchema, S
 
 
 @pytest.mark.asyncio
+async def test_root_and_openapi_docs_endpoints(client: AsyncClient):
+    # 1. Root metadata
+    root_res = await client.get("/")
+    assert root_res.status_code == 200
+    root_data = root_res.json()
+    assert root_data["service"] == "Altr Stream"
+    assert root_data["docs_url"] == "/docs"
+    assert root_data["api_v1_prefix"] == "/api/v1"
+
+    # 2. Swagger UI /docs
+    docs_res = await client.get("/docs")
+    assert docs_res.status_code == 200
+    assert "swagger" in docs_res.text.lower() or "html" in docs_res.headers.get("content-type", "").lower()
+
+    # 3. OpenAPI Schema /openapi.json
+    openapi_res = await client.get("/openapi.json")
+    assert openapi_res.status_code == 200
+    openapi_data = openapi_res.json()
+    assert "openapi" in openapi_data
+    assert "/api/v1/health" in openapi_data["paths"]
+    assert "/api/v1/sources" in openapi_data["paths"]
+    assert "/api/v1/registry/models" in openapi_data["paths"]
+
+
+@pytest.mark.asyncio
 async def test_health_check_endpoint(client: AsyncClient):
     response = await client.get("/api/v1/health")
     assert response.status_code == 200
@@ -16,6 +41,7 @@ async def test_health_check_endpoint(client: AsyncClient):
     assert data["status"] == "healthy"
     assert data["service"] == "Altr Stream"
     assert "version" in data
+
 
 
 @pytest.mark.asyncio

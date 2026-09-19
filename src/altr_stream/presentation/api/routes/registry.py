@@ -24,8 +24,10 @@ from altr_stream.domain.mapping import (
 from altr_stream.domain.schema import StandardDataType
 from altr_stream.presentation.api.dependencies import get_registry_service
 from altr_stream.presentation.api.dtos import (
+    AlignSuggestionRequestDTO,
     EntityMappingCreateDTO,
     EntityMappingResponseDTO,
+    EntityResolutionResponseDTO,
     FieldMappingCreateDTO,
     FieldMappingResponseDTO,
     LogicalEntityCreateDTO,
@@ -628,3 +630,56 @@ async def activate_source_mapping(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message) from e
     except AltrStreamError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message) from e
+
+
+# ==========================================
+# Altr Align Ingestion & Resolution Discovery (v0.8.0)
+# ==========================================
+
+@router.post(
+    "/models/{model_id}/align/suggestions",
+    response_model=SourceMappingResponseDTO,
+    status_code=status.HTTP_201_CREATED,
+)
+async def ingest_align_suggestions(
+    model_id: str,
+    dto: AlignSuggestionRequestDTO,
+    service: RegistryService = Depends(get_registry_service),
+) -> SourceMappingResponseDTO:
+    """Ingest schema alignment suggestions produced by Altr Align into the registry as DRAFT mapping."""
+    try:
+        mapping = await service.ingest_align_suggestions(
+            model_id=model_id,
+            source_id=dto.source_id,
+            version=dto.version,
+            entity_mappings_data=[em.model_dump() for em in dto.entity_mappings],
+        )
+        return SourceMappingResponseDTO.from_domain(mapping)
+    except LogicalModelNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message) from e
+    except SourceNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message) from e
+    except AltrStreamError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message) from e
+
+
+@router.get(
+    "/models/{model_id}/resolve/{entity_name}",
+    response_model=EntityResolutionResponseDTO,
+)
+async def resolve_logical_entity(
+    model_id: str,
+    entity_name: str,
+    service: RegistryService = Depends(get_registry_service),
+) -> EntityResolutionResponseDTO:
+    """Discover all ACTIVE physical source mappings capable of resolving a logical entity."""
+    try:
+        result = await service.resolve_logical_entity(model_id=model_id, entity_name=entity_name)
+        return EntityResolutionResponseDTO.from_domain(result)
+    except LogicalModelNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message) from e
+    except LogicalEntityNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message) from e
+    except AltrStreamError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message) from e
+

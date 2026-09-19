@@ -1,5 +1,7 @@
 """Schema Registry application service for Logical Models and Mappings."""
 
+from typing import Any
+
 from altr_stream.application.schema_service import SchemaService
 from altr_stream.domain.errors import (
     DuplicateMappingError,
@@ -14,9 +16,12 @@ from altr_stream.domain.errors import (
 from altr_stream.domain.logical import LogicalEntity, LogicalField, LogicalModel
 from altr_stream.domain.mapping import (
     EntityMapping,
+    EntityResolutionResult,
     FieldMapping,
     MappingProvenance,
     MappingStatus,
+    ResolvedFieldInfo,
+    ResolvedSourceCandidate,
     SourceMapping,
 )
 from altr_stream.domain.schema import StandardDataType, are_datatypes_compatible
@@ -243,14 +248,18 @@ class RegistryService:
         if not source:
             raise SourceNotFoundError(source_id)
 
-        # Check duplicate
+        # Check duplicate (same model, source, and version)
         existing = await self.registry_repo.list_source_mappings(
             logical_model_id=logical_model_id, source_id=source_id
         )
-        if existing:
-            raise DuplicateMappingError(
-                f"Source mapping already exists between model '{logical_model_id}' and source '{source_id}'."
-            )
+        for m in existing:
+            if m.version == version:
+                raise DuplicateMappingError(
+                    f"A mapping with version '{version}' already exists for this logical model and physical source. Create a new version or edit the existing mapping.",
+                    logical_model_id=logical_model_id,
+                    source_id=source_id,
+                    version=version,
+                )
 
         ems = entity_mappings or []
         for em in ems:
@@ -548,12 +557,16 @@ class RegistryService:
                 f"Cannot activate mapping with status '{mapping.status.value}'. Only VALIDATED mappings can be activated."
             )
 
-        # Enforce single active mapping rule per logical model
+        # Invariant: At most one ACTIVE mapping for a given (logical_model_id, source_id) pair
         all_mappings = await self.registry_repo.list_source_mappings(
             logical_model_id=mapping.logical_model_id
         )
         for other in all_mappings:
-            if other.id != mapping.id and other.status == MappingStatus.ACTIVE:
+            if (
+                other.id != mapping.id
+                and other.source_id == mapping.source_id
+                and other.status == MappingStatus.ACTIVE
+            ):
                 other.status = MappingStatus.VALIDATED
                 await self.registry_repo.update_source_mapping(other)
 
@@ -561,6 +574,178 @@ class RegistryService:
         mapping.error_message = None
         return await self.registry_repo.update_source_mapping(mapping)
 
+    async def ingest_align_suggestions(
+        self,
+        model_id: str,
+        source_id: str,
+        version: str = "1.0.0",
+        entity_mappings_data: list[dict[str, Any]] | None = None,
+    ) -> SourceMapping:
+        """Ingest alignment proposals from Altr Align into DRAFT SourceMapping with ALTR_ALIGN provenance."""
+        model = await self.get_model(model_id)
+        source = await self.source_repo.get_by_id(source_id)
+        if not source:
+            raise SourceNotFoundError(source_id)
+
+        entity_mappings: list[EntityMapping] = []
+        for em_dict in (entity_mappings_data or []):
+            log_ent_id = em_dict.get("logical_entity_id")
+            log_ent_name = em_dict.get("logical_entity_name")
+
+            logical_entity = None
+            if log_ent_id:
+                logical_entity = model.get_entity_by_id(log_ent_id)
+            if not logical_entity and log_ent_name:
+                logical_entity = model.get_entity_by_name(log_ent_name)
+
+            final_ent_id = logical_entity.id if logical_entity else (log_ent_id or "")
+            final_ent_name = logical_entity.name if logical_entity else (log_ent_name or "")
+
+            field_mappings: list[FieldMapping] = []
+            for fm_dict in em_dict.get("field_mappings", []):
+                log_fld_id = fm_dict.get("logical_field_id")
+                log_fld_name = fm_dict.get("logical_field_name")
+
+                logical_field = None
+                if logical_entity:
+                    if log_fld_id:
+                        logical_field = logical_entity.get_field_by_id(log_fld_id)
+                    if not logical_field and log_fld_name:
+                        logical_field = logical_entity.get_field_by_name(log_fld_name)
+
+                final_fld_id = logical_field.id if logical_field else (log_fld_id or "")
+                final_fld_name = logical_field.name if logical_field else (log_fld_name or "")
+
+                field_mappings.append(
+                    FieldMapping(
+                        entity_mapping_id="",
+                        logical_field_id=final_fld_id,
+                        logical_field_name=final_fld_name,
+                        physical_field_name=fm_dict.get("physical_field_name", ""),
+                        transformation_rule=fm_dict.get("transformation_rule"),
+                    )
+                )
+
+            entity_mappings.append(
+                EntityMapping(
+                    source_mapping_id="",
+                    logical_entity_id=final_ent_id,
+                    logical_entity_name=final_ent_name,
+                    physical_entity_name=em_dict.get("physical_entity_name", ""),
+                    physical_namespace=em_dict.get("physical_namespace", "public"),
+                    field_mappings=field_mappings,
+                )
+            )
+
+        mapping = SourceMapping(
+            logical_model_id=model_id,
+            source_id=source_id,
+            version=version,
+            status=MappingStatus.DRAFT,
+            provenance=MappingProvenance.ALTR_ALIGN,
+            error_message=None,
+            entity_mappings=entity_mappings,
+        )
+        return await self.registry_repo.create_source_mapping(mapping)
+
+    async def resolve_logical_entity(
+        self,
+        model_id: str,
+        entity_name: str,
+    ) -> EntityResolutionResult:
+        """Discover all ACTIVE physical source mappings capable of resolving a logical entity."""
+        model = await self.get_model(model_id)
+
+        target_entity = model.get_entity_by_name(entity_name)
+        if not target_entity:
+            target_entity = model.get_entity_by_id(entity_name)
+        if not target_entity:
+            raise LogicalEntityNotFoundError(
+                f"Logical entity '{entity_name}' was not found in model '{model.name}'."
+            )
+
+        all_mappings = await self.registry_repo.list_source_mappings(logical_model_id=model_id)
+        active_mappings = [m for m in all_mappings if m.status == MappingStatus.ACTIVE]
+
+        candidates: list[ResolvedSourceCandidate] = []
+        for mapping in active_mappings:
+            matching_em = None
+            for em in mapping.entity_mappings:
+                if (
+                    em.logical_entity_id == target_entity.id
+                    or (em.logical_entity_name and em.logical_entity_name.lower() == target_entity.name.lower())
+                ):
+                    matching_em = em
+                    break
+
+            if not matching_em:
+                continue
+
+            source = await self.source_repo.get_by_id(mapping.source_id)
+            if not source:
+                continue
+
+            physical_schema = await self.schema_service.get_latest_schema(source.id)
+            phys_entity = None
+            if physical_schema:
+                for pe in physical_schema.entities:
+                    if pe.name.lower() == matching_em.physical_entity_name.lower():
+                        phys_entity = pe
+                        break
+
+            resolved_fields: list[ResolvedFieldInfo] = []
+            for fm in matching_em.field_mappings:
+                lf = target_entity.get_field_by_id(fm.logical_field_id) or target_entity.get_field_by_name(fm.logical_field_name)
+                log_fld_id = lf.id if lf else fm.logical_field_id
+                log_fld_name = lf.name if lf else fm.logical_field_name
+                log_type = lf.data_type.value if lf else None
+
+                phys_type = None
+                if phys_entity:
+                    pf = phys_entity.get_field(fm.physical_field_name)
+                    if not pf:
+                        for f in phys_entity.fields:
+                            if f.name.lower() == fm.physical_field_name.lower():
+                                pf = f
+                                break
+                    if pf:
+                        phys_type = pf.data_type.value
+
+                resolved_fields.append(
+                    ResolvedFieldInfo(
+                        logical_field_id=log_fld_id,
+                        logical_field_name=log_fld_name,
+                        physical_field_name=fm.physical_field_name,
+                        transformation_rule=fm.transformation_rule,
+                        logical_data_type=log_type,
+                        physical_data_type=phys_type,
+                    )
+                )
+
+            candidates.append(
+                ResolvedSourceCandidate(
+                    mapping_id=mapping.id,
+                    mapping_status=mapping.status,
+                    mapping_provenance=mapping.provenance,
+                    source_id=source.id,
+                    source_name=source.name,
+                    source_type=source.type.value if hasattr(source.type, "value") else str(source.type),
+                    entity_mapping_id=matching_em.id,
+                    physical_entity_name=matching_em.physical_entity_name,
+                    physical_namespace=matching_em.physical_namespace,
+                    field_mappings=resolved_fields,
+                )
+            )
+
+        return EntityResolutionResult(
+            logical_model_id=model.id,
+            logical_model_name=model.name,
+            logical_entity_id=target_entity.id,
+            logical_entity_name=target_entity.name,
+            candidates=candidates,
+        )
+
     async def get_summary(self) -> dict[str, int]:
         """Aggregate summary metrics for the Overview card."""
         return await self.registry_repo.get_summary()
+

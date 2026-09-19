@@ -598,6 +598,212 @@ class ApiClient {
     final res = await _client.delete(_uri('/registry/mappings/$mappingId'), headers: _headers);
     _processResponse(res);
   }
+
+  /// Fetch dynamic OpenAPI specification from backend
+  Future<Map<String, dynamic>> getOpenApiSpec() async {
+    final specUrl = AppConfig.openApiJsonUrl;
+    final uri = Uri.parse(specUrl);
+    final res = await _client.get(uri, headers: {'Accept': 'application/json'});
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+    }
+    throw ApiException(
+      statusCode: res.statusCode,
+      message: 'Failed to fetch OpenAPI specification from $specUrl',
+    );
+  }
+
+  /// Resolve endpoint URI with path parameter substitution and query string encoding
+  Uri resolveEndpointUri(
+    String path, {
+    Map<String, String>? pathParams,
+    Map<String, dynamic>? queryParams,
+  }) {
+    String resolvedPath = path;
+    if (pathParams != null) {
+      pathParams.forEach((key, value) {
+        resolvedPath = resolvedPath.replaceAll('{$key}', Uri.encodeComponent(value));
+      });
+    }
+
+    String origin = '';
+    if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
+      final uri = Uri.parse(baseUrl);
+      final portPart = uri.hasPort ? ':${uri.port}' : '';
+      origin = '${uri.scheme}://${uri.host}$portPart';
+    }
+
+    final cleanQueryParams = <String, String>{};
+    if (queryParams != null) {
+      queryParams.forEach((k, v) {
+        if (v != null && v.toString().isNotEmpty) {
+          cleanQueryParams[k] = v.toString();
+        }
+      });
+    }
+
+    final fullPath = resolvedPath.startsWith('/') ? resolvedPath : '/$resolvedPath';
+
+    if (origin.isNotEmpty) {
+      final baseUri = Uri.parse(origin);
+      return baseUri.replace(
+        path: fullPath,
+        queryParameters: cleanQueryParams.isEmpty ? null : cleanQueryParams,
+      );
+    } else {
+      return Uri(
+        path: fullPath,
+        queryParameters: cleanQueryParams.isEmpty ? null : cleanQueryParams,
+      );
+    }
+  }
+
+  /// Execute an arbitrary raw API request for the API Explorer
+  Future<ApiExecutionResult> executeRawRequest({
+    required String method,
+    required String path,
+    Map<String, String>? pathParams,
+    Map<String, dynamic>? queryParams,
+    dynamic body,
+    Map<String, String>? customHeaders,
+  }) async {
+    final uri = resolveEndpointUri(path, pathParams: pathParams, queryParams: queryParams);
+    final headers = <String, String>{
+      ..._headers,
+      ...?customHeaders,
+    };
+
+    String? encodedBody;
+    if (body != null) {
+      if (body is String) {
+        encodedBody = body;
+      } else {
+        encodedBody = jsonEncode(body);
+      }
+    }
+
+    final stopwatch = Stopwatch()..start();
+    http.Response response;
+    try {
+      final normalizedMethod = method.toUpperCase().trim();
+      switch (normalizedMethod) {
+        case 'GET':
+          response = await _client.get(uri, headers: headers);
+          break;
+        case 'POST':
+          response = await _client.post(uri, headers: headers, body: encodedBody);
+          break;
+        case 'PUT':
+          response = await _client.put(uri, headers: headers, body: encodedBody);
+          break;
+        case 'DELETE':
+          response = await _client.delete(uri, headers: headers, body: encodedBody);
+          break;
+        case 'PATCH':
+          response = await _client.patch(uri, headers: headers, body: encodedBody);
+          break;
+        case 'HEAD':
+          response = await _client.head(uri, headers: headers);
+          break;
+        default:
+          final request = http.Request(normalizedMethod, uri);
+          headers.forEach((k, v) => request.headers[k] = v);
+          if (encodedBody != null) {
+            request.body = encodedBody;
+          }
+          final streamed = await _client.send(request);
+          response = await http.Response.fromStream(streamed);
+          break;
+      }
+      stopwatch.stop();
+
+      dynamic responseData;
+      String? errorMessage;
+      if (response.body.isNotEmpty) {
+        try {
+          responseData = jsonDecode(response.body);
+          if (response.statusCode >= 400 && responseData is Map && responseData.containsKey('detail')) {
+            errorMessage = responseData['detail'].toString();
+          }
+        } catch (_) {
+          responseData = response.body;
+          if (response.statusCode >= 400) {
+            errorMessage = response.body;
+          }
+        }
+      }
+
+      return ApiExecutionResult(
+        statusCode: response.statusCode,
+        statusText: _getStatusText(response.statusCode, response.reasonPhrase),
+        duration: stopwatch.elapsed,
+        requestMethod: normalizedMethod,
+        requestUrl: uri.toString(),
+        requestHeaders: headers,
+        requestBody: encodedBody,
+        responseHeaders: response.headers,
+        responseBody: responseData,
+        errorMessage: errorMessage,
+        isSuccess: response.statusCode >= 200 && response.statusCode < 300,
+      );
+    } catch (e) {
+      stopwatch.stop();
+      return ApiExecutionResult(
+        statusCode: 0,
+        statusText: 'Client Error',
+        duration: stopwatch.elapsed,
+        requestMethod: method.toUpperCase(),
+        requestUrl: uri.toString(),
+        requestHeaders: headers,
+        requestBody: encodedBody,
+        responseHeaders: const {},
+        responseBody: null,
+        errorMessage: e.toString(),
+        isSuccess: false,
+      );
+    }
+  }
+
+  String _getStatusText(int code, String? reasonPhrase) {
+    if (reasonPhrase != null && reasonPhrase.isNotEmpty) {
+      return '$code $reasonPhrase';
+    }
+    switch (code) {
+      case 200:
+        return '200 OK';
+      case 201:
+        return '201 Created';
+      case 202:
+        return '202 Accepted';
+      case 204:
+        return '204 No Content';
+      case 400:
+        return '400 Bad Request';
+      case 401:
+        return '401 Unauthorized';
+      case 403:
+        return '403 Forbidden';
+      case 404:
+        return '404 Not Found';
+      case 405:
+        return '405 Method Not Allowed';
+      case 409:
+        return '409 Conflict';
+      case 422:
+        return '422 Unprocessable Entity';
+      case 500:
+        return '500 Internal Server Error';
+      case 502:
+        return '502 Bad Gateway';
+      case 503:
+        return '503 Service Unavailable';
+      default:
+        return '$code';
+    }
+  }
 }
 
 
