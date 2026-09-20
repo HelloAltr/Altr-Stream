@@ -21,6 +21,7 @@ def normalize_row(
     row: dict[str, Any],
     physical_to_logical: dict[str, str],
     preserve_unmapped: bool = False,
+    projected_aliases: set[str] | list[str] | None = None,
 ) -> dict[str, Any]:
     """Normalize a single physical database row into canonical logical field names.
 
@@ -30,18 +31,27 @@ def normalize_row(
     active mapping are excluded in logical mode.
 
     If a field name in row is already a recognized canonical logical field name
-    (e.g. when physical query lowering produced logical aliases like 'roll_no AS roll_number'),
-    it is preserved directly as canonical rather than discarded as unmapped.
+    (e.g. when physical query lowering produced logical aliases like 'roll_no AS roll_number')
+    or an explicit projection alias (e.g. 'roll_no AS student_id'),
+    it is preserved directly rather than discarded as unmapped.
     """
     normalized: dict[str, Any] = {}
     phys_lookup = {k.lower(): v for k, v in physical_to_logical.items()}
     log_lookup = {v.lower(): v for v in physical_to_logical.values()}
     logical_fields_set = set(physical_to_logical.values())
+    alias_lookup: dict[str, str] = {}
+    if projected_aliases:
+        alias_lookup = {a.lower(): a for a in projected_aliases}
 
     for col, val in row.items():
-        if col == "_id" and "_id" not in physical_to_logical and "_id" not in phys_lookup and "_id" not in log_lookup:
+        if col == "_id" and "_id" not in physical_to_logical and "_id" not in phys_lookup and "_id" not in log_lookup and "_id" not in alias_lookup:
             continue
-        if col in physical_to_logical:
+        if alias_lookup and col in projected_aliases:
+            normalized[col] = val
+        elif alias_lookup and col.lower() in alias_lookup:
+            orig_alias = alias_lookup[col.lower()]
+            normalized[orig_alias] = val
+        elif col in physical_to_logical:
             logical_field = physical_to_logical[col]
             normalized[logical_field] = val
         elif col.lower() in phys_lookup:
@@ -110,10 +120,30 @@ def _build_row_comparator(ir: AltrQueryIR):
     if not sort_specs:
         return None
 
+    # Build bidirectional alias-to-canonical lookup for projection aliases
+    alias_map: dict[str, str] = {}
+    if ir.projection:
+        for sel in ir.projection:
+            if sel.alias:
+                alias_map[sel.alias] = sel.path.leaf
+                alias_map[sel.alias.lower()] = sel.path.leaf
+                alias_map[sel.path.leaf] = sel.alias
+                alias_map[sel.path.leaf.lower()] = sel.alias
+
     def comparator(row_a: dict[str, Any], row_b: dict[str, Any]) -> int:
         for field_name, is_desc in sort_specs:
             val_a = row_a.get(field_name)
+            if val_a is None and field_name in alias_map:
+                val_a = row_a.get(alias_map[field_name])
+            if val_a is None and field_name.lower() in alias_map:
+                val_a = row_a.get(alias_map[field_name.lower()])
+
             val_b = row_b.get(field_name)
+            if val_b is None and field_name in alias_map:
+                val_b = row_b.get(alias_map[field_name])
+            if val_b is None and field_name.lower() in alias_map:
+                val_b = row_b.get(alias_map[field_name.lower()])
+
             res = _compare_values(val_a, val_b)
             if res != 0:
                 return -res if is_desc else res
@@ -136,13 +166,20 @@ def merge_federated_results(
     4. Global LIMIT and OFFSET pagination applied at the unified result level.
     """
     all_normalized_rows: list[dict[str, Any]] = []
+    projected_aliases: set[str] | None = None
+    if not ir.is_wildcard_projection and ir.projection:
+        projected_aliases = {sel.alias for sel in ir.projection if sel.alias}
 
     for plan, result in execution_results:
         for row in result.rows:
-            norm_row = normalize_row(row, plan.physical_to_logical_map)
+            norm_row = normalize_row(
+                row,
+                plan.physical_to_logical_map,
+                projected_aliases=projected_aliases,
+            )
             all_normalized_rows.append(norm_row)
 
-    # 1. Determine canonical logical columns
+    # 1. Determine canonical logical columns and format rows
     columns: list[str] = []
     if not ir.is_wildcard_projection:
         for sel in ir.projection:
@@ -150,7 +187,18 @@ def merge_federated_results(
             columns.append(col_name)
         ordered_rows: list[dict[str, Any]] = []
         for nr in all_normalized_rows:
-            ordered_r = {col: nr[col] for col in columns if col in nr}
+            ordered_r: dict[str, Any] = {}
+            for sel in ir.projection:
+                out_col = sel.alias or sel.path.leaf
+                src_key = sel.path.leaf
+                if out_col in nr:
+                    ordered_r[out_col] = nr[out_col]
+                elif src_key in nr:
+                    ordered_r[out_col] = nr[src_key]
+                elif out_col.lower() in nr:
+                    ordered_r[out_col] = nr[out_col.lower()]
+                elif src_key.lower() in nr:
+                    ordered_r[out_col] = nr[src_key.lower()]
             ordered_rows.append(ordered_r)
         all_normalized_rows = ordered_rows
     else:

@@ -239,6 +239,7 @@ def _normalize_result_rows(
     logical_field_order: list[str] | None = None,
     is_wildcard_projection: bool = True,
     requested_logical_projections: list[str] | None = None,
+    projected_aliases: set[str] | list[str] | None = None,
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """Translate physical column names and row dicts back to canonical logical field names.
 
@@ -250,7 +251,12 @@ def _normalize_result_rows(
 
     norm_rows: list[dict[str, Any]] = []
     for r in rows:
-        norm_r = normalize_row(r, physical_to_logical, preserve_unmapped=False)
+        norm_r = normalize_row(
+            r,
+            physical_to_logical,
+            preserve_unmapped=False,
+            projected_aliases=projected_aliases,
+        )
         norm_rows.append(norm_r)
 
     if not is_wildcard_projection and requested_logical_projections:
@@ -1080,6 +1086,7 @@ async def execute_altrql_query(
                 for fm in matching_em.field_mappings
             }
             logical_order = [fm.logical_field_name for fm in matching_em.field_mappings]
+            proj_aliases = {sel.alias for sel in ir.projection if sel.alias} if not original_is_wildcard else None
             final_cols, final_rows = _normalize_result_rows(
                 columns=result.columns,
                 rows=result.rows,
@@ -1087,6 +1094,7 @@ async def execute_altrql_query(
                 logical_field_order=logical_order,
                 is_wildcard_projection=original_is_wildcard,
                 requested_logical_projections=original_logical_projections,
+                projected_aliases=proj_aliases,
             )
 
         affected = (

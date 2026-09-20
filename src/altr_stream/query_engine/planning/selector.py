@@ -114,9 +114,16 @@ def get_static_source_capabilities(source_type: SourceType) -> SourceCapabilitie
 def extract_logical_context(ir: AltrQueryIR, logical_model_id: str | None = None) -> LogicalPlanContext:
     """Extract all referenced logical entities and fields from an AST into a planning context."""
     projected: list[str] = []
+    alias_to_canonical: dict[str, str] = {}
     if not ir.is_wildcard_projection:
         for sel in ir.projection:
             projected.append(sel.path.root)
+            if sel.alias:
+                alias_to_canonical[sel.alias.lower()] = sel.path.root
+    else:
+        for sel in ir.projection:
+            if sel.alias:
+                alias_to_canonical[sel.alias.lower()] = sel.path.root
 
     filter_fields: list[str] = []
 
@@ -142,9 +149,11 @@ def extract_logical_context(ir: AltrQueryIR, logical_model_id: str | None = None
 
     sort_fields: list[str] = []
     for s in ir.sort:
-        sort_fields.append(s.field.root)
+        root_name = s.field.root
+        sort_fields.append(alias_to_canonical.get(root_name.lower(), root_name))
     if ir.ranking:
-        sort_fields.append(ir.ranking.field.root)
+        root_name = ir.ranking.field.root
+        sort_fields.append(alias_to_canonical.get(root_name.lower(), root_name))
 
     return LogicalPlanContext(
         logical_model_id=logical_model_id,

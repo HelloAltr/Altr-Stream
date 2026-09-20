@@ -68,6 +68,14 @@ def resolve_logical_ir(ir: AltrQueryIR, mapping: SourceMapping) -> AltrQueryIR:
         field_map[fm.physical_field_name.lower()] = fm.physical_field_name
         field_map[fm.physical_field_name] = fm.physical_field_name
 
+    # Also resolve aliases defined in the projection to the underlying physical column
+    for sel in ir.projection:
+        if sel.alias:
+            alias_lower = sel.alias.lower()
+            root_lower = sel.path.root.lower()
+            if root_lower in field_map:
+                field_map[alias_lower] = field_map[root_lower]
+
     def _resolve_field_path(fp: FieldPath) -> FieldPath:
         root_key = fp.root.lower()
         if root_key in field_map:

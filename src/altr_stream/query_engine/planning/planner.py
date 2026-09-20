@@ -56,6 +56,45 @@ from altr_stream.query_engine.planning.selector import (
 logger = logging.getLogger(__name__)
 
 
+def _compute_federated_plan_ir_updates(ir: AltrQueryIR) -> dict[str, Any]:
+    """Compute safe IR updates for individual physical query lowering in federated mode.
+
+    Safety Rules:
+    - If the query contains a deterministic sort (ir.sort or ir.ranking) AND an explicit limit
+      (ir.limit or ir.ranking.count), push down bounded limit = (offset or 0) + limit.
+    - If the query does NOT have a sort, or is offset-only (no limit), do NOT push down per-source limits.
+    - Physical queries NEVER receive physical offset (offset remains None), preserving authoritative
+      global offset slicing at the federated merger.
+    """
+    has_sort = bool(ir.sort or ir.ranking)
+    has_limit = (ir.limit is not None and ir.limit >= 0) or (
+        ir.ranking is not None and ir.ranking.count is not None and ir.ranking.count >= 0
+    )
+
+    updates: dict[str, Any] = {
+        "offset": None,
+    }
+
+    if has_sort and has_limit:
+        limit_val = ir.limit if ir.limit is not None else (ir.ranking.count if ir.ranking else 0)
+        offset_val = ir.offset if ir.offset is not None and ir.offset > 0 else 0
+        updates["limit"] = offset_val + limit_val
+    else:
+        updates["limit"] = None
+
+    if ir.ranking:
+        if not ir.sort:
+            direction = (
+                SortDirection.DESC
+                if ir.ranking.direction == RankingDirection.TOP
+                else SortDirection.ASC
+            )
+            updates["sort"] = [SortClause(field=ir.ranking.field, direction=direction)]
+        updates["ranking"] = None
+
+    return updates
+
+
 class QueryPlanner:
     """Orchestrates source-agnostic logical query planning, candidate evaluation, and physical compilation."""
 
@@ -131,18 +170,9 @@ class QueryPlanner:
 
             physical_plans: list[PhysicalQueryPlan] = []
 
-            # Prepare physical IR without individual LIMIT/OFFSET truncation
+            # Prepare physical IR with safe bounded pagination pushdown
             # The merger layer owns final global sorting, LIMIT, and OFFSET pagination.
-            updates: dict[str, Any] = {
-                "limit": None,
-                "offset": None,
-            }
-            if ir.ranking:
-                if not ir.sort:
-                    direction = SortDirection.DESC if ir.ranking.direction == RankingDirection.TOP else SortDirection.ASC
-                    updates["sort"] = [SortClause(field=ir.ranking.field, direction=direction)]
-                updates["ranking"] = None
-
+            updates = _compute_federated_plan_ir_updates(ir)
             plan_ir = ir.model_copy(update=updates)
 
             for cand in eligible_candidates:
@@ -241,16 +271,7 @@ class QueryPlanner:
                 f"No common fields could be synthesized across candidate sources for physical entity '{ir.entity}'."
             )
 
-        updates: dict[str, Any] = {
-            "limit": None,
-            "offset": None,
-        }
-        if ir.ranking:
-            if not ir.sort:
-                direction = SortDirection.DESC if ir.ranking.direction == RankingDirection.TOP else SortDirection.ASC
-                updates["sort"] = [SortClause(field=ir.ranking.field, direction=direction)]
-            updates["ranking"] = None
-
+        updates = _compute_federated_plan_ir_updates(ir)
         plan_ir = ir.model_copy(update=updates)
 
         physical_plans = []
