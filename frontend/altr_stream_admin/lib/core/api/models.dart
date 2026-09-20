@@ -1075,3 +1075,37 @@ class ApiExecutionResult {
     return '${(ms / 1000).toStringAsFixed(2)}s';
   }
 }
+
+class UserProfile {
+  final String id;
+  final String displayName;
+  final String email;
+  final String? photoUrl;
+  final String? provider;
+
+  const UserProfile({
+    required this.id,
+    required this.displayName,
+    required this.email,
+    this.photoUrl,
+    this.provider = 'google.com',
+  });
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      id: json['id']?.toString() ?? '',
+      displayName: json['displayName']?.toString() ?? json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      photoUrl: json['photoUrl']?.toString() ?? json['picture']?.toString() ?? json['avatar_url']?.toString(),
+      provider: json['provider']?.toString() ?? 'google.com',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'displayName': displayName,
+    'email': email,
+    'photoUrl': photoUrl,
+    'provider': provider,
+  };
+}

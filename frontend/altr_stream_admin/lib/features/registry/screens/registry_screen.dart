@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
-import '../../../shared/widgets/page_header.dart';
 import '../widgets/create_logical_model_dialog.dart';
 import '../widgets/edit_logical_model_dialog.dart';
 
@@ -23,10 +22,10 @@ class RegistryScreen extends StatefulWidget {
   });
 
   @override
-  State<RegistryScreen> createState() => _RegistryScreenState();
+  State<RegistryScreen> createState() => RegistryScreenState();
 }
 
-class _RegistryScreenState extends State<RegistryScreen> {
+class RegistryScreenState extends State<RegistryScreen> {
   List<LogicalModelModel> _models = [];
   RegistrySummaryModel? _summary;
   bool _isLoading = true;
@@ -35,10 +34,10 @@ class _RegistryScreenState extends State<RegistryScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchRegistry();
+    fetchRegistry();
   }
 
-  Future<void> _fetchRegistry() async {
+  Future<void> fetchRegistry() async {
     setState(() {
       _isLoading = true;
       _error = null;
@@ -66,7 +65,7 @@ class _RegistryScreenState extends State<RegistryScreen> {
       builder: (ctx) => CreateLogicalModelDialog(
         apiClient: widget.apiClient,
         onModelCreated: (newModel) {
-          _fetchRegistry();
+          fetchRegistry();
           widget.onSelectModel(newModel);
         },
       ),
@@ -80,7 +79,7 @@ class _RegistryScreenState extends State<RegistryScreen> {
         apiClient: widget.apiClient,
         model: model,
         onModelUpdated: (_) {
-          _fetchRegistry();
+          fetchRegistry();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Logical model updated successfully.')),
           );
@@ -113,7 +112,7 @@ class _RegistryScreenState extends State<RegistryScreen> {
     if (confirmed == true) {
       try {
         await widget.apiClient.deleteLogicalModel(model.id);
-        _fetchRegistry();
+        fetchRegistry();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Model "${model.name}" deleted.')),
@@ -137,24 +136,6 @@ class _RegistryScreenState extends State<RegistryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Page Context Header
-        PageHeader(
-          title: 'Mapping Registry',
-          description: 'Authoritative local registry of logical domain models and source mappings.',
-          nodeStatus: widget.nodeStatus,
-          onNodeStatusTap: widget.onNodeStatusTap,
-          secondaryAction: OutlinedButton.icon(
-            onPressed: _fetchRegistry,
-            icon: const Icon(Icons.refresh, size: 14),
-            label: const Text('Refresh'),
-          ),
-          primaryAction: ElevatedButton.icon(
-            onPressed: _showCreateModelDialog,
-            icon: const Icon(Icons.add, size: 14),
-            label: const Text('New Logical Model'),
-          ),
-        ),
-
         if (_isLoading)
           Center(
             child: Padding(
@@ -184,7 +165,7 @@ class _RegistryScreenState extends State<RegistryScreen> {
                     ],
                   ),
                 ),
-                ElevatedButton(onPressed: _fetchRegistry, child: const Text('Retry')),
+                ElevatedButton(onPressed: fetchRegistry, child: const Text('Retry')),
               ],
             ),
           )

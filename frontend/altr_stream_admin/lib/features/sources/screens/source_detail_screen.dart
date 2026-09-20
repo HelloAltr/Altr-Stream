@@ -165,28 +165,6 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Top Context Breadcrumb & Header
-        Row(
-          children: [
-            InkWell(
-              onTap: widget.onBack,
-              borderRadius: BorderRadius.circular(6),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.arrow_back, size: 16, color: colorScheme.primary),
-                    const SizedBox(width: 4),
-                    Text('Data Sources', style: TextStyle(color: colorScheme.primary, fontSize: 13)),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
         // Source Title Bar
         LayoutBuilder(
           builder: (context, constraints) {

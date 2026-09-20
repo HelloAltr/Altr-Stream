@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/config/app_config.dart';
-import '../../../shared/widgets/page_header.dart';
 import '../../../shared/widgets/status_badge.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -28,7 +27,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   Map<String, dynamic>? _healthInfo;
-  bool _isProbing = false;
   double? _probeLatencyMs;
 
   @override
@@ -38,7 +36,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _probeBackend() async {
-    setState(() => _isProbing = true);
     final sw = Stopwatch()..start();
     try {
       final res = await widget.apiClient.getHealth();
@@ -55,10 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _probeLatencyMs = sw.elapsedMicroseconds / 1000.0;
         });
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isProbing = false);
       }
     }
   }
@@ -104,25 +97,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
-        PageHeader(
-          title: 'Settings',
-          description: 'Node configuration, networking metadata, and runtime diagnostics.',
-          nodeStatus: widget.nodeStatus,
-          onNodeStatusTap: widget.onNodeStatusTap,
-          primaryAction: OutlinedButton.icon(
-            onPressed: _isProbing ? null : _probeBackend,
-            icon: _isProbing
-                ? SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
-                  )
-                : const Icon(Icons.refresh, size: 14),
-            label: const Text('Probe Node Health'),
-          ),
-        ),
-
         // Settings Cards
         LayoutBuilder(
           builder: (context, constraints) {
@@ -291,8 +265,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'OpenAPI Specification (JSON)',
                   AppConfig.openApiJsonUrl,
                   isMonospace: true,
-                  customWidget: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  customWidget: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       SelectableText(
                         AppConfig.openApiJsonUrl,
@@ -347,14 +321,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Color Theme Mode', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
-                        const SizedBox(height: 2),
-                        Text('Select system preference, light mode, or dark mode', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Color Theme Mode', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colorScheme.onSurface)),
+                          const SizedBox(height: 2),
+                          Text('Select system preference, light mode, or dark mode', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 16),
                     SegmentedButton<ThemeMode>(
                       segments: const [
                         ButtonSegment(
@@ -398,22 +375,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+          Flexible(
+            child: Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+          ),
           const SizedBox(width: 12),
-          customWidget ??
-              Flexible(
-                child: Text(
-                  value,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: isMonospace ? 'monospace' : null,
-                    color: colorScheme.onSurface,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+          if (customWidget != null)
+            Flexible(child: customWidget)
+          else
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: isMonospace ? 'monospace' : null,
+                  color: colorScheme.onSurface,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
+            ),
         ],
       ),
     );

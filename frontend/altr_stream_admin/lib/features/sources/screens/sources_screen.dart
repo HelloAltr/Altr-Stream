@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/api/models.dart';
-import '../../../shared/widgets/page_header.dart';
 import '../../../shared/widgets/status_badge.dart';
 
 class SourcesScreen extends StatefulWidget {
@@ -54,24 +53,6 @@ class _SourcesScreenState extends State<SourcesScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Page Header
-        PageHeader(
-          title: 'Data Sources',
-          description: 'Manage databases connected to this Altr Stream node.',
-          nodeStatus: widget.nodeStatus,
-          onNodeStatusTap: widget.onNodeStatusTap,
-          secondaryAction: OutlinedButton.icon(
-            onPressed: widget.onRefresh,
-            icon: const Icon(Icons.refresh, size: 14),
-            label: const Text('Refresh'),
-          ),
-          primaryAction: ElevatedButton.icon(
-            onPressed: widget.onAddSource,
-            icon: const Icon(Icons.add, size: 14),
-            label: const Text('Add Data Source'),
-          ),
-        ),
-
         // Search & Filter Toolbar
         Row(
           children: [

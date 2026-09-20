@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
-import '../../../shared/widgets/page_header.dart';
 
 class AltrQLPlaygroundScreen extends StatefulWidget {
   final List<SourceModel> sources;
@@ -605,20 +604,6 @@ DELETE users;''',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PageHeader(
-            title: 'AltrQL Console',
-            description:
-                'Unified, vendor-neutral query interface for logical entity retrieval, schema binding, and controlled execution.',
-            nodeStatus: widget.nodeStatus,
-            onNodeStatusTap: widget.onNodeStatusTap,
-            primaryAction: OutlinedButton.icon(
-              onPressed: widget.onBack,
-              icon: const Icon(Icons.arrow_back, size: 14),
-              label: const Text('Back to Dashboard'),
-            ),
-          ),
-          const SizedBox(height: 16),
-
           // AltrQL Editor Card
           Container(
             decoration: BoxDecoration(

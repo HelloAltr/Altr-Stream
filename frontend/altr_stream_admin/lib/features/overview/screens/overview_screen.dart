@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/page_header.dart';
 import '../../../shared/widgets/status_badge.dart';
 
 class OverviewScreen extends StatelessWidget {
@@ -39,24 +38,6 @@ class OverviewScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Page Context Header
-        PageHeader(
-          title: 'Overview',
-          description: 'Your local data federation node.',
-          nodeStatus: nodeStatus,
-          onNodeStatusTap: onNodeStatusTap,
-          secondaryAction: OutlinedButton.icon(
-            onPressed: onRefresh,
-            icon: const Icon(Icons.refresh, size: 14),
-            label: const Text('Refresh'),
-          ),
-          primaryAction: ElevatedButton.icon(
-            onPressed: onAddSource,
-            icon: const Icon(Icons.add, size: 14),
-            label: const Text('Add Data Source'),
-          ),
-        ),
-
         if (isLoading)
           Center(
             child: Padding(

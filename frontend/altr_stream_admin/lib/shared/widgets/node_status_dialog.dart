@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import '../../core/api/api_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
@@ -70,61 +71,26 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
     final isDark = theme.brightness == Brightness.dark;
     final successColor = isDark ? AppTheme.successDark : AppTheme.successLight;
 
-    return Dialog(
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+    return M3EDialog(
+      title: 'Node Status & Telemetry',
+      icon: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: AppTheme.successBg(context),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(Icons.bolt, color: successColor, size: 20),
       ),
-      child: Container(
+      topDivider: false,
+      bottomDivider: false,
+      content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
-        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.successBg(context),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.bolt, color: successColor, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Node Status & Telemetry',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                        Text(
-                          'Altr Stream Local Infrastructure Node',
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () => Navigator.of(context).pop(),
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 12),
 
             // Telemetry Rows
             Container(
@@ -169,32 +135,28 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-
-            // Actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _isChecking ? null : _checkHealth,
-                  icon: _isChecking
-                      ? SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
-                        )
-                      : const Icon(Icons.refresh, size: 14),
-                  label: Text(_isChecking ? 'Checking...' : 'Probe Node'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-              ],
-            ),
           ],
         ),
       ),
+      actions: <Widget>[
+        M3EButton.icon(
+          style: M3EButtonStyle.tonal,
+          onPressed: _isChecking ? null : _checkHealth,
+          icon: _isChecking
+              ? SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
+                )
+              : const Icon(Icons.refresh, size: 14),
+          label: Text(_isChecking ? 'Checking...' : 'Probe Node'),
+        ),
+        M3EButton(
+          style: M3EButtonStyle.filled,
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 

@@ -587,12 +587,6 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            IconButton(
-              onPressed: widget.onBack,
-              icon: const Icon(Icons.arrow_back),
-              tooltip: 'Back to Registry',
-            ),
-            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

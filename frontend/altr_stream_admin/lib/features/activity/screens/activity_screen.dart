@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/page_header.dart';
 
 class ActivityScreen extends StatelessWidget {
   final List<ActivityLogModel> activities;
@@ -25,21 +24,6 @@ class ActivityScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Context Header
-        PageHeader(
-          title: 'Activity',
-          description: 'Operational timeline of connection, discovery, and lifecycle events on this node.',
-          nodeStatus: nodeStatus,
-          onNodeStatusTap: onNodeStatusTap,
-          secondaryAction: activities.isNotEmpty
-              ? OutlinedButton.icon(
-                  onPressed: onClear,
-                  icon: const Icon(Icons.clear_all, size: 14),
-                  label: const Text('Clear Timeline'),
-                )
-              : null,
-        ),
-
         if (activities.isEmpty)
           Container(
             width: double.infinity,

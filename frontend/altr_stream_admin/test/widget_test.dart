@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import 'package:altr_stream_admin/main.dart';
 import 'package:altr_stream_admin/core/config/app_config.dart';
 import 'package:altr_stream_admin/core/api/api_client.dart';
@@ -23,6 +24,7 @@ import 'package:altr_stream_admin/features/registry/screens/registry_screen.dart
 import 'package:altr_stream_admin/features/settings/screens/settings_screen.dart';
 import 'package:altr_stream_admin/features/sources/widgets/add_source_wizard_dialog.dart';
 import 'package:altr_stream_admin/features/registry/widgets/add_mapping_dialog.dart';
+import 'package:altr_stream_admin/shared/widgets/app_shell.dart';
 
 class MockTestApiClient extends ApiClient {
   final SourceSchemaModel? schemaToReturn;
@@ -520,7 +522,7 @@ void main() {
   });
 
   testWidgets('Theme toggle button in header switches theme modes', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -625,11 +627,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(NavigationRail), findsOneWidget);
-
-    final overviewTitleY = tester.getTopLeft(
-      find.descendant(of: find.byType(OverviewScreen), matching: find.text('Overview')),
-    ).dy;
-    expect(overviewTitleY, lessThan(60));
+    expect(find.byType(OverviewScreen), findsOneWidget);
   });
 
   testWidgets('App renders on mobile viewport with Drawer and AppBar', (WidgetTester tester) async {
@@ -716,7 +714,7 @@ void main() {
     expect(find.text('AltrQL Editor'), findsOneWidget);
     expect(find.text('Parse Query'), findsOneWidget);
 
-    await tester.tap(find.text('Back to Dashboard'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 
     expect(find.byType(OverviewScreen), findsOneWidget);
@@ -2607,11 +2605,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Mapping Registry'), findsWidgets);
+    expect(find.byType(RegistryScreen), findsOneWidget);
     expect(find.text('Logical Models'), findsOneWidget);
     expect(find.text('CoreCommerce'), findsOneWidget);
     expect(find.text('v1.0.0'), findsOneWidget);
-    expect(find.text('New Logical Model'), findsOneWidget);
   });
 
   testWidgets('LogicalModelDetailScreen displays overview, schema, and mappings tabs', (WidgetTester tester) async {
@@ -4214,6 +4211,218 @@ void main() {
 
     expect(find.text('API Explorer'), findsOneWidget);
     expect(find.text('OpenAPI / Swagger'), findsOneWidget);
+  });
+
+  testWidgets('AppShell user menu button renders account icon when signed out and opens sign in menu', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    bool signInTriggered = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          activeRoute: '/',
+          onNavigate: (_) {},
+          currentUser: null,
+          onSignIn: () {
+            signInTriggered = true;
+          },
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 'Sign In' is visible in drawer
+    final signInFinder = find.text('Sign In');
+    expect(signInFinder, findsOneWidget);
+
+    // Tap Sign In
+    await tester.tap(signInFinder);
+    await tester.pumpAndSettle();
+
+    expect(signInTriggered, isTrue);
+  });
+
+  testWidgets('AppShell user menu button renders profile avatar and name when signed in', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    bool signOutTriggered = false;
+
+    const mockUser = UserProfile(
+      id: 'usr_test_1',
+      displayName: 'Asher Admin',
+      email: 'asher@altrstream.io',
+      photoUrl: null,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          activeRoute: '/',
+          onNavigate: (_) {},
+          currentUser: mockUser,
+          onSignOut: () {
+            signOutTriggered = true;
+          },
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // When signed in with mock initials avatar, letter 'A' and name 'Asher Admin' are rendered
+    expect(find.text('A'), findsOneWidget);
+    expect(find.text('Asher Admin'), findsOneWidget);
+
+    // Tap drawer profile tile to open M3EMenu
+    await tester.tap(find.text('Asher Admin'));
+    await tester.pumpAndSettle();
+
+    // Verify menu items
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Log Out'), findsOneWidget);
+    expect(find.text('Delete Account'), findsOneWidget);
+
+    // Tap Log Out
+    await tester.tap(find.text('Log Out'));
+    await tester.pumpAndSettle();
+
+    expect(signOutTriggered, isTrue);
+  });
+
+  testWidgets('AppShell brand logo menu renders beacon, opens dropdown with Telemetry and Version info', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    int nodeStatusTapCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          activeRoute: '/',
+          onNavigate: (_) {},
+          nodeStatus: 'ACTIVE',
+          onNodeStatusTap: () {
+            nodeStatusTapCount++;
+          },
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify bolt logo and Altr Stream brand title are rendered
+    final boltIconFinder = find.byIcon(Icons.bolt);
+    expect(boltIconFinder, findsOneWidget);
+    expect(find.text('Altr Stream'), findsOneWidget);
+
+    // 1. Verify logo beacon tooltip message and that logo itself is non-clickable
+    final tooltipFinder = find.byWidgetPredicate(
+      (w) => w is Tooltip && w.message == 'Node: ACTIVE',
+    );
+    expect(tooltipFinder, findsOneWidget);
+
+    await tester.tap(boltIconFinder);
+    await tester.pumpAndSettle();
+    expect(nodeStatusTapCount, 0); // No click action on beacon
+
+    // 2. Tapping the 'Altr Stream' text button opens the brand menu
+    await tester.tap(find.text('Altr Stream'));
+    await tester.pumpAndSettle();
+
+    // Verify brand menu options are shown
+    expect(find.text('Node Telemetry'), findsOneWidget);
+    expect(find.text('Version: v1.0.0'), findsOneWidget);
+    expect(find.text('Check for updates'), findsOneWidget);
+
+    // Tap Node Telemetry in menu
+    await tester.tap(find.text('Node Telemetry'));
+    await tester.pumpAndSettle();
+
+    expect(nodeStatusTapCount, 1);
+  });
+
+  testWidgets('AppShell Version Info dialog spins on Check for updates, displays Update Available and animates progress on Update Now', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Open brand menu
+    await tester.tap(find.text('Altr Stream'));
+    await tester.pumpAndSettle();
+
+    // 2. Tap Check for updates in menu
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+
+    // Verify initial Version Info dialog state
+    expect(find.text('Altr Stream Version Info'), findsOneWidget);
+    expect(find.text('Your local node is running the latest version.'), findsOneWidget);
+    expect(find.text('Check for Updates'), findsOneWidget);
+
+    // 3. Tap Check for Updates inside dialog
+    await tester.tap(find.text('Check for Updates'));
+    await tester.pump(); // Advance 1 frame to start spinner
+
+    // Dialog stays open and shows 'Checking...'
+    expect(find.text('Checking...'), findsOneWidget);
+
+    // Advance 3.5 seconds for simulated network check
+    await tester.pump(const Duration(milliseconds: 3500));
+    await tester.pumpAndSettle();
+
+    // Container has now switched to 'Update Available (v1.1.0)' and M3ESnackbar is displayed
+    expect(find.text('Update Available (v1.1.0)'), findsOneWidget);
+    expect(find.text('Update Now'), findsNWidgets(2)); // Dialog button + M3ESnackbar action
+    expect(find.text('New update available: v1.1.0'), findsOneWidget);
+
+    // 4. Click 'Update Now' in the dialog
+    await tester.tap(find.text('Update Now').first);
+    await tester.pump(); // Start update progress
+
+    // Verify progress indicator is rendered
+    expect(find.byType(M3EProgressIndicator), findsOneWidget);
+
+    // Advance time through progress increments
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+
+    // Verify update completed state
+    expect(find.text('Your local node has been updated to v1.1.0.'), findsOneWidget);
+    expect(find.text('Current Version: v1.1.0 (Latest)'), findsOneWidget);
+    expect(find.text('Altr Stream successfully updated to v1.1.0!'), findsOneWidget);
+
+    // 5. Tap Close to close dialog
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    // Dialog is closed
+    expect(find.text('Altr Stream Version Info'), findsNothing);
   });
 }
 

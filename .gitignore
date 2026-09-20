@@ -477,3 +477,10 @@ data/
 *.sqlite
 *.sqlite3
 *.db
+
+# FVM Version Cache
+.fvm/
+
+# .zip files
+Altr Mesh - Theme (1).zip
+Altr Mesh - Theme (2).zip
