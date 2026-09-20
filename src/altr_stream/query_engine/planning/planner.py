@@ -3,18 +3,32 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from altr_stream.application.registry_service import RegistryService
-from altr_stream.application.schema_service import SchemaService
-from altr_stream.application.source_service import SourceService
+if TYPE_CHECKING:
+    from altr_stream.application.registry_service import RegistryService
+    from altr_stream.application.schema_service import SchemaService
+    from altr_stream.application.source_service import SourceService
 from altr_stream.domain.errors import (
     AltrStreamError,
+    IncompleteFieldMappingError,
+    LogicalEntityNotFoundError,
+    LogicalModelNotFoundError,
     MappingValidationError,
     NoActiveSourceMappingError,
+    PhysicalEntityNotFoundError,
+    SourceCapabilityMismatchError,
     SourceNotFoundError,
 )
-from altr_stream.domain.mapping import MappingStatus
+from altr_stream.domain.mapping import (
+    EntityMapping,
+    FieldMapping,
+    MappingProvenance,
+    MappingStatus,
+    ResolvedSourceCandidate,
+    SourceMapping,
+)
+from altr_stream.domain.schema import StandardDataType
 from altr_stream.query_engine.binding.binder import bind_altrql
 from altr_stream.query_engine.binding.logical_resolver import resolve_logical_ir
 from altr_stream.query_engine.classification.classifier import classify_query
@@ -29,6 +43,9 @@ from altr_stream.query_engine.planning.models import (
     CandidateEvaluation,
     FederatedQueryPlan,
     PhysicalQueryPlan,
+    SourceExclusionInfo,
+    SourceExclusionReason,
+    SourceExecutionStatus,
 )
 from altr_stream.query_engine.planning.selector import (
     SourceSelector,
@@ -57,48 +74,178 @@ class QueryPlanner:
     async def create_federated_plan(
         self,
         ir: AltrQueryIR,
-        logical_model_id: str,
+        logical_model_id: str | None = None,
     ) -> FederatedQueryPlan:
         """Discover all compatible active candidates and compile a multi-source FederatedQueryPlan.
 
-        Guarantees:
-        1. Evaluates all active source mappings for the logical entity.
-        2. Rejects incompatible sources with detailed diagnostic reasons.
-        3. Generates distinct, lowered physical plans for every eligible source.
-        4. Strips source-level LIMIT, OFFSET, and TOP truncation from physical plans so that
-           all matching rows are retrieved and global pagination/sorting is performed at the merger layer.
+        Execution paths:
+        - Path A: If registered LogicalModel mappings exist for the entity, plan against registered mappings.
+        - Path B: If entity is not in persistent LogicalModel, discover matching physical schemas (ephemeral projection).
         """
         # 1. Extract logical plan context
         context = extract_logical_context(ir, logical_model_id)
 
-        # 2. Discover active candidate mappings for the target logical entity
-        resolution_result = await self._registry_service.resolve_logical_entity(
-            model_id=logical_model_id,
-            entity_name=ir.entity,
-        )
+        # 2. Try Path A: Discover active candidate mappings for the target logical entity in registered models
+        candidates: list[ResolvedSourceCandidate] = []
+        if logical_model_id:
+            try:
+                resolution_result = await self._registry_service.resolve_logical_entity(
+                    model_id=logical_model_id,
+                    entity_name=ir.entity,
+                )
+                candidates = resolution_result.candidates
+            except (LogicalEntityNotFoundError, LogicalModelNotFoundError, NoActiveSourceMappingError, Exception) as e:
+                logger.debug("Path A resolution failed for entity '%s' in model '%s': %s", ir.entity, logical_model_id, e)
+                candidates = []
 
-        if not resolution_result.candidates:
-            raise NoActiveSourceMappingError(
-                entity_name=ir.entity,
-                model_id=logical_model_id,
+        if candidates:
+            # =================================================================
+            # Path A: Persistent Logical Model Execution
+            # =================================================================
+            eligible_candidates, evaluations = self._selector.select_all_eligible_sources(
+                context=context,
+                candidates=candidates,
             )
 
-        # 3. Select all compatible physical candidates deterministically
-        eligible_candidates, evaluations = self._selector.select_all_eligible_sources(
+            # Map rejected candidate evaluations to SourceExclusionInfo
+            excluded_sources: list[SourceExclusionInfo] = []
+            for ev in evaluations:
+                if not ev.is_eligible:
+                    reason = SourceExclusionReason.NO_ACTIVE_MAPPING.value
+                    if ev.unmapped_fields:
+                        reason = SourceExclusionReason.INCOMPLETE_FIELD_MAPPING.value
+                    elif ev.missing_capabilities:
+                        reason = SourceExclusionReason.SOURCE_CAPABILITY_MISMATCH.value
+
+                    excluded_sources.append(
+                        SourceExclusionInfo(
+                            source_id=ev.source_id,
+                            source_name=ev.source_name,
+                            source_type=ev.source_type.value,
+                            physical_entity=ev.physical_entity_name,
+                            status=SourceExecutionStatus.EXCLUDED.value,
+                            reason_code=reason,
+                            message=ev.rejection_reason or "Source candidate is not eligible.",
+                        )
+                    )
+
+            physical_plans: list[PhysicalQueryPlan] = []
+
+            # Prepare physical IR without individual LIMIT/OFFSET truncation
+            # The merger layer owns final global sorting, LIMIT, and OFFSET pagination.
+            updates: dict[str, Any] = {
+                "limit": None,
+                "offset": None,
+            }
+            if ir.ranking:
+                if not ir.sort:
+                    direction = SortDirection.DESC if ir.ranking.direction == RankingDirection.TOP else SortDirection.ASC
+                    updates["sort"] = [SortClause(field=ir.ranking.field, direction=direction)]
+                updates["ranking"] = None
+
+            plan_ir = ir.model_copy(update=updates)
+
+            for cand in eligible_candidates:
+                mapping = await self._registry_service.get_source_mapping(cand.mapping_id)
+                if mapping.status != MappingStatus.ACTIVE:
+                    continue
+
+                schema = await self._schema_service.get_latest_schema(cand.source_id)
+                if not schema:
+                    continue
+
+                resolved_ir = resolve_logical_ir(plan_ir, mapping)
+                bound_ir = bind_altrql(resolved_ir, schema)
+                classification = classify_query(bound_ir)
+
+                source_type_enum = coerce_source_type(cand.source_type)
+                lowerer = get_lowerer(source_type_enum)
+                physical_query = lowerer.lower(bound_ir)
+
+                logical_to_physical: dict[str, str] = {}
+                physical_to_logical: dict[str, str] = {}
+                for fm in cand.field_mappings:
+                    logical_to_physical[fm.logical_field_name] = fm.physical_field_name
+                    physical_to_logical[fm.physical_field_name] = fm.logical_field_name
+
+                plan = PhysicalQueryPlan(
+                    logical_model_id=logical_model_id,
+                    target_entity=ir.entity,
+                    selected_source_id=cand.source_id,
+                    selected_source_name=cand.source_name,
+                    selected_source_type=source_type_enum,
+                    selected_mapping_id=cand.mapping_id,
+                    physical_entity_name=cand.physical_entity_name,
+                    resolved_ir=resolved_ir,
+                    bound_ir=bound_ir,
+                    classification=classification,
+                    physical_query=physical_query,
+                    logical_to_physical_map=logical_to_physical,
+                    physical_to_logical_map=physical_to_logical,
+                    candidates_evaluated=evaluations,
+                )
+                physical_plans.append(plan)
+
+            if not physical_plans:
+                raise NoActiveSourceMappingError(
+                    entity_name=ir.entity,
+                    model_id=logical_model_id,
+                )
+
+            logger.info(
+                "Compiled federated query plan for '%s' across %d physical sources (%s)",
+                ir.entity,
+                len(physical_plans),
+                ", ".join(p.selected_source_id for p in physical_plans),
+            )
+
+            return FederatedQueryPlan(
+                logical_model_id=logical_model_id,
+                target_entity=ir.entity,
+                logical_ir=ir,
+                physical_plans=physical_plans,
+                candidates_evaluated=evaluations,
+                excluded_sources=excluded_sources,
+                execution_mode="federated",
+                is_ephemeral=False,
+            )
+
+        # =================================================================
+        # Path B: Ephemeral Physical Entity Discovery
+        # =================================================================
+        matching, discovery_excluded = await self._schema_service.find_sources_with_physical_entity(ir.entity)
+
+        if not matching:
+            if discovery_excluded:
+                raise PhysicalEntityNotFoundError(
+                    f"Physical entity '{ir.entity}' was not found in any active physical data source."
+                )
+            raise NoActiveSourceMappingError(
+                entity_name=ir.entity,
+                model_id=logical_model_id or "",
+            )
+
+        ephemeral_proj = self._selector.synthesize_ephemeral_projection(
             context=context,
-            candidates=resolution_result.candidates,
+            matching_sources=matching,
+            excluded_sources=discovery_excluded,
         )
 
-        physical_plans: list[PhysicalQueryPlan] = []
+        if not ephemeral_proj.participating_sources or not ephemeral_proj.canonical_fields:
+            if context.projected_fields:
+                raise IncompleteFieldMappingError(
+                    entity_name=ir.entity,
+                    unmapped_fields=context.projected_fields,
+                )
+            raise PhysicalEntityNotFoundError(
+                f"No common fields could be synthesized across candidate sources for physical entity '{ir.entity}'."
+            )
 
-        # Prepare physical IR without individual LIMIT/OFFSET truncation
-        # The merger layer owns final global sorting, LIMIT, and OFFSET pagination.
         updates: dict[str, Any] = {
             "limit": None,
             "offset": None,
         }
         if ir.ranking:
-            # If ranking was used without explicit sort, convert to sort clause for pushdown without count truncation
             if not ir.sort:
                 direction = SortDirection.DESC if ir.ranking.direction == RankingDirection.TOP else SortDirection.ASC
                 updates["sort"] = [SortClause(field=ir.ranking.field, direction=direction)]
@@ -106,68 +253,121 @@ class QueryPlanner:
 
         plan_ir = ir.model_copy(update=updates)
 
-        # 4. Compile physical plan for each eligible datasource
-        for cand in eligible_candidates:
-            mapping = await self._registry_service.get_source_mapping(cand.mapping_id)
-            if mapping.status != MappingStatus.ACTIVE:
-                continue
+        physical_plans = []
+        evaluations = []
+        participating_set = set(ephemeral_proj.participating_sources)
+        sorted_matching = sorted(
+            [m for m in matching if m[0].id in participating_set],
+            key=lambda x: x[0].id,
+        )
 
-            schema = await self._schema_service.get_latest_schema(cand.source_id)
-            if not schema:
-                continue
+        for src, schema, entity in sorted_matching:
+            source_type_enum = coerce_source_type(src.type)
+            field_mappings: list[FieldMapping] = []
+            logical_to_physical: dict[str, str] = {}
+            physical_to_logical: dict[str, str] = {}
 
-            resolved_ir = resolve_logical_ir(plan_ir, mapping)
+            em_id = f"ephemeral_em_{src.id}_{entity.name}"
+            sm_id = f"ephemeral_sm_{src.id}_{logical_model_id or 'ephemeral'}"
+
+            for efp in ephemeral_proj.canonical_fields:
+                if src.id in efp.source_field_names:
+                    phys_f_name = efp.source_field_names[src.id]
+                    f_obj = entity.get_field(phys_f_name)
+                    p_type = f_obj.data_type if f_obj else StandardDataType.STRING
+                    try:
+                        l_type = StandardDataType(efp.data_type)
+                    except ValueError:
+                        l_type = p_type
+
+                    field_mappings.append(
+                        FieldMapping(
+                            entity_mapping_id=em_id,
+                            logical_field_id=f"ephemeral_lf_{efp.name}",
+                            logical_field_name=efp.name,
+                            physical_field_name=phys_f_name,
+                        )
+                    )
+                    logical_to_physical[efp.name] = phys_f_name
+                    physical_to_logical[phys_f_name] = efp.name
+
+            entity_mapping = EntityMapping(
+                id=em_id,
+                source_mapping_id=sm_id,
+                logical_entity_id=ir.entity,
+                logical_entity_name=ir.entity,
+                physical_entity_name=entity.name,
+                field_mappings=field_mappings,
+            )
+            source_mapping = SourceMapping(
+                id=sm_id,
+                logical_model_id=logical_model_id or "ephemeral",
+                source_id=src.id,
+                entity_mappings=[entity_mapping],
+                status=MappingStatus.ACTIVE,
+                provenance=MappingProvenance.SYSTEM,
+            )
+
+            resolved_ir = resolve_logical_ir(plan_ir, source_mapping)
             bound_ir = bind_altrql(resolved_ir, schema)
             classification = classify_query(bound_ir)
-
-            source_type_enum = coerce_source_type(cand.source_type)
             lowerer = get_lowerer(source_type_enum)
             physical_query = lowerer.lower(bound_ir)
 
-            logical_to_physical: dict[str, str] = {}
-            physical_to_logical: dict[str, str] = {}
-            for fm in cand.field_mappings:
-                logical_to_physical[fm.logical_field_name] = fm.physical_field_name
-                physical_to_logical[fm.physical_field_name] = fm.logical_field_name
+            ev = CandidateEvaluation(
+                source_id=src.id,
+                source_name=src.name,
+                source_type=source_type_enum,
+                mapping_id=source_mapping.id,
+                physical_entity_name=entity.name,
+                is_eligible=True,
+                rejection_reason=None,
+                unmapped_fields=[],
+                missing_capabilities=[],
+            )
+            evaluations.append(ev)
 
             plan = PhysicalQueryPlan(
-                logical_model_id=logical_model_id,
+                logical_model_id=logical_model_id or "ephemeral",
                 target_entity=ir.entity,
-                selected_source_id=cand.source_id,
-                selected_source_name=cand.source_name,
+                selected_source_id=src.id,
+                selected_source_name=src.name,
                 selected_source_type=source_type_enum,
-                selected_mapping_id=cand.mapping_id,
-                physical_entity_name=cand.physical_entity_name,
+                selected_mapping_id=source_mapping.id,
+                physical_entity_name=entity.name,
                 resolved_ir=resolved_ir,
                 bound_ir=bound_ir,
                 classification=classification,
                 physical_query=physical_query,
                 logical_to_physical_map=logical_to_physical,
                 physical_to_logical_map=physical_to_logical,
-                candidates_evaluated=evaluations,
+                candidates_evaluated=[ev],
             )
             physical_plans.append(plan)
 
         if not physical_plans:
-            raise NoActiveSourceMappingError(
-                entity_name=ir.entity,
-                model_id=logical_model_id,
+            raise PhysicalEntityNotFoundError(
+                f"No physical plans could be compiled for discovered physical entity '{ir.entity}'."
             )
 
         logger.info(
-            "Compiled federated query plan for '%s' across %d physical sources (%s)",
+            "Compiled ephemeral federated query plan for '%s' across %d physical sources (%s) with %d excluded",
             ir.entity,
             len(physical_plans),
             ", ".join(p.selected_source_id for p in physical_plans),
+            len(ephemeral_proj.excluded_sources),
         )
 
         return FederatedQueryPlan(
-            logical_model_id=logical_model_id,
+            logical_model_id=logical_model_id or "ephemeral",
             target_entity=ir.entity,
             logical_ir=ir,
             physical_plans=physical_plans,
             candidates_evaluated=evaluations,
+            excluded_sources=ephemeral_proj.excluded_sources,
             execution_mode="federated",
+            is_ephemeral=True,
+            ephemeral_projection=ephemeral_proj,
         )
 
     async def create_physical_plan(

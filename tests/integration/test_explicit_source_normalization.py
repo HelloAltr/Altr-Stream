@@ -564,8 +564,8 @@ async def test_explicit_source_explicit_projections_normalize_on(client: AsyncCl
 
     async def mock_exec_query(source_id: str, query: str, parameters=None):
         return QueryResult(
-            columns=["full_name", "email"],
-            rows=[{"full_name": "Aarav Patel", "email": "aarav.patel@altr.edu"}],
+            columns=["name", "email"],
+            rows=[{"name": "Aarav Patel", "email": "aarav.patel@altr.edu"}],
             total_rows=1,
             execution_time_ms=2.0,
         )
@@ -584,3 +584,239 @@ async def test_explicit_source_explicit_projections_normalize_on(client: AsyncCl
         assert data["success"] is True
         assert data["columns"] == ["name", "email"]
         assert data["rows"] == [{"name": "Aarav Patel", "email": "aarav.patel@altr.edu"}]
+
+
+@pytest.mark.asyncio
+async def test_mysql_explicit_projection_normalize_on(client: AsyncClient, setup_quad_db_environment):
+    """Test A: MySQL explicit projection + Normalize ON returns all requested canonical fields."""
+    env = setup_quad_db_environment
+
+    async def mock_exec_query(source_id: str, query: str, parameters=None):
+        # Database lowerer produces SELECT `roll_no` AS `roll_number`, `student_name` AS `name`, `email`, `dept` AS `department`
+        # and returns rows with those aliased column keys.
+        return QueryResult(
+            columns=["roll_number", "name", "email", "department"],
+            rows=[
+                {
+                    "roll_number": "MSQL001",
+                    "name": "Kavya Shah",
+                    "email": "kavya.shah@altr.edu",
+                    "department": "Computer Science",
+                }
+            ],
+            total_rows=1,
+            execution_time_ms=2.0,
+        )
+
+    with patch("altr_stream.application.query_service.QueryService.execute_query", side_effect=mock_exec_query):
+        res = await client.post(
+            "/api/v1/altrql/execute",
+            json={
+                "source_id": env["src_mysql"].id,
+                "query": "GET students (roll_number, name, email, department);",
+                "normalize": True,
+            },
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is True
+        assert data["columns"] == ["roll_number", "name", "email", "department"]
+        row = data["rows"][0]
+        assert row["roll_number"] == "MSQL001"
+        assert row["name"] == "Kavya Shah"
+        assert row["email"] == "kavya.shah@altr.edu"
+        assert row["department"] == "Computer Science"
+        assert "roll_no" not in row
+        assert "student_name" not in row
+        assert "dept" not in row
+
+
+@pytest.mark.asyncio
+async def test_mysql_projection_mapped_aliases_only(client: AsyncClient, setup_quad_db_environment):
+    """Test C: MySQL projection containing only mapped aliases survives normalization."""
+    env = setup_quad_db_environment
+
+    async def mock_exec_query(source_id: str, query: str, parameters=None):
+        return QueryResult(
+            columns=["roll_number", "name", "department"],
+            rows=[
+                {
+                    "roll_number": "MSQL001",
+                    "name": "Kavya Shah",
+                    "department": "Computer Science",
+                }
+            ],
+            total_rows=1,
+            execution_time_ms=2.0,
+        )
+
+    with patch("altr_stream.application.query_service.QueryService.execute_query", side_effect=mock_exec_query):
+        res = await client.post(
+            "/api/v1/altrql/execute",
+            json={
+                "source_id": env["src_mysql"].id,
+                "query": "GET students (roll_number, name, department);",
+                "normalize": True,
+            },
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is True
+        assert data["columns"] == ["roll_number", "name", "department"]
+        row = data["rows"][0]
+        assert row == {
+            "roll_number": "MSQL001",
+            "name": "Kavya Shah",
+            "department": "Computer Science",
+        }
+
+
+@pytest.mark.asyncio
+async def test_mysql_projection_identity_mappings(client: AsyncClient, setup_quad_db_environment):
+    """Test D: Projection containing identity mappings survives normalization."""
+    env = setup_quad_db_environment
+
+    async def mock_exec_query(source_id: str, query: str, parameters=None):
+        return QueryResult(
+            columns=["email", "year", "cgpa"],
+            rows=[
+                {
+                    "email": "kavya.shah@altr.edu",
+                    "year": 2,
+                    "cgpa": 3.90,
+                }
+            ],
+            total_rows=1,
+            execution_time_ms=1.5,
+        )
+
+    with patch("altr_stream.application.query_service.QueryService.execute_query", side_effect=mock_exec_query):
+        res = await client.post(
+            "/api/v1/altrql/execute",
+            json={
+                "source_id": env["src_mysql"].id,
+                "query": "GET students (email, year, cgpa);",
+                "normalize": True,
+            },
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is True
+        assert data["columns"] == ["email", "year", "cgpa"]
+        row = data["rows"][0]
+        assert row == {
+            "email": "kavya.shah@altr.edu",
+            "year": 2,
+            "cgpa": 3.90,
+        }
+
+
+@pytest.mark.asyncio
+async def test_cross_source_explicit_projections_normalize_on(client: AsyncClient, setup_quad_db_environment):
+    """Test F: Cross-source regression testing explicit projection + Normalize ON for PostgreSQL, SQLite, and MongoDB."""
+    env = setup_quad_db_environment
+
+    # 1. PostgreSQL
+    async def mock_exec_pg(source_id: str, query: str, parameters=None):
+        return QueryResult(
+            columns=["roll_number", "name", "email", "department"],
+            rows=[
+                {
+                    "roll_number": "PGS001",
+                    "name": "Aarav Patel",
+                    "email": "aarav.patel@altr.edu",
+                    "department": "Computer Science",
+                }
+            ],
+            total_rows=1,
+            execution_time_ms=2.0,
+        )
+
+    with patch("altr_stream.application.query_service.QueryService.execute_query", side_effect=mock_exec_pg):
+        res_pg = await client.post(
+            "/api/v1/altrql/execute",
+            json={
+                "source_id": env["src_pg"].id,
+                "query": "GET students (roll_number, name, email, department);",
+                "normalize": True,
+            },
+        )
+        assert res_pg.status_code == 200
+        data_pg = res_pg.json()
+        assert data_pg["columns"] == ["roll_number", "name", "email", "department"]
+        assert data_pg["rows"][0] == {
+            "roll_number": "PGS001",
+            "name": "Aarav Patel",
+            "email": "aarav.patel@altr.edu",
+            "department": "Computer Science",
+        }
+
+    # 2. SQLite
+    async def mock_exec_sqlite(source_id: str, query: str, parameters=None):
+        return QueryResult(
+            columns=["roll_number", "name", "email", "department"],
+            rows=[
+                {
+                    "roll_number": "SQL001",
+                    "name": "Rohan Gupta",
+                    "email": "rohan.gupta@altr.edu",
+                    "department": "Computer Science",
+                }
+            ],
+            total_rows=1,
+            execution_time_ms=1.5,
+        )
+
+    with patch("altr_stream.application.query_service.QueryService.execute_query", side_effect=mock_exec_sqlite):
+        res_sqlite = await client.post(
+            "/api/v1/altrql/execute",
+            json={
+                "source_id": env["src_sqlite"].id,
+                "query": "GET students (roll_number, name, email, department);",
+                "normalize": True,
+            },
+        )
+        assert res_sqlite.status_code == 200
+        data_sqlite = res_sqlite.json()
+        assert data_sqlite["columns"] == ["roll_number", "name", "email", "department"]
+        assert data_sqlite["rows"][0] == {
+            "roll_number": "SQL001",
+            "name": "Rohan Gupta",
+            "email": "rohan.gupta@altr.edu",
+            "department": "Computer Science",
+        }
+
+    # 3. MongoDB
+    async def mock_exec_mongo(source_id: str, query: str, parameters=None):
+        return QueryResult(
+            columns=["roll_number", "name", "email", "department"],
+            rows=[
+                {
+                    "roll_number": "MDB001",
+                    "name": "Aditya Roy",
+                    "email": "aditya.roy@altr.edu",
+                    "department": "Information Technology",
+                }
+            ],
+            total_rows=1,
+            execution_time_ms=2.5,
+        )
+
+    with patch("altr_stream.application.query_service.QueryService.execute_query", side_effect=mock_exec_mongo):
+        res_mongo = await client.post(
+            "/api/v1/altrql/execute",
+            json={
+                "source_id": env["src_mongo"].id,
+                "query": "GET students (roll_number, name, email, department);",
+                "normalize": True,
+            },
+        )
+        assert res_mongo.status_code == 200
+        data_mongo = res_mongo.json()
+        assert data_mongo["columns"] == ["roll_number", "name", "email", "department"]
+        assert data_mongo["rows"][0] == {
+            "roll_number": "MDB001",
+            "name": "Aditya Roy",
+            "email": "aditya.roy@altr.edu",
+            "department": "Information Technology",
+        }

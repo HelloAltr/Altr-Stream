@@ -1329,13 +1329,38 @@ DELETE users;''',
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              _sourcesExecuted.isNotEmpty
-                                  ? 'FEDERATED (${_sourcesExecuted.length} Sources)'
-                                  : 'FEDERATED',
+                              _metadata != null && (_metadata!.includedSources.isNotEmpty || _metadata!.excludedSources.isNotEmpty)
+                                  ? 'FEDERATED (${_metadata!.includedSources.length}/${_metadata!.includedSources.length + _metadata!.excludedSources.length} Sources)'
+                                  : (_sourcesExecuted.isNotEmpty
+                                      ? 'FEDERATED (${_sourcesExecuted.length} Sources)'
+                                      : 'FEDERATED'),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 color: colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (_metadata?.isEphemeral == true) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.purple.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: const Text(
+                              'Discovered',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.purple,
                               ),
                             ),
                           ),
@@ -1632,31 +1657,45 @@ DELETE users;''',
 
     // 0: Results
     if (_activeResultTab == 0) {
+      final showParticipation = _metadata != null &&
+          (_metadata!.includedSources.isNotEmpty || _metadata!.excludedSources.isNotEmpty) &&
+          _executionMode == 'federated';
+
       if (_columns.isEmpty && _rows.isEmpty) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          alignment: Alignment.center,
-          child: Text(
-            'No rows returned.',
-            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showParticipation) _buildSourceParticipationPanel(context, _metadata!),
+            Container(
+              padding: const EdgeInsets.all(24),
+              alignment: Alignment.center,
+              child: Text(
+                'No rows returned.',
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              ),
+            ),
+          ],
         );
       }
 
-      return Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(maxHeight: 320),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.4),
-          ),
-        ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.vertical,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showParticipation) _buildSourceParticipationPanel(context, _metadata!),
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxHeight: 320),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+              ),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
               headingRowColor: WidgetStateProperty.all(
                 colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
               ),
@@ -1701,8 +1740,10 @@ DELETE users;''',
             ),
           ),
         ),
-      );
-    }
+      ),
+    ],
+  );
+}
 
     // 1: Physical Query
     final queriesToDisplay = _physicalQueries.isNotEmpty
@@ -1946,5 +1987,127 @@ DELETE users;''',
     }
 
     return const SizedBox.shrink();
+  }
+
+  Widget _buildSourceParticipationPanel(BuildContext context, QueryMetadataModel meta) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final total = meta.includedSources.length + meta.excludedSources.length;
+    final isEphemeral = meta.isEphemeral;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          dense: true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          title: Row(
+            children: [
+              Icon(
+                Icons.hub_outlined,
+                size: 15,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Source Participation (${meta.includedSources.length}/$total sources)',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              if (isEphemeral) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: const Text(
+                    'Discovered',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.purple,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          children: [
+            ...meta.includedSources.map((s) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
+                  const SizedBox(width: 6),
+                  Text(
+                    s.sourceName ?? s.sourceId,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '— included — ${s.rows} rows',
+                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  ),
+                  if (s.executionTimeMs != null) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      '(${s.executionTimeMs} ms)',
+                      style: TextStyle(fontSize: 10, color: colorScheme.outline),
+                    ),
+                  ],
+                ],
+              ),
+            )),
+            ...meta.excludedSources.map((s) {
+              final isFailed = s.status.toUpperCase() == 'FAILED';
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(
+                      isFailed ? Icons.error_outline : Icons.remove_circle_outline,
+                      size: 14,
+                      color: isFailed ? Colors.red : Colors.amber.shade700,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      s.sourceName ?? s.sourceId,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '— ${isFailed ? 'failed' : 'excluded'} — ${s.reasonCode}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isFailed ? Colors.red : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (s.message.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '(${s.message})',
+                          style: TextStyle(fontSize: 10, color: colorScheme.outline),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
   }
 }

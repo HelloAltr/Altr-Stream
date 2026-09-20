@@ -28,21 +28,32 @@ def normalize_row(
     unless explicitly mapped in the logical schema.
     If preserve_unmapped is False, physical-only fields not present in the
     active mapping are excluded in logical mode.
+
+    If a field name in row is already a recognized canonical logical field name
+    (e.g. when physical query lowering produced logical aliases like 'roll_no AS roll_number'),
+    it is preserved directly as canonical rather than discarded as unmapped.
     """
     normalized: dict[str, Any] = {}
     phys_lookup = {k.lower(): v for k, v in physical_to_logical.items()}
+    log_lookup = {v.lower(): v for v in physical_to_logical.values()}
+    logical_fields_set = set(physical_to_logical.values())
 
-    for physical_col, val in row.items():
-        if physical_col == "_id" and "_id" not in physical_to_logical and "_id" not in phys_lookup:
+    for col, val in row.items():
+        if col == "_id" and "_id" not in physical_to_logical and "_id" not in phys_lookup and "_id" not in log_lookup:
             continue
-        if physical_col in physical_to_logical:
-            logical_field = physical_to_logical[physical_col]
+        if col in physical_to_logical:
+            logical_field = physical_to_logical[col]
             normalized[logical_field] = val
-        elif physical_col.lower() in phys_lookup:
-            logical_field = phys_lookup[physical_col.lower()]
+        elif col.lower() in phys_lookup:
+            logical_field = phys_lookup[col.lower()]
+            normalized[logical_field] = val
+        elif col in logical_fields_set:
+            normalized[col] = val
+        elif col.lower() in log_lookup:
+            logical_field = log_lookup[col.lower()]
             normalized[logical_field] = val
         elif preserve_unmapped:
-            normalized[physical_col] = val
+            normalized[col] = val
     return normalized
 
 
@@ -137,6 +148,11 @@ def merge_federated_results(
         for sel in ir.projection:
             col_name = sel.alias or sel.path.leaf
             columns.append(col_name)
+        ordered_rows: list[dict[str, Any]] = []
+        for nr in all_normalized_rows:
+            ordered_r = {col: nr[col] for col in columns if col in nr}
+            ordered_rows.append(ordered_r)
+        all_normalized_rows = ordered_rows
     else:
         seen_cols: set[str] = set()
         # Order columns using the logical fields defined in candidate mappings

@@ -11,7 +11,13 @@ from altr_stream.domain.errors import (
     SourceCapabilityMismatchError,
 )
 from altr_stream.domain.mapping import ResolvedSourceCandidate
-from altr_stream.domain.source import SourceType
+from altr_stream.domain.schema import (
+    EntitySchema,
+    FieldSchema,
+    SourceSchema,
+    are_datatypes_compatible,
+)
+from altr_stream.domain.source import Source, SourceType
 from altr_stream.query_engine.domain.ast import (
     AltrQueryIR,
     Expression,
@@ -22,7 +28,12 @@ from altr_stream.query_engine.domain.ast import (
 )
 from altr_stream.query_engine.planning.models import (
     CandidateEvaluation,
+    EphemeralFieldProjection,
+    EphemeralLogicalProjection,
     LogicalPlanContext,
+    SourceExclusionInfo,
+    SourceExclusionReason,
+    SourceExecutionStatus,
 )
 
 
@@ -100,7 +111,7 @@ def get_static_source_capabilities(source_type: SourceType) -> SourceCapabilitie
     return SourceCapabilities(custom_query=True)
 
 
-def extract_logical_context(ir: AltrQueryIR, logical_model_id: str) -> LogicalPlanContext:
+def extract_logical_context(ir: AltrQueryIR, logical_model_id: str | None = None) -> LogicalPlanContext:
     """Extract all referenced logical entities and fields from an AST into a planning context."""
     projected: list[str] = []
     if not ir.is_wildcard_projection:
@@ -307,4 +318,159 @@ class SourceSelector:
         """
         sorted_eligible, evaluations = self.select_all_eligible_sources(context, candidates)
         return sorted_eligible[0], evaluations
+
+    def synthesize_ephemeral_projection(
+        self,
+        context: LogicalPlanContext,
+        matching_sources: list[tuple[Source, SourceSchema, EntitySchema]],
+        excluded_sources: list[SourceExclusionInfo] | None = None,
+    ) -> EphemeralLogicalProjection:
+        """Synthesize a conservative in-memory logical projection from discovered physical entities.
+
+        Rules:
+        1. MongoDB '_id' is excluded from unmapped discovery unless explicitly requested.
+        2. In wildcard mode (GET entity;), compute the common-field intersection across all matching sources.
+        3. Verify datatype compatibility for each common field.
+        4. In explicit-field mode (GET entity { a, b };), verify each matching source has all requested fields.
+           Sources missing requested fields are recorded as EXCLUDED with reason INCOMPLETE_FIELD_MAPPING.
+        5. Returns an EphemeralLogicalProjection containing canonical fields and participation partitioning.
+        """
+        all_excluded: list[SourceExclusionInfo] = list(excluded_sources or [])
+        if not matching_sources:
+            return EphemeralLogicalProjection(
+                entity_name=context.target_entity,
+                canonical_fields=[],
+                participating_sources=[],
+                excluded_sources=all_excluded,
+                is_ephemeral=True,
+            )
+
+        # Build field map per source (excluding internal _id for MongoDB)
+        source_field_maps: dict[str, dict[str, FieldSchema]] = {}
+        for src, schema, entity in matching_sources:
+            f_map: dict[str, FieldSchema] = {}
+            for f in entity.fields:
+                if f.name == "_id" and src.type == SourceType.MONGODB:
+                    continue
+                f_map[f.name.lower()] = f
+            source_field_maps[src.id] = f_map
+
+        participating_sources: list[str] = []
+        canonical_fields: list[EphemeralFieldProjection] = []
+
+        if context.is_wildcard:
+            # 1. Wildcard mode: Compute intersection of field names across all matching sources
+            # Deterministic field order from the first source
+            first_src, _, first_entity = matching_sources[0]
+            first_fields = [f for f in first_entity.fields if not (f.name == "_id" and first_src.type == SourceType.MONGODB)]
+
+            # Intersection set of lowercase names
+            common_lower = set(source_field_maps[first_src.id].keys())
+            for src, _, _ in matching_sources[1:]:
+                common_lower = common_lower.intersection(source_field_maps[src.id].keys())
+
+            for f in first_fields:
+                f_lower = f.name.lower()
+                if f_lower not in common_lower:
+                    continue
+
+                # Check datatype compatibility across all sources
+                base_type = f.data_type
+                is_compat = True
+                src_field_names: dict[str, str] = {}
+
+                for src, _, _ in matching_sources:
+                    src_f = source_field_maps[src.id][f_lower]
+                    src_field_names[src.id] = src_f.name
+                    if not are_datatypes_compatible(base_type, src_f.data_type):
+                        is_compat = False
+                        break
+
+                if not is_compat:
+                    # Incompatible datatypes across sources for this field -> omit from canonical projection
+                    continue
+
+                canonical_fields.append(
+                    EphemeralFieldProjection(
+                        name=f.name,
+                        data_type=base_type.value if hasattr(base_type, "value") else str(base_type),
+                        is_primary_key=f.is_primary_key,
+                        source_field_names=src_field_names,
+                    )
+                )
+
+            participating_sources = [src.id for src, _, _ in matching_sources]
+
+        else:
+            # 2. Explicit field selection mode (e.g. GET users { id, name, department };)
+            # Check if each matching source satisfies all referenced logical fields
+            referenced = list(context.projected_fields) if context.projected_fields else list(context.all_referenced_fields)
+
+            for src, schema, entity in matching_sources:
+                src_f_map = source_field_maps[src.id]
+                missing_fields = [
+                    ref_f for ref_f in referenced
+                    if ref_f.lower() not in src_f_map
+                ]
+                src_type_str = src.type.value if hasattr(src.type, "value") else str(src.type)
+                if missing_fields:
+                    all_excluded.append(
+                        SourceExclusionInfo(
+                            source_id=src.id,
+                            source_name=src.name,
+                            source_type=src_type_str,
+                            physical_entity=entity.name,
+                            status=SourceExecutionStatus.EXCLUDED.value,
+                            reason_code=SourceExclusionReason.INCOMPLETE_FIELD_MAPPING.value,
+                            message=f"Physical entity '{entity.name}' in source '{src.name}' does not contain requested field(s): {', '.join(missing_fields)}.",
+                        )
+                    )
+                else:
+                    participating_sources.append(src.id)
+
+            if participating_sources:
+                # Build canonical fields for participating sources
+                for ref_f in referenced:
+                    ref_lower = ref_f.lower()
+                    src_field_names: dict[str, str] = {}
+                    base_type = None
+                    is_pk = False
+
+                    for src_id in participating_sources:
+                        src_f = source_field_maps[src_id][ref_lower]
+                        src_field_names[src_id] = src_f.name
+                        if base_type is None:
+                            base_type = src_f.data_type
+                            is_pk = src_f.is_primary_key
+
+                    canonical_fields.append(
+                        EphemeralFieldProjection(
+                            name=ref_f,
+                            data_type=base_type.value if (base_type and hasattr(base_type, "value")) else "STRING",
+                            is_primary_key=is_pk,
+                            source_field_names=src_field_names,
+                        )
+                    )
+
+        return EphemeralLogicalProjection(
+            entity_name=context.target_entity,
+            canonical_fields=canonical_fields,
+            participating_sources=participating_sources,
+            excluded_sources=all_excluded,
+            is_ephemeral=True,
+        )
+
+
+def synthesize_ephemeral_projection(
+    context: LogicalPlanContext,
+    matching_sources: list[tuple[Source, SourceSchema, EntitySchema]],
+    excluded_sources: list[SourceExclusionInfo] | None = None,
+) -> EphemeralLogicalProjection:
+    """Convenience helper to synthesize an EphemeralLogicalProjection."""
+    return SourceSelector().synthesize_ephemeral_projection(
+        context=context,
+        matching_sources=matching_sources,
+        excluded_sources=excluded_sources,
+    )
+
 

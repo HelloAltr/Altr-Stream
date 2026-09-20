@@ -51,6 +51,32 @@ def test_normalize_row_field_mapping_and_id_exclusion():
     assert norm_preserved["extra_unmapped"] == "val"
 
 
+def test_normalize_row_already_canonical_and_explicit_projection():
+    """Verify normalize_row preserves already-canonical logical field names from aliased queries."""
+    phys_to_log = {
+        "roll_no": "roll_number",
+        "student_name": "name",
+        "email": "email",
+        "dept": "department",
+    }
+
+    # Row returned from database executing: SELECT roll_no AS roll_number, student_name AS name, email, dept AS department
+    aliased_row = {
+        "roll_number": "MSQL001",
+        "name": "Kavya Shah",
+        "email": "kavya@example.com",
+        "department": "Computer Science",
+    }
+
+    norm = normalize_row(aliased_row, phys_to_log)
+    assert norm == {
+        "roll_number": "MSQL001",
+        "name": "Kavya Shah",
+        "email": "kavya@example.com",
+        "department": "Computer Science",
+    }
+
+
 def test_compare_values_nulls_and_numerics():
     """Verify NULLs sort first and numeric coercion works across int and float."""
     # NULL comparisons

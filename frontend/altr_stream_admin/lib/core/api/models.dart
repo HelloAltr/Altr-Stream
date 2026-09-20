@@ -275,6 +275,7 @@ class SourceExecutionInfoModel {
   final String sourceId;
   final String? sourceName;
   final String? sourceType;
+  final String? physicalEntity;
   final String status;
   final int rows;
   final double? executionTimeMs;
@@ -283,7 +284,8 @@ class SourceExecutionInfoModel {
     required this.sourceId,
     this.sourceName,
     this.sourceType,
-    this.status = 'success',
+    this.physicalEntity,
+    this.status = 'SUCCESS',
     this.rows = 0,
     this.executionTimeMs,
   });
@@ -293,9 +295,42 @@ class SourceExecutionInfoModel {
       sourceId: json['source_id'] as String? ?? '',
       sourceName: json['source_name'] as String?,
       sourceType: json['source_type'] as String?,
-      status: json['status'] as String? ?? 'success',
+      physicalEntity: json['physical_entity'] as String?,
+      status: json['status'] as String? ?? 'SUCCESS',
       rows: (json['rows'] as num?)?.toInt() ?? 0,
       executionTimeMs: (json['execution_time_ms'] as num?)?.toDouble(),
+    );
+  }
+}
+
+class SourceExclusionInfoModel {
+  final String sourceId;
+  final String? sourceName;
+  final String? sourceType;
+  final String? physicalEntity;
+  final String status;
+  final String reasonCode;
+  final String message;
+
+  SourceExclusionInfoModel({
+    required this.sourceId,
+    this.sourceName,
+    this.sourceType,
+    this.physicalEntity,
+    this.status = 'EXCLUDED',
+    this.reasonCode = 'PHYSICAL_ENTITY_NOT_FOUND',
+    this.message = '',
+  });
+
+  factory SourceExclusionInfoModel.fromJson(Map<String, dynamic> json) {
+    return SourceExclusionInfoModel(
+      sourceId: json['source_id'] as String? ?? '',
+      sourceName: json['source_name'] as String?,
+      sourceType: json['source_type'] as String?,
+      physicalEntity: json['physical_entity'] as String?,
+      status: json['status'] as String? ?? 'EXCLUDED',
+      reasonCode: json['reason_code'] as String? ?? 'PHYSICAL_ENTITY_NOT_FOUND',
+      message: json['message'] as String? ?? '',
     );
   }
 }
@@ -309,8 +344,11 @@ class QueryMetadataModel {
   final String? mutationScope;
   final String executionMode;
   final bool normalized;
+  final bool isEphemeral;
   final int sourceCount;
   final List<SourceExecutionInfoModel> sources;
+  final List<SourceExecutionInfoModel> includedSources;
+  final List<SourceExclusionInfoModel> excludedSources;
 
   QueryMetadataModel({
     required this.rowCount,
@@ -321,13 +359,24 @@ class QueryMetadataModel {
     this.mutationScope,
     this.executionMode = 'single_source',
     this.normalized = false,
+    this.isEphemeral = false,
     this.sourceCount = 1,
     this.sources = const [],
+    this.includedSources = const [],
+    this.excludedSources = const [],
   });
 
   factory QueryMetadataModel.fromJson(Map<String, dynamic> json) {
     final sourcesList = (json['sources'] as List<dynamic>?)
             ?.map((e) => SourceExecutionInfoModel.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [];
+    final includedList = (json['included_sources'] as List<dynamic>?)
+            ?.map((e) => SourceExecutionInfoModel.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        sourcesList;
+    final excludedList = (json['excluded_sources'] as List<dynamic>?)
+            ?.map((e) => SourceExclusionInfoModel.fromJson(e as Map<String, dynamic>))
             .toList() ??
         [];
     return QueryMetadataModel(
@@ -339,8 +388,11 @@ class QueryMetadataModel {
       mutationScope: json['mutation_scope'] as String?,
       executionMode: json['execution_mode'] as String? ?? 'single_source',
       normalized: json['normalized'] as bool? ?? false,
-      sourceCount: (json['source_count'] as num?)?.toInt() ?? (sourcesList.isNotEmpty ? sourcesList.length : 1),
+      isEphemeral: json['is_ephemeral'] as bool? ?? false,
+      sourceCount: (json['source_count'] as num?)?.toInt() ?? (includedList.isNotEmpty ? includedList.length : 1),
       sources: sourcesList,
+      includedSources: includedList,
+      excludedSources: excludedList,
     );
   }
 }
@@ -466,6 +518,7 @@ class AltrQLBindResponseModel {
   final String executionMode;
   final String? selectedSourceId;
   final String? selectedMappingId;
+  final bool isEphemeral;
   final AltrQLErrorDetailModel? error;
 
   AltrQLBindResponseModel({
@@ -474,6 +527,7 @@ class AltrQLBindResponseModel {
     this.boundIr,
     this.classification,
     this.executionMode = 'single',
+    this.isEphemeral = false,
     this.selectedSourceId,
     this.selectedMappingId,
     this.error,
@@ -488,6 +542,7 @@ class AltrQLBindResponseModel {
           ? MutationClassificationModel.fromJson(json['classification'] as Map<String, dynamic>)
           : null,
       executionMode: json['execution_mode'] as String? ?? 'single',
+      isEphemeral: json['is_ephemeral'] as bool? ?? false,
       selectedSourceId: json['selected_source_id'] as String?,
       selectedMappingId: json['selected_mapping_id'] as String?,
       error: json['error'] != null

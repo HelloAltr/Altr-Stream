@@ -2,7 +2,7 @@
 
 > **Physical source abstraction, multi-database query compilation, and data infrastructure service for the HelloAltr / Altr Mesh ecosystem.**
 
-Altr Stream is responsible for knowing *how* to physically connect to, introspect, and operate across heterogeneous physical data sources (**PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB**). It encapsulates connection pools, catalog discovery, schema normalization, native pushdown operations, the **AltrQL Federated Query Engine (v0.9.0-alpha)**, the **Logical Model & Source Mapping Registry**, and future Change Data Capture (CDC).
+Altr Stream is responsible for knowing *how* to physically connect to, introspect, and operate across heterogeneous physical data sources (**PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB**). It encapsulates connection pools, catalog discovery, schema normalization, native pushdown operations, the **AltrQL Federated Query Engine (v0.10.0-alpha)**, the **Logical Model & Source Mapping Registry**, and future Change Data Capture (CDC).
 
 ---
 
@@ -21,7 +21,7 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │        - Overview, Data Sources, Logical Models, Activity, Settings         │
 │        - Schema Explorer & Source-Scoped Native Database Playground         │
 │        - Global AltrQL Console & Multi-View Compiler Inspector (/altrql)    │
-│        - Auto-Select / All Sources Federated Multi-DB Query Execution       │
+│        - Auto-Select Federated Multi-DB Execution & Source Participation    │
 │        - 4-step guided source onboarding wizard                             │
 │        - Serves pre-compiled static Flutter Web bundle                      │
 │        - Proxies /api/* to backend service                                  │
@@ -32,8 +32,9 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 │                       altr-stream-app (Port 8000)                           │
 │                           FastAPI Backend Service                           │
 │        - Source registration & connection lifecycle management              │
-│        - AltrQL v0.9.0-alpha Federated Query Engine & Compiler Pipeline     │
-│        - Source Selector & Federated Multi-Source Execution Engine          │
+│        - AltrQL v0.10.0-alpha Federated Query Engine & Compiler Pipeline    │
+│        - Path A (Registered Models) & Path B (Ephemeral Entity Discovery)   │
+│        - Resilient Per-Source Execution Isolation & Federated Merger        │
 │        - Canonical Schema Catalog Introspection & Normalization Engine      │
 │        - Logical Model & Source Mapping Registry (Lifecycle & Validation)   │
 │        - Internal Metadata Store (SQLite / aiosqlite)                       │
@@ -49,28 +50,31 @@ Altr Stream is responsible for knowing *how* to physically connect to, introspec
 
 ---
 
-## ⚡ AltrQL Federated Query Engine (v0.9.0-alpha)
+## ⚡ AltrQL Federated Query Engine (v0.10.0-alpha)
 
-AltrQL is a declarative, database-neutral logical query and mutation language designed for the Altr platform. The query engine supports both single-source targeted execution and federated multi-source logical execution across heterogeneous physical databases:
+AltrQL is a declarative, database-neutral logical query and mutation language designed for the Altr platform. The query engine supports both single-source targeted execution and resilient federated multi-source logical execution across heterogeneous physical databases:
 
 ```text
-Raw AltrQL String
+Raw AltrQL String (e.g. GET users;)
        │
        ▼ Lex & Parse
 Canonical AST (`AltrQueryIR`)
        │
-       ▼ Semantic Validation & Normalization
-Validated AST
+       ▼ Logical Resolution & Planning
+       ├─────────────────────────────────┬─────────────────────────────────┐
+       ▼ [Path A: Persistent Model]      ▼ [Path B: Ephemeral Discovery]   │
+   Active Source Mappings             Physical Catalog Inspection          │
+                                      & Common-Field Synthesis             │
+       └─────────────────────────────────┴─────────────────────────────────┘
        │
-       ▼ Schema Binding & Type Validation
-Bound AST (`BoundAltrQueryIR`)
+       ▼ Federated Planning & Lowering
+Physical Plans & Candidate Source Partitioning (`included_sources`, `excluded_sources`)
        │
-       ▼ Pure Dialect Lowering (Postgres | MySQL | SQLite | MongoDB)
-Physical Query (`PhysicalQuery` | `PhysicalQueryBatch`)
+       ▼ Resilient Isolated Execution (`_execute_single_source_isolated`)
+Parallel Per-Source Execution with Error Boundaries (Fault Isolation)
        │
-       ▼ Transactional Connector Execution
-Normalized Query Result (`QueryResult`)
-```
+       ▼ Canonical Result Normalization & Federated Merger
+Unified Logical Result with Comprehensive Execution Telemetry
 
 ### Supported Operations & Semantic Parity (v0.7.6-alpha)
 
@@ -164,47 +168,53 @@ Altr Stream provides a centralized registry for abstract business entities (Logi
 
 ---
 
-## 🌐 Federated Multi-Source Logical Query Execution (v0.9.0-alpha)
+## 🌐 Resilient Federation & Unmapped Entity Discovery (v0.10.0-alpha)
 
-Altr Stream v0.9 introduces declarative, multi-database query federation across **PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB** through the Logical Model & Source Mapping Registry.
+Altr Stream v0.10 introduces resilient multi-database query federation across **PostgreSQL**, **MySQL**, **SQLite**, and **MongoDB** featuring runtime unmapped physical entity auto-discovery and per-source execution isolation.
 
-### 1. Auto-Select / All Sources (Federated Execution)
-Executing a query with `Auto-Select / All Sources` targets the canonical Logical Schema and fans out across all currently eligible active source mappings:
-```altrql
-GET students;
-```
-1. **Logical Entity Resolution**: Resolves the target logical entity with case-insensitive and singular/plural alignment.
-2. **Active Mapping Discovery**: Discovers all active source mappings registered for the entity.
-3. **Physical Plan Generation & Lowering**: Lowers the logical IR into parameterized physical plans tailored to each backend dialect (PostgreSQL SQL, MySQL SQL, SQLite SQL, MongoDB aggregation pipelines).
-4. **Parallel Execution**: Dispatches queries concurrently across participating physical database connections.
-5. **Canonical Result Normalization**: Translates dialect-specific physical column names into canonical logical fields (e.g., PostgreSQL `full_name`, MySQL `student_name`, SQLite `name` $\rightarrow$ canonical `name`) and strips physical engine artifacts (e.g., MongoDB `_id`).
-6. **Unified Merging & Global Operations**: Merges streams, applies global logical sorting across the merged dataset, and enforces global `LIMIT`/`OFFSET`/`TOP` pagination semantics.
+### 1. Dual-Path Execution (Path A & Path B)
 
-> [!IMPORTANT]
-> **Auto-Select / All Sources** means **federated logical execution across all currently eligible active mappings**. It does *not* mean picking a single source or falling back on error.
+When executing an AltrQL query targeting `Auto-Select / All Sources`:
 
-### 2. Explicit-Source Execution & Normalization Control
-When querying a specific physical source (e.g., Target Source = `PostgreSQL`), two operational modes are supported:
-- **`Normalize = OFF`**: Returns raw physical database columns/keys directly from the connector.
-- **`Normalize = ON`**: Normalizes rows into the canonical logical schema using the active source mapping.
+#### Path A — Registered Logical Models (Preserved Baseline)
+For queries targeting pre-registered logical entities (e.g. `GET students;`):
+1. **Logical Resolution**: Resolves registered `LogicalModel` and canonical schema fields.
+2. **Active Mapping Discovery**: Retrieves all `ACTIVE` source mappings across physical connectors.
+3. **Physical Plan Generation**: Generates parameterized dialect-specific queries.
+4. **Resilient Isolated Execution**: Concurrently dispatches queries with fault boundaries.
+5. **Canonical Normalization & Merging**: Normalizes physical column names to canonical model fields, strips physical IDs (like MongoDB `_id`), applies global sorting and pagination (`LIMIT`/`OFFSET`/`TOP`).
 
-### 3. Execution & Observability Metadata Contract
-Every query executed via `POST /api/v1/altrql/execute` returns machine-readable execution metadata in the response envelope:
+#### Path B — Ephemeral Physical Entity Discovery (New in v0.10)
+For queries targeting unmapped entities (e.g. `GET users;` when `users` is not in the persistent `LogicalModel`):
+1. **Physical Catalog Inspection**: `SchemaService.find_sources_with_physical_entity` inspects cached physical schemas across active sources (case-insensitive with singular/plural matching).
+2. **Candidate Source Partitioning**: Sources with matching physical entities become eligible candidates; non-matching sources are excluded with `PHYSICAL_ENTITY_NOT_FOUND`.
+3. **Common-Field Ephemeral Synthesis**: Synthesizes an in-memory `EphemeralLogicalProjection` from the intersection of compatible data types across candidate sources (stripping MongoDB `_id`). In-memory source mappings are generated for query lowering.
+4. **Ephemerality Guarantee**: The ephemeral projection exists strictly for the query execution lifecycle. **No persistent records or source mappings are created or mutated in the database.**
+
+### 2. Resilient Federated Execution & Fault Isolation
+
+Multi-source execution executes each physical database within an isolated error boundary (`_execute_single_source_isolated` wrapped via `asyncio.gather`). If an individual database connector fails (e.g. connection refused, network partition, or syntax error), **the overall federated query does not abort**. Surviving sources return rows, and the failed source is classified as `FAILED` with a deterministic reason code (e.g. `SOURCE_UNREACHABLE` or `EXECUTION_FAILED`).
+
+### 3. Machine-Readable Execution Metadata Contract
+
+Every query executed via `POST /api/v1/altrql/execute` returns rich telemetry and source participation breakdown in `meta`:
+
 ```json
 {
   "data": [...],
   "meta": {
     "execution_mode": "federated",
     "normalized": true,
-    "source_count": 4,
-    "row_count": 32,
-    "duration_ms": 28.45,
-    "sources": [
+    "is_ephemeral": true,
+    "source_count": 2,
+    "row_count": 16,
+    "duration_ms": 18.45,
+    "included_sources": [
       {
         "source_id": "postgres-prod",
         "source_name": "PostgreSQL Primary",
         "source_type": "postgresql",
-        "status": "success",
+        "status": "SUCCESS",
         "rows": 8,
         "execution_time_ms": 12.3
       },
@@ -212,33 +222,42 @@ Every query executed via `POST /api/v1/altrql/execute` returns machine-readable 
         "source_id": "mysql-prod",
         "source_name": "MySQL Replica",
         "source_type": "mysql",
-        "status": "success",
+        "status": "SUCCESS",
         "rows": 8,
         "execution_time_ms": 10.1
-      },
+      }
+    ],
+    "excluded_sources": [
       {
         "source_id": "sqlite-local",
         "source_name": "SQLite Edge",
         "source_type": "sqlite",
-        "status": "success",
-        "rows": 8,
-        "execution_time_ms": 2.4
+        "status": "EXCLUDED",
+        "reason_code": "PHYSICAL_ENTITY_NOT_FOUND",
+        "message": "Physical entity 'users' not found in source schema"
       },
       {
         "source_id": "mongo-analytics",
         "source_name": "MongoDB Cluster",
         "source_type": "mongodb",
-        "status": "success",
-        "rows": 8,
-        "execution_time_ms": 14.2
+        "status": "FAILED",
+        "reason_code": "SOURCE_UNREACHABLE",
+        "message": "Connection refused during physical query execution"
       }
     ]
   }
 }
 ```
 
-> [!NOTE]
-> **Planned for v0.10**: Partial logical-model discovery fallback (e.g., executing `GET users;` when `users` is not yet a mapped logical entity but exists in physical source catalogs) is deferred to milestone v0.10.
+#### Deterministic Reason Codes:
+- `PHYSICAL_ENTITY_NOT_FOUND`: Target table/collection does not exist in the source catalog.
+- `NO_ACTIVE_MAPPING`: Source does not possess an active mapping for the target logical model.
+- `INCOMPLETE_FIELD_MAPPING`: Source lacks requested explicit fields in projection.
+- `SOURCE_CAPABILITY_MISMATCH`: Connector does not support required query operations.
+- `SOURCE_UNREACHABLE`: Connection timeout or network failure reaching the database.
+- `EXECUTION_FAILED`: Connector returned an error during physical query execution.
+- `EXECUTION_TIMEOUT`: Query execution exceeded configured timeout window.
+- `NORMALIZATION_FAILED`: Error transforming physical result set into canonical projection.
 
 ---
 
@@ -301,7 +320,7 @@ uv pip install -e ".[dev]"
 # Run FastAPI backend with hot reload
 uvicorn altr_stream.main:app --reload --host 0.0.0.0 --port 8000
 
-# Run complete backend test suite (688 tests)
+# Run complete backend test suite (707 tests)
 pytest tests/ -v
 ```
 
@@ -352,7 +371,7 @@ Altr-Stream/
 ├── src/
 │   └── altr_stream/             # FastAPI Backend Service
 │       ├── domain/              # Source, Schema, Logical Model, Connector Contracts
-│       ├── query_engine/        # AltrQL v0.7.6-alpha Compiler (Parser, Validator, Binder, Lowerers)
+│       ├── query_engine/        # AltrQL v0.10.0-alpha Compiler (Parser, Validator, Binder, Lowerers)
 │       │   ├── binding/         # Schema resolution & type compatibility validation
 │       │   ├── classification/  # Pure deterministic mutation classification & safety scoping
 │       │   ├── domain/          # Canonical AST, Bound AST, PhysicalQuery models
@@ -363,7 +382,7 @@ Altr-Stream/
 │       ├── application/         # SourceService, SchemaService, QueryService, ModelRegistryService
 │       ├── presentation/api/    # REST API Routes (/api/v1/sources, /models, /altrql, /queries)
 │       └── main.py              # FastAPI Application Entry
-├── tests/                       # Backend Pytest Test Suite (653 Unit & Integration Tests)
+├── tests/                       # Backend Pytest Test Suite (707 Unit & Integration Tests)
 │   ├── unit/                    # Compiler unit tests (Parser, Validator, Binder, Lowerers)
 │   └── integration/             # Cross-DB semantic parity & live database integration tests
 ├── docker/

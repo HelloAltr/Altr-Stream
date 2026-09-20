@@ -196,31 +196,50 @@ UPDATE users (
   ```
   Requires passing `confirm_mass_mutation=true` in execution requests.
 
-### 4.5 Federated Multi-Source Logical Execution (v0.9.0-alpha)
+### 4.5 Resilient Federated Multi-Source Logical Execution (v0.10.0-alpha)
 
-Altr Stream executes logical queries across multiple heterogeneous physical databases through the Logical Model and Source Mapping Registry.
+Altr Stream executes logical queries across multiple heterogeneous physical databases through the Logical Model & Source Mapping Registry (Path A) and runtime unmapped physical entity discovery (Path B).
 
-#### Auto-Select / All Sources (Federation Mode):
-Targeting `Auto-Select / All Sources` evaluates the active logical model, discovers all active source mappings, lowers the logical query into dialect-specific physical queries, executes across all participating sources in parallel, normalizes columns into canonical logical fields, strips physical IDs (such as MongoDB `_id`), merges rows, and applies global logical sorting and pagination (`LIMIT`/`OFFSET`/`TOP`).
+#### 1. Path A vs Path B Execution:
 
-> [!IMPORTANT]
-> **Auto-Select / All Sources** means **federated execution across all eligible active mappings**. It is **not** single-source selection or round-robin selection.
+- **Path A (Registered Logical Models)**:
+  - Query: `GET students;`
+  - Targets the registered `Student` logical model.
+  - Queries all physical sources with an `ACTIVE` mapping.
+  - Normalizes fields to the registered canonical logical model.
 
-#### Explicit-Source Execution & Normalization Control:
-- **`Normalize = OFF`**: Returns physical column names and raw engine types.
-- **`Normalize = ON`**: Translates physical column names into the canonical logical entity schema.
+- **Path B (Ephemeral Unmapped Entity Discovery)**:
+  - Query: `GET users;` (when `users` is not in the persistent logical model).
+  - Inspects active physical database schemas using case-insensitive and singular/plural matching (`find_sources_with_physical_entity`).
+  - Sources with matching tables/collections participate; non-matching sources are excluded with `PHYSICAL_ENTITY_NOT_FOUND`.
+  - Synthesizes an in-memory `EphemeralLogicalProjection` from the common-field intersection across participating databases (excluding MongoDB `_id`).
+  - Projections are ephemeral and strictly in-memory — no database records or source mappings are mutated or persisted.
 
-#### Execution & Result Metadata Contract:
+#### 2. Resilient Execution & Error Isolation:
+
+Physical query execution is isolated per source (`_execute_single_source_isolated`). If a participating source fails (e.g. `SOURCE_UNREACHABLE` or `EXECUTION_FAILED`), sibling executions continue uninterrupted, and the query returns rows from the surviving sources.
+
+#### 3. Execution & Result Metadata Contract:
+
 Every execution via `POST /api/v1/altrql/execute` returns machine-readable metadata in `meta`:
 - `execution_mode`: `"federated"` or `"single"`
 - `normalized`: `true` or `false`
-- `source_count`: Number of participating sources
-- `row_count`: Total rows returned
+- `is_ephemeral`: `true` (Path B) or `false` (Path A)
+- `source_count`: Number of surviving / included sources
+- `row_count`: Total rows returned across all included sources
 - `duration_ms`: Total execution latency in milliseconds
-- `sources`: Array of per-source details (`source_id`, `source_name`, `source_type`, `status`, `rows`, `execution_time_ms`)
+- `included_sources`: Array of successful sources (`source_id`, `source_name`, `source_type`, `status`, `rows`, `execution_time_ms`)
+- `excluded_sources`: Array of excluded or failed sources (`source_id`, `source_name`, `source_type`, `status`, `reason_code`, `message`)
 
-> [!NOTE]
-> **Deferred to v0.10**: Partial logical-model discovery fallback (e.g. querying `GET users;` when `users` exists in physical databases but is not yet mapped to an active logical entity) is scheduled for v0.10.
+```bash
+# Example: Executing unmapped physical query via cURL
+curl -X POST http://localhost:8000/api/v1/altrql/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "GET users;",
+    "normalize": true
+  }'
+```
 
 ---
 
@@ -269,7 +288,7 @@ Altr Stream provides unified business entity abstractions that map to physical d
 
 ### Backend Test Suite (Pytest)
 ```bash
-# Run all 688 backend tests
+# Run all 707 backend tests
 uv run pytest tests/ -v
 
 # Run cross-database semantic parity tests only
@@ -316,7 +335,7 @@ docker compose down -v --remove-orphans
 | **Force Rebuild Without Cache** | `docker compose build --no-cache altr-stream-admin && docker compose up -d` |
 | **Check Container Status** | `docker compose ps` |
 | **View Live Tail Logs** | `docker compose logs -f` |
-| **Run Backend Tests (688 tests)** | `uv run pytest tests/ -v` |
+| **Run Backend Tests (707 tests)** | `uv run pytest tests/ -v` |
 | **Run Parity Tests** | `uv run pytest tests/integration/test_cross_db_parity.py -v` |
 | **Run Frontend Tests (86 tests)** | `cd frontend/altr_stream_admin && flutter test` |
 | **Run Frontend Analysis** | `cd frontend/altr_stream_admin && flutter analyze` |

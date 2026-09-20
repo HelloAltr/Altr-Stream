@@ -112,9 +112,22 @@ class SourceExecutionInfoDTO(BaseModel):
     source_id: str = Field(..., description="Physical data source ID")
     source_name: str | None = Field(default=None, description="Physical data source name")
     source_type: str | None = Field(default=None, description="Physical data source dialect/type")
-    status: str = Field(default="success", description="Per-source execution status")
+    physical_entity: str | None = Field(default=None, description="Physical table or collection name")
+    status: str = Field(default="SUCCESS", description="Per-source execution status")
     rows: int = Field(default=0, description="Rows contributed by this source")
     execution_time_ms: float | None = Field(default=None, description="Per-source execution time in milliseconds")
+
+
+class SourceExclusionInfoDTO(BaseModel):
+    """Structured diagnostic record for an excluded or failed source."""
+
+    source_id: str = Field(..., description="Physical data source ID")
+    source_name: str | None = Field(default=None, description="Physical data source name")
+    source_type: str | None = Field(default=None, description="Physical data source dialect/type")
+    physical_entity: str | None = Field(default=None, description="Physical table or collection name if known")
+    status: str = Field(default="EXCLUDED", description="Source status ('EXCLUDED' or 'FAILED')")
+    reason_code: str = Field(default="PHYSICAL_ENTITY_NOT_FOUND", description="Deterministic diagnostic reason code")
+    message: str = Field(default="", description="Human-readable diagnostic explanation")
 
 
 class QueryMetadataDTO(BaseModel):
@@ -128,8 +141,11 @@ class QueryMetadataDTO(BaseModel):
     mutation_scope: str | None = Field(default=None, description="Mutation scope (NOT_APPLICABLE, CONSTRAINED, MASS)")
     execution_mode: str = Field(default="single_source", description="Execution mode ('single_source' or 'federated')")
     normalized: bool = Field(default=False, description="Whether canonical logical schema normalization was applied")
+    is_ephemeral: bool = Field(default=False, description="Whether query used an ephemeral unmapped logical projection")
     source_count: int = Field(default=1, description="Total number of sources participating in execution")
     sources: list[SourceExecutionInfoDTO] = Field(default_factory=list, description="Per-source execution details")
+    included_sources: list[SourceExecutionInfoDTO] = Field(default_factory=list, description="Sources that successfully participated")
+    excluded_sources: list[SourceExclusionInfoDTO] = Field(default_factory=list, description="Sources that were excluded or failed")
 
 
 class QueryExecuteResponseDTO(BaseModel):
@@ -196,6 +212,8 @@ class AltrQLBindResponseDTO(BaseModel):
     bound_ir: dict[str, Any] | None = Field(default=None, description="Schema-bound BoundAltrQueryIR AST if successful")
     classification: MutationClassificationDTO | None = Field(default=None, description="Mutation classification metadata if successful")
     execution_mode: str = Field(default="single", description="Execution mode ('single' or 'federated')")
+    is_ephemeral: bool = Field(default=False, description="Whether binding resolved against an ephemeral logical projection")
+    ephemeral_projection: dict[str, Any] | None = Field(default=None, description="Discovered ephemeral logical projection metadata if unmapped")
     selected_source_id: str | None = Field(default=None, description="Selected physical data source ID if single source")
     selected_mapping_id: str | None = Field(default=None, description="Selected SourceMapping ID if single source")
     error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
@@ -270,6 +288,7 @@ class AltrQLPlanResponseDTO(BaseModel):
     logical_model_id: str | None = Field(default=None, description="Logical model ID")
     target_entity: str | None = Field(default=None, description="Target logical entity")
     execution_mode: str = Field(default="single", description="Execution mode ('single' or 'federated')")
+    is_ephemeral: bool = Field(default=False, description="Whether query planned using an ephemeral logical projection")
     selected_source_id: str | None = Field(default=None, description="Selected physical data source ID if single source")
     selected_source_name: str | None = Field(default=None, description="Selected physical data source name if single source")
     selected_source_type: str | None = Field(default=None, description="Selected physical data source dialect type if single source")
@@ -282,6 +301,7 @@ class AltrQLPlanResponseDTO(BaseModel):
     physical_plans: list[PhysicalPlanItemDTO] = Field(default_factory=list, description="List of physical execution plans across all candidate sources")
     total_sources_planned: int = Field(default=1, description="Total number of physical sources participating in execution")
     candidates_evaluated: list[dict[str, Any]] = Field(default_factory=list, description="List of evaluated candidate sources and eligibility rationale")
+    excluded_sources: list[SourceExclusionInfoDTO] = Field(default_factory=list, description="List of excluded or failed candidate sources")
     error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if planning failed")
 
 

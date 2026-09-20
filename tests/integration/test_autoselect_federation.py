@@ -473,7 +473,7 @@ async def test_autoselect_federated_execution_and_normalization(
         assert len(meta["sources"]) == 4
         assert {s["source_id"] for s in meta["sources"]} == {"src_pg", "src_mysql", "src_sqlite", "src_mongo"}
         for s in meta["sources"]:
-            assert s["status"] == "success"
+            assert s["status"].upper() == "SUCCESS"
             assert s["rows"] == 1
 
 

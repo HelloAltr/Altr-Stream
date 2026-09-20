@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from enum import Enum
 from altr_stream.domain.source import SourceType
 from altr_stream.query_engine.classification.classifier import MutationClassification
 from altr_stream.query_engine.domain.ast import AltrQueryIR, QueryOperation
@@ -14,6 +15,89 @@ from altr_stream.query_engine.domain.physical_query import (
     PhysicalQueryBatch,
     PhysicalQueryResult,
 )
+
+
+class SourceExecutionStatus(str, Enum):
+    """Outcome status for a physical source in planning or execution."""
+
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    EXCLUDED = "EXCLUDED"
+
+
+class SourceExclusionReason(str, Enum):
+    """Deterministic diagnostic reason codes for excluded or failed sources."""
+
+    PHYSICAL_ENTITY_NOT_FOUND = "PHYSICAL_ENTITY_NOT_FOUND"
+    NO_ACTIVE_MAPPING = "NO_ACTIVE_MAPPING"
+    INCOMPLETE_FIELD_MAPPING = "INCOMPLETE_FIELD_MAPPING"
+    SOURCE_CAPABILITY_MISMATCH = "SOURCE_CAPABILITY_MISMATCH"
+    SOURCE_UNREACHABLE = "SOURCE_UNREACHABLE"
+    EXECUTION_FAILED = "EXECUTION_FAILED"
+    EXECUTION_TIMEOUT = "EXECUTION_TIMEOUT"
+    NORMALIZATION_FAILED = "NORMALIZATION_FAILED"
+
+
+@dataclass
+class SourceExclusionInfo:
+    """Structured diagnostic record for an excluded or failed source."""
+
+    source_id: str
+    source_name: str | None = None
+    source_type: str | None = None
+    physical_entity: str | None = None
+    status: str = SourceExecutionStatus.EXCLUDED.value
+    reason_code: str = SourceExclusionReason.PHYSICAL_ENTITY_NOT_FOUND.value
+    message: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_id": self.source_id,
+            "source_name": self.source_name,
+            "source_type": self.source_type,
+            "physical_entity": self.physical_entity,
+            "status": self.status,
+            "reason_code": self.reason_code,
+            "message": self.message,
+        }
+
+
+@dataclass
+class EphemeralFieldProjection:
+    """Canonical field in an ephemeral logical projection."""
+
+    name: str
+    data_type: str = "STRING"
+    is_primary_key: bool = False
+    source_field_names: dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "data_type": self.data_type,
+            "is_primary_key": self.is_primary_key,
+            "source_field_names": self.source_field_names,
+        }
+
+
+@dataclass
+class EphemeralLogicalProjection:
+    """In-memory logical projection synthesized from discovered physical schemas."""
+
+    entity_name: str
+    canonical_fields: list[EphemeralFieldProjection] = field(default_factory=list)
+    participating_sources: list[str] = field(default_factory=list)
+    excluded_sources: list[SourceExclusionInfo] = field(default_factory=list)
+    is_ephemeral: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "entity_name": self.entity_name,
+            "canonical_fields": [f.to_dict() for f in self.canonical_fields],
+            "participating_sources": self.participating_sources,
+            "excluded_sources": [e.to_dict() for e in self.excluded_sources],
+            "is_ephemeral": self.is_ephemeral,
+        }
 
 
 @dataclass
@@ -49,14 +133,14 @@ class CandidateEvaluation:
 class LogicalPlanContext:
     """Encapsulates the logical intent and requirements extracted from a canonical IR."""
 
-    logical_model_id: str
-    target_entity: str
-    operation: QueryOperation
-    is_wildcard: bool
-    projected_fields: list[str]
-    filter_fields: list[str]
-    mutation_fields: list[str]
-    sort_fields: list[str]
+    logical_model_id: str | None = None
+    target_entity: str = ""
+    operation: QueryOperation = QueryOperation.READ
+    is_wildcard: bool = True
+    projected_fields: list[str] = field(default_factory=list)
+    filter_fields: list[str] = field(default_factory=list)
+    mutation_fields: list[str] = field(default_factory=list)
+    sort_fields: list[str] = field(default_factory=list)
     requires_returning: bool = False
     requires_transactions: bool = False
 
@@ -100,7 +184,10 @@ class FederatedQueryPlan:
     logical_ir: AltrQueryIR
     physical_plans: list[PhysicalQueryPlan] = field(default_factory=list)
     candidates_evaluated: list[CandidateEvaluation] = field(default_factory=list)
+    excluded_sources: list[SourceExclusionInfo] = field(default_factory=list)
     execution_mode: str = "federated"
+    is_ephemeral: bool = False
+    ephemeral_projection: EphemeralLogicalProjection | None = None
 
     @property
     def accepted_sources(self) -> list[str]:

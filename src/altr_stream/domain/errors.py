@@ -187,4 +187,21 @@ class SourceCapabilityMismatchError(AltrStreamError):
         self.details = details
 
 
+class PhysicalEntityNotFoundError(AltrStreamError):
+    """Raised when an unmapped entity is not found in any registered physical data source schema."""
 
+    def __init__(self, entity_name: str, details: str | None = None):
+        msg = f"Entity '{entity_name}' was not found in any active logical model or registered physical source schema."
+        if details:
+            msg += f" {details}"
+        super().__init__(msg)
+        self.entity_name = entity_name
+        self.details = details
+
+
+class FederatedExecutionFailedError(AltrStreamError):
+    """Raised when all planned sources in a federated query fail during physical execution."""
+
+    def __init__(self, message: str, details: str | None = None):
+        super().__init__(message)
+        self.details = details

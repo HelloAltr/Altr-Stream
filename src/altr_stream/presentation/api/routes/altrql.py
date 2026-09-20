@@ -1,5 +1,6 @@
 """AltrQL language REST API endpoints."""
 
+import asyncio
 import time
 from typing import Any
 from fastapi import APIRouter, Depends, Response, status
@@ -39,6 +40,7 @@ from altr_stream.presentation.api.dtos import (
     PhysicalQueryDTO,
     QueryMetadataDTO,
     SourceExecutionInfoDTO,
+    SourceExclusionInfoDTO,
 )
 from altr_stream.query_engine.binding import bind_altrql
 from altr_stream.query_engine.binding.logical_resolver import resolve_logical_ir
@@ -53,13 +55,76 @@ from altr_stream.query_engine.domain.physical_query import (
 from altr_stream.query_engine.lowering import get_lowerer
 from altr_stream.query_engine.parser import parse_altrql
 from altr_stream.query_engine.planning import (
+    PhysicalQueryPlan,
     QueryPlanner,
+    SourceExclusionReason,
+    SourceExecutionStatus,
     merge_federated_results,
     normalize_row,
 )
 
 
 router = APIRouter(prefix="/altrql", tags=["AltrQL"])
+
+
+async def _execute_single_source_isolated(
+    query_service: QueryService,
+    plan: PhysicalQueryPlan,
+) -> tuple[PhysicalQueryPlan, QueryResult | None, SourceExecutionInfoDTO | None, SourceExclusionInfoDTO | None]:
+    """Execute a single physical source query within an isolated error boundary.
+
+    Guarantees:
+    1. Independent error boundary: failures do not cancel sibling executions.
+    2. Maps connection drops / timeouts to deterministic reason codes.
+    3. Captures per-source execution timing and row count telemetry.
+    """
+    start_t = time.perf_counter()
+    src_type_str = plan.selected_source_type.value if hasattr(plan.selected_source_type, "value") else str(plan.selected_source_type)
+    try:
+        if isinstance(plan.physical_query, PhysicalQueryBatch):
+            result = await query_service.execute_batch(
+                source_id=plan.selected_source_id,
+                queries=[(q.query, q.parameters) for q in plan.physical_query.queries],
+            )
+        else:
+            result = await query_service.execute_query(
+                source_id=plan.selected_source_id,
+                query=plan.physical_query.query,
+                parameters=plan.physical_query.parameters,
+            )
+        elapsed_ms = round((time.perf_counter() - start_t) * 1000, 2)
+        exec_info = SourceExecutionInfoDTO(
+            source_id=plan.selected_source_id,
+            source_name=plan.selected_source_name,
+            source_type=src_type_str,
+            physical_entity=plan.physical_entity_name,
+            status=SourceExecutionStatus.SUCCESS.value,
+            rows=len(result.rows) if result.rows else 0,
+            execution_time_ms=result.execution_time_ms or elapsed_ms,
+        )
+        return plan, result, exec_info, None
+    except Exception as exc:
+        elapsed_ms = round((time.perf_counter() - start_t) * 1000, 2)
+        err_msg = str(exc)
+        msg_lower = err_msg.lower()
+        reason = SourceExclusionReason.EXECUTION_FAILED.value
+        if "timeout" in msg_lower:
+            reason = SourceExclusionReason.EXECUTION_TIMEOUT.value
+        elif any(w in msg_lower for w in ("connect", "unreachable", "refused", "server closed", "cannot connect", "socket")):
+            reason = SourceExclusionReason.SOURCE_UNREACHABLE.value
+        elif "normalize" in msg_lower:
+            reason = SourceExclusionReason.NORMALIZATION_FAILED.value
+
+        exclusion_info = SourceExclusionInfoDTO(
+            source_id=plan.selected_source_id,
+            source_name=plan.selected_source_name,
+            source_type=src_type_str,
+            physical_entity=plan.physical_entity_name,
+            status=SourceExecutionStatus.FAILED.value,
+            reason_code=reason,
+            message=f"Execution failed on source '{plan.selected_source_name}': {err_msg}",
+        )
+        return plan, None, None, exclusion_info
 
 
 def _to_physical_query_dto(
@@ -190,6 +255,11 @@ def _normalize_result_rows(
 
     if not is_wildcard_projection and requested_logical_projections:
         norm_columns = requested_logical_projections
+        ordered_rows: list[dict[str, Any]] = []
+        for nr in norm_rows:
+            ordered_r = {col: nr[col] for col in norm_columns if col in nr}
+            ordered_rows.append(ordered_r)
+        norm_rows = ordered_rows
     elif logical_field_order:
         # Preserve logical schema/mapping order for mapped fields
         norm_columns = [
@@ -227,13 +297,7 @@ async def _resolve_logical_model_id(
 
     models = await registry_service.list_models()
     if not models:
-        raise NoActiveSourceMappingError(
-            entity_name=entity_name,
-            model_id="",
-        )
-
-    if len(models) == 1:
-        return models[0].id
+        return ""
 
     # Find models containing the target entity
     matching_models = []
@@ -275,10 +339,10 @@ async def _resolve_logical_model_id(
             f"Entity '{entity_name}' is defined in multiple logical models ({', '.join(m.name for m in matching_models)}). Please specify 'logical_model_id'."
         )
 
-    raise NoActiveSourceMappingError(
-        entity_name=entity_name,
-        model_id="",
-    )
+    if len(models) == 1:
+        return models[0].id
+
+    return ""
 
 
 @router.post("/parse", response_model=AltrQLParseResponseDTO, status_code=status.HTTP_200_OK)
@@ -348,6 +412,8 @@ async def bind_altrql_query(
             federated_plan = await query_planner.create_federated_plan(ir, model_id)
             response.headers["X-Altr-Execution-Mode"] = "federated"
             response.headers["X-Altr-Federated-Sources"] = ",".join(federated_plan.accepted_sources)
+            if federated_plan.is_ephemeral:
+                response.headers["X-Altr-Ephemeral-Projection"] = "true"
 
             first_plan = federated_plan.physical_plans[0]
             classification_dto = MutationClassificationDTO(
@@ -363,6 +429,8 @@ async def bind_altrql_query(
                 bound_ir=first_plan.bound_ir.to_dict(),
                 classification=classification_dto,
                 execution_mode="federated",
+                is_ephemeral=federated_plan.is_ephemeral,
+                ephemeral_projection=federated_plan.ephemeral_projection.to_dict() if federated_plan.ephemeral_projection else None,
                 selected_source_id=first_plan.selected_source_id,
                 selected_mapping_id=first_plan.selected_mapping_id,
                 error=None,
@@ -513,6 +581,8 @@ async def plan_altrql_query(
             federated_plan = await query_planner.create_federated_plan(ir, model_id)
             response.headers["X-Altr-Execution-Mode"] = "federated"
             response.headers["X-Altr-Federated-Sources"] = ",".join(federated_plan.accepted_sources)
+            if federated_plan.is_ephemeral:
+                response.headers["X-Altr-Ephemeral-Projection"] = "true"
 
             physical_plan_dtos = [
                 PhysicalPlanItemDTO(
@@ -541,6 +611,7 @@ async def plan_altrql_query(
                 logical_model_id=model_id,
                 target_entity=ir.entity,
                 execution_mode="federated",
+                is_ephemeral=federated_plan.is_ephemeral,
                 selected_source_id=first_plan.selected_source_id,
                 selected_source_name=first_plan.selected_source_name,
                 selected_source_type=first_plan.selected_source_type.value,
@@ -553,6 +624,18 @@ async def plan_altrql_query(
                 physical_plans=physical_plan_dtos,
                 total_sources_planned=len(physical_plan_dtos),
                 candidates_evaluated=[ev.to_dict() for ev in federated_plan.candidates_evaluated],
+                excluded_sources=[
+                    SourceExclusionInfoDTO(
+                        source_id=e.source_id,
+                        source_name=e.source_name,
+                        source_type=e.source_type,
+                        physical_entity=e.physical_entity,
+                        status=e.status,
+                        reason_code=e.reason_code,
+                        message=e.message,
+                    )
+                    for e in federated_plan.excluded_sources
+                ],
                 error=None,
             )
         except AltrStreamError as e:
@@ -714,37 +797,75 @@ async def execute_altrql_query(
 
         # Inject observability headers
         response.headers["X-Altr-Execution-Mode"] = "federated"
-        response.headers["X-Altr-Federated-Sources"] = ",".join(federated_plan.accepted_sources)
+        if federated_plan.is_ephemeral:
+            response.headers["X-Altr-Ephemeral-Projection"] = "true"
 
-        # Execute physical plans across all federated sources
-        start_time = time.perf_counter()
-        execution_results: list[tuple[Any, QueryResult]] = []
-        physical_query_dtos = []
-        sources_executed = []
-
+        # Execute physical plans across all federated sources with per-source error isolation
         try:
-            for plan in federated_plan.physical_plans:
-                if isinstance(plan.physical_query, PhysicalQueryBatch):
-                    result = await query_service.execute_batch(
-                        source_id=plan.selected_source_id,
-                        queries=[(q.query, q.parameters) for q in plan.physical_query.queries],
-                    )
-                else:
-                    result = await query_service.execute_query(
-                        source_id=plan.selected_source_id,
-                        query=plan.physical_query.query,
-                        parameters=plan.physical_query.parameters,
-                    )
+            start_time = time.perf_counter()
+            tasks = [
+                _execute_single_source_isolated(query_service, plan)
+                for plan in federated_plan.physical_plans
+            ]
+            isolated_results = await asyncio.gather(*tasks)
 
-                execution_results.append((plan, result))
+            successful_executions: list[tuple[PhysicalQueryPlan, QueryResult]] = []
+            included_sources: list[SourceExecutionInfoDTO] = []
+            failed_sources: list[SourceExclusionInfoDTO] = []
+            physical_query_dtos = []
+            sources_executed = []
+
+            for plan, res, exec_info, excl_info in isolated_results:
                 physical_query_dtos.append(_to_physical_query_dto(plan.physical_query))
-                sources_executed.append(plan.selected_source_id)
+                if res is not None and exec_info is not None:
+                    successful_executions.append((plan, res))
+                    included_sources.append(exec_info)
+                    sources_executed.append(plan.selected_source_id)
+                elif excl_info is not None:
+                    failed_sources.append(excl_info)
+
+            response.headers["X-Altr-Federated-Sources"] = ",".join(sources_executed)
+
+            all_excluded_sources: list[SourceExclusionInfoDTO] = []
+            for excl in federated_plan.excluded_sources:
+                all_excluded_sources.append(
+                    SourceExclusionInfoDTO(
+                        source_id=excl.source_id,
+                        source_name=excl.source_name,
+                        source_type=excl.source_type,
+                        physical_entity=excl.physical_entity,
+                        status=excl.status,
+                        reason_code=excl.reason_code,
+                        message=excl.message,
+                    )
+                )
+            all_excluded_sources.extend(failed_sources)
+
+            if not successful_executions and federated_plan.physical_plans:
+                err_msg = "; ".join(f.message for f in failed_sources)
+                return AltrQLExecuteResponseDTO(
+                    success=False,
+                    ir=ir.to_dict(),
+                    bound_ir=federated_plan.physical_plans[0].bound_ir.to_dict(),
+                    classification=None,
+                    physical_query=physical_query_dtos[0] if physical_query_dtos else None,
+                    physical_queries=physical_query_dtos,
+                    execution_mode="federated",
+                    sources_executed=[],
+                    columns=[],
+                    rows=[],
+                    metadata=None,
+                    error=AltrQLErrorDetailDTO(
+                        type="FederatedExecutionFailedError",
+                        message=f"All {len(federated_plan.physical_plans)} candidate sources failed during query execution: {err_msg}",
+                    ),
+                )
 
             # Normalize per-source and perform global sort, global limit, and global offset merging
             norm_cols, merged_rows = merge_federated_results(
                 ir=ir,
                 federated_plan=federated_plan,
-                execution_results=execution_results,
+                execution_results=successful_executions,
             )
 
             elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -757,19 +878,6 @@ async def execute_altrql_query(
                 entity=first_plan.classification.entity,
                 description=first_plan.classification.description,
             )
-
-            per_source_info: list[SourceExecutionInfoDTO] = []
-            for plan, res_item in execution_results:
-                per_source_info.append(
-                    SourceExecutionInfoDTO(
-                        source_id=plan.selected_source_id,
-                        source_name=plan.selected_source_name,
-                        source_type=plan.selected_source_type.value if hasattr(plan.selected_source_type, "value") else str(plan.selected_source_type),
-                        status="success",
-                        rows=len(res_item.rows),
-                        execution_time_ms=res_item.execution_time_ms,
-                    )
-                )
 
             return AltrQLExecuteResponseDTO(
                 success=True,
@@ -786,13 +894,16 @@ async def execute_altrql_query(
                     row_count=len(merged_rows),
                     affected_rows=None,
                     execution_time_ms=elapsed_ms,
-                    message=f"Federated query executed successfully across {len(sources_executed)} sources.",
+                    message=f"Federated query executed successfully across {len(included_sources)} sources ({len(failed_sources)} failed, {len(federated_plan.excluded_sources)} excluded).",
                     operation=QueryOperation.READ.value,
                     mutation_scope="NOT_APPLICABLE",
                     execution_mode="federated",
                     normalized=True,
-                    source_count=len(sources_executed),
-                    sources=per_source_info,
+                    is_ephemeral=federated_plan.is_ephemeral,
+                    source_count=len(included_sources),
+                    sources=included_sources,
+                    included_sources=included_sources,
+                    excluded_sources=all_excluded_sources,
                 ),
                 error=None,
             )
@@ -800,12 +911,12 @@ async def execute_altrql_query(
             return AltrQLExecuteResponseDTO(
                 success=False,
                 ir=ir.to_dict(),
-                bound_ir=federated_plan.physical_plans[0].bound_ir.to_dict() if federated_plan.physical_plans else None,
+                bound_ir=None,
                 classification=None,
-                physical_query=physical_query_dtos[0] if physical_query_dtos else None,
-                physical_queries=physical_query_dtos,
+                physical_query=None,
+                physical_queries=[],
                 execution_mode="federated",
-                sources_executed=sources_executed,
+                sources_executed=[],
                 columns=[],
                 rows=[],
                 metadata=None,
@@ -988,7 +1099,8 @@ async def execute_altrql_query(
                 source_id=source.id,
                 source_name=source.name,
                 source_type=source.type.value if hasattr(source.type, "value") else str(source.type),
-                status="success",
+                physical_entity=bound_ir.entity.name,
+                status=SourceExecutionStatus.SUCCESS.value,
                 rows=result.row_count,
                 execution_time_ms=result.execution_time_ms,
             )
@@ -1018,6 +1130,8 @@ async def execute_altrql_query(
                 normalized=bool(dto.normalize and matching_em),
                 source_count=1,
                 sources=per_source_info,
+                included_sources=per_source_info,
+                excluded_sources=[],
             ),
             error=None,
         )
