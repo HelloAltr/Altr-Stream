@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
 import 'package:altr_stream_admin/main.dart';
 import 'package:altr_stream_admin/core/config/app_config.dart';
@@ -503,21 +504,16 @@ void main() {
     expect(find.text('Theme & Appearance'), findsOneWidget);
 
     // Scroll to theme segmented button
-    await tester.scrollUntilVisible(
-      find.byType(SegmentedButton<ThemeMode>),
-      200,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.drag(find.byType(Scrollable).last, const Offset(0, -200));
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -500));
     await tester.pumpAndSettle();
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
 
     // Change theme mode via Settings SegmentedButton
-    await tester.tap(find.byIcon(Icons.light_mode).last);
+    await tester.tap(find.text('Light'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.dark_mode).last);
+    await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();
   });
 
@@ -531,20 +527,21 @@ void main() {
     await tester.pump();
 
     // Find theme toggle button (initially brightness_auto / System)
-    final toggleFinder = find.byIcon(Icons.brightness_auto);
+    final toggleFinder = find.byTooltip('Theme: System (Click to switch)');
     expect(toggleFinder, findsOneWidget);
 
     await tester.tap(toggleFinder);
     await tester.pumpAndSettle();
 
-    // Switched to Light mode -> icon is light_mode
-    expect(find.byIcon(Icons.light_mode), findsOneWidget);
+    // Switched to Light mode -> icon is Light
+    final lightToggleFinder = find.byTooltip('Theme: Light (Click to switch)');
+    expect(lightToggleFinder, findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.light_mode));
+    await tester.tap(lightToggleFinder);
     await tester.pumpAndSettle();
 
-    // Switched to Dark mode -> icon is dark_mode
-    expect(find.byIcon(Icons.dark_mode), findsOneWidget);
+    // Switched to Dark mode -> icon is Dark
+    expect(find.byTooltip('Theme: Dark (Click to switch)'), findsOneWidget);
   });
 
   testWidgets('Add Source Wizard opens properly', (WidgetTester tester) async {
@@ -818,7 +815,12 @@ void main() {
     expect(find.text('email'), findsOneWidget);
     expect(find.text('int4'), findsOneWidget);
     expect(find.text('NOT NULL'), findsOneWidget);
-    expect(find.byIcon(Icons.vpn_key_rounded), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is HugeIcon && w.icon == HugeIcons.strokeRoundedKey01,
+      ),
+      findsOneWidget,
+    );
 
     // Tap column to trigger onSelectColumn
     await tester.tap(find.text('email'));
@@ -2606,7 +2608,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(RegistryScreen), findsOneWidget);
-    expect(find.text('Logical Models'), findsOneWidget);
+    expect(find.text('Logical Models'), findsWidgets);
     expect(find.text('CoreCommerce'), findsOneWidget);
     expect(find.text('v1.0.0'), findsOneWidget);
   });
@@ -4237,7 +4239,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 'Sign In' is visible in drawer
+    // 'Sign In' button is visible in rail trailing area
     final signInFinder = find.text('Sign In');
     expect(signInFinder, findsOneWidget);
 
@@ -4283,7 +4285,7 @@ void main() {
     expect(find.text('A'), findsOneWidget);
     expect(find.text('Asher Admin'), findsOneWidget);
 
-    // Tap drawer profile tile to open M3EMenu
+    // Tap rail profile tile to open M3EMenu
     await tester.tap(find.text('Asher Admin'));
     await tester.pumpAndSettle();
 
@@ -4324,7 +4326,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify bolt logo and Altr Stream brand title are rendered
-    final boltIconFinder = find.byIcon(Icons.bolt);
+    final boltIconFinder = find.byWidgetPredicate(
+      (w) => w is HugeIcon && w.icon == HugeIcons.strokeRoundedFlash,
+    );
     expect(boltIconFinder, findsOneWidget);
     expect(find.text('Altr Stream'), findsOneWidget);
 
@@ -4424,9 +4428,34 @@ void main() {
     // Dialog is closed
     expect(find.text('Altr Stream Version Info'), findsNothing);
   });
+
+  testWidgets('AppTheme returns distinct stroke-rounded HugeIcons and semantic colors for each DB type', (WidgetTester tester) async {
+    // Icons
+    expect(AppTheme.getSourceTypeIcon('POSTGRESQL'), equals(HugeIcons.strokeRoundedDatabase));
+    expect(AppTheme.getSourceTypeIcon('postgres'), equals(HugeIcons.strokeRoundedDatabase));
+    expect(AppTheme.getSourceTypeIcon('MYSQL'), equals(HugeIcons.strokeRoundedServerStack01));
+    expect(AppTheme.getSourceTypeIcon('mysql'), equals(HugeIcons.strokeRoundedServerStack01));
+    expect(AppTheme.getSourceTypeIcon('MONGODB'), equals(HugeIcons.strokeRoundedLeaf01));
+    expect(AppTheme.getSourceTypeIcon('mongo'), equals(HugeIcons.strokeRoundedLeaf01));
+    expect(AppTheme.getSourceTypeIcon('SQLITE'), equals(HugeIcons.strokeRoundedFile01));
+    expect(AppTheme.getSourceTypeIcon('sqlite'), equals(HugeIcons.strokeRoundedFile01));
+    expect(AppTheme.getSourceTypeIcon('UNKNOWN_TYPE'), equals(HugeIcons.strokeRoundedDatabase));
+    expect(AppTheme.getSourceTypeIcon(null), equals(HugeIcons.strokeRoundedDatabase));
+
+    // Colors in Widget context
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Builder(
+          builder: (context) {
+            expect(AppTheme.getSourceTypeColor('MYSQL', context), isNotNull);
+            expect(AppTheme.getSourceTypeColor('MONGODB', context), isNotNull);
+            expect(AppTheme.getSourceTypeColor('SQLITE', context), isNotNull);
+            expect(AppTheme.getSourceTypeColor('POSTGRESQL', context), isNotNull);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+  });
 }
-
-
-
-
-

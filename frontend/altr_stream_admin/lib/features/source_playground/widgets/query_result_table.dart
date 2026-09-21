@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class QueryResultTable extends StatelessWidget {
   final List<String> columns;
@@ -26,7 +27,7 @@ class QueryResultTable extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(Icons.inbox_outlined, size: 36, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+            HugeIcon(icon: HugeIcons.strokeRoundedInbox, size: 36, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
             const SizedBox(height: 8),
             Text(
               'No records returned',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 
@@ -66,8 +67,13 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
-        _isSubmitting = false;
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
@@ -96,7 +102,7 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.edit_outlined, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(icon: HugeIcons.strokeRoundedEdit02, color: colorScheme.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -120,7 +126,7 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, size: 18),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -136,7 +142,7 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline, color: colorScheme.error, size: 18),
+                      HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -159,7 +165,7 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Model Name *',
                         hintText: 'e.g. CoreCommerce, UnifiedSchool',
-                        prefixIcon: Icon(Icons.label_outline, size: 18),
+                        prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTag01, size: 18),
                       ),
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) return 'Model name is required';
@@ -178,7 +184,7 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Version',
                         hintText: '1.0.0',
-                        prefixIcon: Icon(Icons.tag, size: 18),
+                        prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTag01, size: 18),
                       ),
                     ),
                   ),
@@ -211,7 +217,7 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.check, size: 16),
+                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
                     label: Text(_isSubmitting ? 'Saving...' : 'Save Changes'),
                   ),
                 ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'core/api/api_client.dart';
 import 'core/api/models.dart';
 import 'core/theme/app_theme.dart';
@@ -283,15 +284,24 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   List<Widget>? _getPageActions() {
     if (_activeRoute == '/') {
       return [
-        M3EIconButton(
-          icon: const Icon(Icons.refresh),
-          onPressed: () {
-            _probeNodeHealth();
-            _fetchSources();
-          },
-          variant: M3EIconButtonVariant.standard,
-          size: M3EIconButtonSize.xs,
-          tooltip: 'Refresh',
+        Focus(
+          canRequestFocus: false,
+          skipTraversal: true,
+          child: M3EIconButton(
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedRefresh,
+              color: Theme.of(context).colorScheme.onSurface,
+              size: 18,
+            ),
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              _probeNodeHealth();
+              _fetchSources();
+            },
+            variant: M3EIconButtonVariant.standard,
+            size: M3EIconButtonSize.xs,
+            tooltip: 'Refresh',
+          ),
         ),
       ];
     }
@@ -299,21 +309,34 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       return [
         M3EButton.icon(
           onPressed: _showAddSourceWizard,
-          icon: const Icon(Icons.add, size: 16),
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedPlusSign,
+            color: Theme.of(context).colorScheme.onPrimary,
+            size: 16,
+          ),
           label: const Text('Add Data Source'),
           style: M3EButtonStyle.filled,
           size: M3EButtonSize.xs,
         ),
         const SizedBox(width: 8),
-        M3EIconButton(
-          icon: const Icon(Icons.refresh),
-          onPressed: () {
-            _probeNodeHealth();
-            _fetchSources();
-          },
-          variant: M3EIconButtonVariant.standard,
-          size: M3EIconButtonSize.xs,
-          tooltip: 'Refresh',
+        Focus(
+          canRequestFocus: false,
+          skipTraversal: true,
+          child: M3EIconButton(
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedRefresh,
+              color: Theme.of(context).colorScheme.onSurface,
+              size: 18,
+            ),
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              _probeNodeHealth();
+              _fetchSources();
+            },
+            variant: M3EIconButtonVariant.standard,
+            size: M3EIconButtonSize.xs,
+            tooltip: 'Refresh',
+          ),
         ),
       ];
     }
@@ -321,18 +344,33 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       return [
         M3EButton.icon(
           onPressed: _showCreateLogicalModelDialog,
-          icon: const Icon(Icons.add, size: 16),
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedPlusSign,
+            color: Theme.of(context).colorScheme.onPrimary,
+            size: 16,
+          ),
           label: const Text('New Logical Model'),
           style: M3EButtonStyle.filled,
           size: M3EButtonSize.xs,
         ),
         const SizedBox(width: 8),
-        M3EIconButton(
-          icon: const Icon(Icons.refresh),
-          onPressed: () => _registryKey.currentState?.fetchRegistry(),
-          variant: M3EIconButtonVariant.standard,
-          size: M3EIconButtonSize.xs,
-          tooltip: 'Refresh',
+        Focus(
+          canRequestFocus: false,
+          skipTraversal: true,
+          child: M3EIconButton(
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedRefresh,
+              color: Theme.of(context).colorScheme.onSurface,
+              size: 18,
+            ),
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              _registryKey.currentState?.fetchRegistry();
+            },
+            variant: M3EIconButtonVariant.standard,
+            size: M3EIconButtonSize.xs,
+            tooltip: 'Refresh',
+          ),
         ),
       ];
     }
@@ -341,7 +379,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         return [
           M3EButton.icon(
             onPressed: () => setState(() => _activities.clear()),
-            icon: const Icon(Icons.clear_all, size: 16),
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedClean,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              size: 16,
+            ),
             label: const Text('Clear Timeline'),
             style: M3EButtonStyle.outlined,
             size: M3EButtonSize.xs,
@@ -377,7 +419,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         backgroundColor: colorScheme.surfaceContainerHigh,
         title: Row(
           children: [
-            Icon(Icons.account_circle, color: colorScheme.primary, size: 24),
+            HugeIcon(icon: HugeIcons.strokeRoundedUserCircle, color: colorScheme.primary, size: 24),
             const SizedBox(width: 10),
             const Text('Google Sign In'),
           ],

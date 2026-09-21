@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../widgets/command_outcome_panel.dart';
@@ -440,7 +441,10 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
                   _isTabletSchemaOpen = !_isTabletSchemaOpen;
                 });
               },
-              icon: Icon(_isTabletSchemaOpen ? Icons.unfold_less : Icons.account_tree_outlined, size: 14),
+              icon: HugeIcon(
+                icon: _isTabletSchemaOpen ? HugeIcons.strokeRoundedArrowUp01 : HugeIcons.strokeRoundedStructure01,
+                size: 14,
+              ),
               label: Text(_isTabletSchemaOpen ? 'Hide Schema Explorer' : 'Show Schema Explorer'),
               style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
             ),
@@ -518,7 +522,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
           children: [
             OutlinedButton.icon(
               onPressed: () => _showMobileSchemaBottomSheet(context),
-              icon: const Icon(Icons.account_tree_outlined, size: 14),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 14),
               label: Text(isMongo ? 'Browse Collections' : 'Browse Schema Tables'),
               style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
             ),
@@ -632,8 +636,8 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.terminal_outlined,
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedCommandLine,
                 size: 36,
                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
               ),

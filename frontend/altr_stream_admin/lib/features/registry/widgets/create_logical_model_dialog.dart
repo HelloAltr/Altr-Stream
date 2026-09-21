@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 
@@ -44,38 +45,52 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
     });
 
     try {
-      final entities = <Map<String, dynamic>>[];
-      if (_initialEntityController.text.trim().isNotEmpty) {
-        entities.add({
-          'name': _initialEntityController.text.trim(),
-          'description': 'Primary entity for ${_nameController.text.trim()}',
-          'fields': [
-            {
-              'name': 'id',
-              'data_type': 'INTEGER',
-              'is_primary_key': true,
-              'nullable': false,
-            },
-            {
-              'name': 'name',
-              'data_type': 'STRING',
-              'is_primary_key': false,
-              'nullable': false,
-            },
-          ],
-        });
-      }
+      final name = _nameController.text.trim();
+      final version = _versionController.text.trim().isEmpty ? '1.0.0' : _versionController.text.trim();
+      final description = _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim();
 
-      final created = await widget.apiClient.createLogicalModel(
-        name: _nameController.text.trim(),
-        version: _versionController.text.trim().isEmpty ? '1.0.0' : _versionController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
-        entities: entities,
+      // 1. Create Logical Model
+      final model = await widget.apiClient.createLogicalModel(
+        name: name,
+        version: version,
+        description: description,
       );
+
+      // 2. Optionally create initial entity if specified
+      final initialEntityName = _initialEntityController.text.trim();
+      if (initialEntityName.isNotEmpty) {
+        try {
+          final entity = await widget.apiClient.createLogicalEntity(
+            modelId: model.id,
+            name: initialEntityName,
+            description: 'Starter entity for $name',
+          );
+
+          // Add standard default fields: id (INTEGER, PK), name (STRING)
+          await widget.apiClient.createLogicalField(
+            entityId: entity.id,
+            name: 'id',
+            dataType: 'INTEGER',
+            nullable: false,
+            isPrimaryKey: true,
+            description: 'Primary identifier',
+          );
+          await widget.apiClient.createLogicalField(
+            entityId: entity.id,
+            name: 'name',
+            dataType: 'STRING',
+            nullable: true,
+            isPrimaryKey: false,
+            description: 'Display name',
+          );
+        } catch (_) {
+          // Non-critical: model was created, initial entity creation best-effort
+        }
+      }
 
       if (mounted) {
         Navigator.of(context).pop();
-        widget.onModelCreated(created);
+        widget.onModelCreated(model);
       }
     } catch (e) {
       setState(() {
@@ -110,7 +125,7 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.schema_outlined, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(icon: HugeIcons.strokeRoundedStructure01, color: colorScheme.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -134,7 +149,7 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, size: 18),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -150,7 +165,7 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline, color: colorScheme.error, size: 18),
+                      HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -173,7 +188,7 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Model Name *',
                         hintText: 'e.g. CoreCommerce, UnifiedSchool',
-                        prefixIcon: Icon(Icons.label_outline, size: 18),
+                        prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTag01, size: 18),
                       ),
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) return 'Model name is required';
@@ -192,7 +207,7 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Version',
                         hintText: '1.0.0',
-                        prefixIcon: Icon(Icons.tag, size: 18),
+                        prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTag01, size: 18),
                       ),
                     ),
                   ),
@@ -215,7 +230,7 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                   labelText: 'Initial Entity (Optional)',
                   hintText: 'e.g. Customer, Order, Product',
                   helperText: 'Creates starter entity with id (INTEGER PK) and name (STRING)',
-                  prefixIcon: Icon(Icons.table_chart_outlined, size: 18),
+                  prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 18),
                 ),
               ),
               const SizedBox(height: 24),
@@ -235,7 +250,7 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.check, size: 16),
+                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
                     label: Text(_isSubmitting ? 'Creating...' : 'Create Model'),
                   ),
                 ],

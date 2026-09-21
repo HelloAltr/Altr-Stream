@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
 
 class CommandOutcomePanel extends StatelessWidget {
@@ -39,7 +40,7 @@ class CommandOutcomePanel extends StatelessWidget {
                   color: colorScheme.primaryContainer,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.check, size: 20, color: colorScheme.primary),
+                child: HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 20, color: colorScheme.primary),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -68,7 +69,7 @@ class CommandOutcomePanel extends StatelessWidget {
               if (onCopy != null) ...[
                 OutlinedButton.icon(
                   onPressed: onCopy,
-                  icon: const Icon(Icons.copy, size: 12),
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 12),
                   label: const Text(
                     'Copy Details',
                     style: TextStyle(fontSize: 11),
@@ -94,7 +95,7 @@ class CommandOutcomePanel extends StatelessWidget {
                   context,
                   label: 'Affected Rows',
                   value: affectedRows.toString(),
-                  icon: Icons.table_rows,
+                  icon: HugeIcons.strokeRoundedTable01,
                 ),
                 const SizedBox(width: 16),
               ],
@@ -102,7 +103,7 @@ class CommandOutcomePanel extends StatelessWidget {
                 context,
                 label: 'Execution Status',
                 value: message,
-                icon: Icons.tag,
+                icon: HugeIcons.strokeRoundedTag01,
                 isMonospace: true,
               ),
             ],
@@ -116,7 +117,7 @@ class CommandOutcomePanel extends StatelessWidget {
     BuildContext context, {
     required String label,
     required String value,
-    required IconData icon,
+    required icon,
     bool isMonospace = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -131,7 +132,7 @@ class CommandOutcomePanel extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 16, color: colorScheme.primary),
+            HugeIcon(icon: icon, size: 16, color: colorScheme.primary),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

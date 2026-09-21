@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 
@@ -247,7 +248,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                     color: colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.compare_arrows, color: colorScheme.primary, size: 20),
+                  child: HugeIcon(icon: HugeIcons.strokeRoundedExchange01, color: colorScheme.primary, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -275,7 +276,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, size: 18),
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
                   color: colorScheme.onSurfaceVariant,
                 ),
               ],
@@ -291,7 +292,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline, color: colorScheme.error, size: 18),
+                    HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(_errorMessage!, style: TextStyle(color: colorScheme.error, fontSize: 12)),
@@ -309,7 +310,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                     initialValue: _selectedSourceId,
                     decoration: const InputDecoration(
                       labelText: 'Target Physical Data Source',
-                      prefixIcon: Icon(Icons.storage, size: 18),
+                      prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedDatabase, size: 18),
                     ),
                     items: widget.sources.map((s) {
                       return DropdownMenuItem(
@@ -336,7 +337,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                           });
                         }
                       : null,
-                  icon: const Icon(Icons.auto_fix_high, size: 16),
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedMagicWand01, size: 16),
                   label: const Text('Auto-Match All'),
                 ),
               ],
@@ -400,7 +401,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              const Icon(Icons.arrow_forward, size: 16),
+                              const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 16),
                               const SizedBox(width: 12),
                                 Expanded(
                                 child: DropdownButtonFormField<String?>(
@@ -464,8 +465,8 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                                       width: 200,
                                       child: Row(
                                         children: [
-                                          Icon(
-                                            lf.isPrimaryKey ? Icons.key : Icons.tag,
+                                          HugeIcon(
+                                            icon: lf.isPrimaryKey ? HugeIcons.strokeRoundedKey01 : HugeIcons.strokeRoundedTag01,
                                             size: 14,
                                             color: lf.isPrimaryKey ? Colors.amber : colorScheme.onSurfaceVariant,
                                           ),
@@ -495,7 +496,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                                       ),
                                     ),
                                     const SizedBox(width: 14),
-                                    const Icon(Icons.arrow_right_alt, size: 18),
+                                    const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 18),
                                     const SizedBox(width: 14),
                                     Expanded(
                                       child: DropdownButtonFormField<String?>(
@@ -565,7 +566,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                           height: 14,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.save, size: 16),
+                      : const HugeIcon(icon: HugeIcons.strokeRoundedFloppyDisk, size: 16),
                   label: Text(_isSubmitting
                       ? 'Validating & Saving...'
                       : (_isEditMode ? 'Update & Validate Mapping' : 'Save & Validate Mapping')),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../models/api_endpoint_model.dart';
 
 class ApiEndpointList extends StatelessWidget {
@@ -32,7 +33,7 @@ class ApiEndpointList extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.search_off, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              HugeIcon(icon: HugeIcons.strokeRoundedSearchRemove, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               const SizedBox(height: 12),
               Text(
                 'No matching API endpoints found',
@@ -49,7 +50,7 @@ class ApiEndpointList extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                icon: const Icon(Icons.refresh, size: 16),
+                icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 16),
                 label: const Text('Clear Filters'),
                 onPressed: onClearFilters,
               ),
@@ -85,7 +86,7 @@ class ApiEndpointList extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
-                      Icon(Icons.folder_outlined, size: 16, color: colorScheme.primary),
+                      HugeIcon(icon: HugeIcons.strokeRoundedFolder01, size: 16, color: colorScheme.primary),
                       const SizedBox(width: 8),
                       Text(
                         tags[i],
@@ -205,8 +206,8 @@ class ApiEndpointList extends StatelessWidget {
             ),
 
             // Selection Arrow or chevron
-            Icon(
-              isSelected ? Icons.arrow_forward_ios : Icons.chevron_right,
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowRight01,
               size: 14,
               color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),

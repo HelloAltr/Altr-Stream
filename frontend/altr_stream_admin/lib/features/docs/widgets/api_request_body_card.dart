@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
 import '../models/api_endpoint_model.dart';
 
@@ -23,7 +24,7 @@ class ApiRequestBodyCard extends StatelessWidget {
   final ValueChanged<String?> onSelectBodySource;
   final ValueChanged<String?> onSelectBodyMapping;
 
-  // Align suggestion builder state
+  // Align suggestion endpoint helpers
   final bool isAlignEndpoint;
   final String? selectedAlignModelId;
   final String? selectedAlignEntityId;
@@ -31,19 +32,19 @@ class ApiRequestBodyCard extends StatelessWidget {
   final String? selectedAlignSourceId;
   final String? selectedAlignPhysicalEntityName;
   final String? selectedAlignPhysicalFieldName;
-  final TextEditingController alignNamespaceController;
-  final TextEditingController alignConfidenceController;
-  final TextEditingController alignPhysicalEntityInputController;
-  final TextEditingController alignPhysicalFieldInputController;
+  final TextEditingController? alignNamespaceController;
+  final TextEditingController? alignConfidenceController;
+  final TextEditingController? alignPhysicalEntityInputController;
+  final TextEditingController? alignPhysicalFieldInputController;
   final SourceSchemaModel? alignDiscoveredSchema;
   final bool isLoadingDiscoveredSchema;
-  final ValueChanged<String?> onSelectAlignModel;
-  final ValueChanged<String?> onSelectAlignEntity;
-  final ValueChanged<String?> onSelectAlignField;
-  final ValueChanged<String?> onSelectAlignSource;
-  final ValueChanged<String?> onSelectAlignPhysicalEntity;
-  final ValueChanged<String?> onSelectAlignPhysicalField;
-  final VoidCallback onApplyAlignSuggestion;
+  final ValueChanged<String?>? onSelectAlignModel;
+  final ValueChanged<String?>? onSelectAlignEntity;
+  final ValueChanged<String?>? onSelectAlignField;
+  final ValueChanged<String?>? onSelectAlignSource;
+  final ValueChanged<String?>? onSelectAlignPhysicalEntity;
+  final ValueChanged<String?>? onSelectAlignPhysicalField;
+  final VoidCallback? onApplyAlignSuggestion;
 
   const ApiRequestBodyCard({
     super.key,
@@ -69,19 +70,19 @@ class ApiRequestBodyCard extends StatelessWidget {
     this.selectedAlignSourceId,
     this.selectedAlignPhysicalEntityName,
     this.selectedAlignPhysicalFieldName,
-    required this.alignNamespaceController,
-    required this.alignConfidenceController,
-    required this.alignPhysicalEntityInputController,
-    required this.alignPhysicalFieldInputController,
+    this.alignNamespaceController,
+    this.alignConfidenceController,
+    this.alignPhysicalEntityInputController,
+    this.alignPhysicalFieldInputController,
     this.alignDiscoveredSchema,
     this.isLoadingDiscoveredSchema = false,
-    required this.onSelectAlignModel,
-    required this.onSelectAlignEntity,
-    required this.onSelectAlignField,
-    required this.onSelectAlignSource,
-    required this.onSelectAlignPhysicalEntity,
-    required this.onSelectAlignPhysicalField,
-    required this.onApplyAlignSuggestion,
+    this.onSelectAlignModel,
+    this.onSelectAlignEntity,
+    this.onSelectAlignField,
+    this.onSelectAlignSource,
+    this.onSelectAlignPhysicalEntity,
+    this.onSelectAlignPhysicalField,
+    this.onApplyAlignSuggestion,
   });
 
   @override
@@ -90,6 +91,7 @@ class ApiRequestBodyCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final rb = endpoint.requestBody;
     final isBodyEmpty = bodyController.text.trim().isEmpty;
+    final isAlignEndpoint = endpoint.path.contains('/align/suggestions');
 
     return Container(
       decoration: BoxDecoration(
@@ -114,8 +116,8 @@ class ApiRequestBodyCard extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.data_object_outlined,
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedCode,
                       size: 16,
                       color: colorScheme.primary,
                     ),
@@ -155,7 +157,7 @@ class ApiRequestBodyCard extends StatelessWidget {
                     // Format JSON Action
                     TextButton.icon(
                       key: const Key('api_format_json_button'),
-                      icon: const Icon(Icons.auto_fix_high, size: 13),
+                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedMagicWand01, size: 13),
                       label: const Text(
                         'Format',
                         style: TextStyle(fontSize: 11),
@@ -174,7 +176,7 @@ class ApiRequestBodyCard extends StatelessWidget {
                     // Reset Action
                     TextButton.icon(
                       key: const Key('api_reset_template_button'),
-                      icon: const Icon(Icons.restore, size: 13),
+                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedReload, size: 13),
                       label: const Text(
                         'Reset',
                         style: TextStyle(fontSize: 11),
@@ -206,8 +208,8 @@ class ApiRequestBodyCard extends StatelessWidget {
               color: colorScheme.errorContainer.withValues(alpha: 0.5),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedAlert02,
                     size: 14,
                     color: colorScheme.error,
                   ),
@@ -286,7 +288,11 @@ class ApiRequestBodyCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.auto_awesome, size: 13, color: colorScheme.primary),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedSparkles,
+                size: 13,
+                color: colorScheme.primary,
+              ),
               const SizedBox(width: 6),
               Text(
                 'Contextual ID Helpers',
@@ -398,8 +404,8 @@ class ApiRequestBodyCard extends StatelessWidget {
             label,
             style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
           ),
-          icon: Icon(
-            Icons.arrow_drop_down,
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowDown01,
             size: 16,
             color: colorScheme.onSurfaceVariant,
           ),
@@ -454,8 +460,8 @@ class ApiRequestBodyCard extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.compare_arrows_rounded,
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedExchange01,
                     size: 14,
                     color: colorScheme.primary,
                   ),
@@ -482,7 +488,10 @@ class ApiRequestBodyCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                icon: const Icon(Icons.check, size: 12),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                  size: 12,
+                ),
                 label: const Text(
                   'Apply into Body',
                   style: TextStyle(fontSize: 10.5),
@@ -671,7 +680,7 @@ class ApiRequestBodyCard extends StatelessWidget {
     required String label,
     required String? value,
     required List<DropdownMenuItem<String>> items,
-    required ValueChanged<String?> onChanged,
+    required ValueChanged<String?>? onChanged,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -698,8 +707,8 @@ class ApiRequestBodyCard extends StatelessWidget {
             ),
             overflow: TextOverflow.ellipsis,
           ),
-          icon: Icon(
-            Icons.arrow_drop_down,
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowDown01,
             size: 14,
             color: colorScheme.onSurfaceVariant,
           ),

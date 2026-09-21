@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../models/api_endpoint_model.dart';
 
 /// Left-region navigation sidebar displaying tag-grouped API endpoints,
@@ -207,8 +208,8 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
                         ),
                       ),
                       isExpanded: true,
-                      icon: Icon(
-                        Icons.arrow_drop_down,
+                      icon: HugeIcon(
+                        icon: HugeIcons.strokeRoundedArrowDown01,
                         size: 18,
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -285,8 +286,8 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
                         ),
                       ),
                       isExpanded: true,
-                      icon: Icon(
-                        Icons.arrow_drop_down,
+                      icon: HugeIcon(
+                        icon: HugeIcons.strokeRoundedArrowDown01,
                         size: 18,
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -344,8 +345,8 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Row(
               children: [
-                Icon(
-                  isCollapsed ? Icons.chevron_right : Icons.expand_more,
+                HugeIcon(
+                  icon: isCollapsed ? HugeIcons.strokeRoundedArrowRight01 : HugeIcons.strokeRoundedArrowDown01,
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),
@@ -383,9 +384,15 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
           ),
         ),
 
-        // Endpoints in Tag
+        // Endpoints List under this tag
         if (!isCollapsed)
-          for (final ep in endpoints) _buildEndpointTile(context, ep),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: endpoints.length,
+            itemBuilder: (ctx, idx) =>
+                _buildEndpointTile(context, endpoints[idx]),
+          ),
 
         const SizedBox(height: 4),
       ],
@@ -393,7 +400,8 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
   }
 
   Widget _buildEndpointTile(BuildContext context, ApiEndpoint ep) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isSelected =
         widget.selectedEndpoint?.path == ep.path &&
         widget.selectedEndpoint?.method == ep.method;
@@ -406,7 +414,7 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+              ? colorScheme.primaryContainer.withValues(alpha: 0.4)
               : Colors.transparent,
           border: Border(
             left: BorderSide(
@@ -416,16 +424,18 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
           ),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Compact Method Badge
+            // HTTP Method Badge
             Container(
-              width: 52,
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2.5),
+              width: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               decoration: BoxDecoration(
-                color: methodColor.withValues(alpha: 0.12),
+                color: methodColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: methodColor.withValues(alpha: 0.4)),
+                border: Border.all(
+                  color: methodColor.withValues(alpha: 0.4),
+                  width: 0.8,
+                ),
               ),
               child: Center(
                 child: Text(
@@ -441,41 +451,20 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
             ),
             const SizedBox(width: 8),
 
-            // Endpoint Path & Summary
+            // Endpoint Path
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ep.path,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11.5,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.w500,
-                      color: isSelected
-                          ? colorScheme.primary
-                          : colorScheme.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (ep.summary.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      ep.summary,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colorScheme.onSurfaceVariant.withValues(
-                          alpha: 0.8,
-                        ),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
+              child: Text(
+                ep.path,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected
+                      ? colorScheme.primary
+                      : colorScheme.onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -493,8 +482,8 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.search_off,
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedSearchRemove,
               size: 36,
               color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),

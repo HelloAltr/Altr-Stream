@@ -1,9 +1,11 @@
- import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
+import '../../../core/theme/app_theme.dart';
 
 class AltrQLPlaygroundScreen extends StatefulWidget {
   final List<SourceModel> sources;
@@ -354,7 +356,7 @@ DELETE users;''',
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 36),
+        icon: const HugeIcon(icon: HugeIcons.strokeRoundedAlert02, color: Colors.amber, size: 36),
         title: Text('Mass $op Confirmation Required'),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
@@ -388,7 +390,7 @@ DELETE users;''',
               Navigator.of(ctx).pop();
               _handleExecute(confirmMassMutation: true);
             },
-            icon: const Icon(Icons.check, size: 16),
+            icon: const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
             label: Text('Confirm & Execute Mass $op'),
           ),
         ],
@@ -443,8 +445,8 @@ DELETE users;''',
                 color: colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                Icons.code_rounded,
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedCode,
                 color: colorScheme.primary,
                 size: 20,
               ),
@@ -534,7 +536,7 @@ DELETE users;''',
                 Navigator.of(ctx).pop();
                 widget.onNavigateToSource!(_selectedSource!);
               },
-              icon: const Icon(Icons.arrow_forward, size: 14),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
               label: Text('Open ${_selectedSource!.name} Detail'),
             ),
           FilledButton(
@@ -637,8 +639,8 @@ DELETE users;''',
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.terminal_outlined,
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedCommandLine,
                         size: 16,
                         color: colorScheme.primary,
                       ),
@@ -689,8 +691,8 @@ DELETE users;''',
                                     isDense: true,
                                     dropdownColor:
                                         colorScheme.surfaceContainerHighest,
-                                    icon: Icon(
-                                      Icons.arrow_drop_down_rounded,
+                                    icon: HugeIcon(
+                                      icon: HugeIcons.strokeRoundedArrowDown01,
                                       size: 20,
                                       color: colorScheme.primary,
                                     ),
@@ -701,8 +703,8 @@ DELETE users;''',
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Icon(
-                                              Icons.hub_rounded,
+                                            HugeIcon(
+                                              icon: HugeIcons.strokeRoundedWorkflow,
                                               size: 14,
                                               color: colorScheme.primary,
                                             ),
@@ -743,10 +745,8 @@ DELETE users;''',
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Icon(
-                                                src.type == 'SQLITE'
-                                                    ? Icons.insert_drive_file_outlined
-                                                    : Icons.storage_rounded,
+                                              HugeIcon(
+                                                icon: AppTheme.getSourceTypeIcon(src.type),
                                                 size: 14,
                                                 color: colorScheme.primary,
                                               ),
@@ -766,23 +766,15 @@ DELETE users;''',
                                                   vertical: 1,
                                                 ),
                                                 decoration: BoxDecoration(
-                                                  color: colorScheme
-                                                      .surfaceContainerHigh,
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                  border: Border.all(
-                                                    color: colorScheme
-                                                        .outlineVariant
-                                                        .withValues(alpha: 0.5),
-                                                  ),
+                                                  color: colorScheme.surfaceContainerHighest,
+                                                  borderRadius: BorderRadius.circular(4),
                                                 ),
                                                 child: Text(
                                                   src.type,
                                                   style: TextStyle(
                                                     fontSize: 9,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: colorScheme
-                                                        .onSurfaceVariant,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: colorScheme.onSurfaceVariant,
                                                   ),
                                                 ),
                                               ),
@@ -791,13 +783,14 @@ DELETE users;''',
                                         );
                                       }),
                                     ],
-                                    onChanged: (val) {
+                                    onChanged: (sourceId) {
                                       setState(() {
-                                        if (val == null) {
+                                        if (sourceId == null) {
                                           _selectedSource = null;
                                         } else {
-                                          _selectedSource = widget.sources
-                                              .firstWhere((s) => s.id == val);
+                                          _selectedSource = widget.sources.firstWhere(
+                                            (s) => s.id == sourceId,
+                                          );
                                         }
                                       });
                                     },
@@ -865,7 +858,7 @@ DELETE users;''',
                               ),
                               const SizedBox(width: 12),
                               OutlinedButton.icon(
-                                icon: const Icon(Icons.refresh, size: 14),
+                                icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
                                 label: const Text(
                                   'Reset Query',
                                   style: TextStyle(fontSize: 12),
@@ -987,8 +980,8 @@ DELETE users;''',
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(
-                                      Icons.code,
+                                    HugeIcon(
+                                      icon: HugeIcons.strokeRoundedCode,
                                       size: 14,
                                       color: colorScheme.primary,
                                     ),
@@ -1020,8 +1013,8 @@ DELETE users;''',
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    Icons.code,
+                                  HugeIcon(
+                                    icon: HugeIcons.strokeRoundedCode,
                                     size: 14,
                                     color: colorScheme.primary,
                                   ),
@@ -1035,8 +1028,8 @@ DELETE users;''',
                                     ),
                                   ),
                                   const SizedBox(width: 2),
-                                  Icon(
-                                    Icons.arrow_drop_down,
+                                  HugeIcon(
+                                    icon: HugeIcons.strokeRoundedArrowDown01,
                                     size: 16,
                                     color: colorScheme.onSurfaceVariant,
                                   ),
@@ -1054,8 +1047,8 @@ DELETE users;''',
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Icon(
-                                    Icons.account_tree_outlined,
+                                : const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedStructure01,
                                     size: 14,
                                   ),
                             label: Text(
@@ -1075,8 +1068,8 @@ DELETE users;''',
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Icon(
-                                    Icons.fact_check_outlined,
+                                : const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedTask01,
                                     size: 14,
                                   ),
                             label: Text(
@@ -1096,8 +1089,8 @@ DELETE users;''',
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Icon(
-                                    Icons.play_arrow_rounded,
+                                : const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedPlay,
                                     size: 16,
                                   ),
                             label: Text(
@@ -1131,8 +1124,8 @@ DELETE users;''',
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.architecture,
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedStructure01,
                         size: 18,
                         color: colorScheme.primary,
                       ),
@@ -1161,7 +1154,7 @@ DELETE users;''',
                     children: [
                       OutlinedButton.icon(
                         onPressed: _showEngineRoadmapDialog,
-                        icon: const Icon(Icons.info_outline, size: 14),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedInformationCircle, size: 14),
                         label: const Text(
                           'Engine Roadmap Details',
                           style: TextStyle(fontSize: 12),
@@ -1271,10 +1264,10 @@ DELETE users;''',
               ),
               child: Row(
                 children: [
-                  Icon(
-                    isSuccess
-                        ? Icons.check_circle_outline
-                        : Icons.error_outline,
+                  HugeIcon(
+                    icon: isSuccess
+                        ? HugeIcons.strokeRoundedCheckmarkCircle02
+                        : HugeIcons.strokeRoundedAlertCircle,
                     color: isSuccess ? Colors.green : colorScheme.error,
                     size: 18,
                   ),
@@ -1485,7 +1478,7 @@ DELETE users;''',
                                   : '${_error!.type}: ${_error!.message}';
                               _copyToClipboard(errText, 'Error Diagnostics');
                             },
-                            icon: const Icon(Icons.copy, size: 12),
+                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 12),
                             label: const Text(
                               'Copy Error',
                               style: TextStyle(fontSize: 11),
@@ -1543,8 +1536,8 @@ DELETE users;''',
               color: colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              Icons.play_circle_outline,
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedPlaySquare,
               size: 22,
               color: colorScheme.primary,
             ),
@@ -1628,7 +1621,7 @@ DELETE users;''',
           _copyToClipboard(jsonString, 'AltrQueryIR JSON');
         }
       },
-      icon: const Icon(Icons.copy, size: 13),
+      icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 13),
       label: Text(label, style: const TextStyle(fontSize: 11)),
       style: OutlinedButton.styleFrom(
         visualDensity: VisualDensity.compact,
@@ -1762,10 +1755,8 @@ DELETE users;''',
                   label: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        q.dialect == 'SQLITE'
-                            ? Icons.insert_drive_file_outlined
-                            : Icons.storage_rounded,
+                      HugeIcon(
+                        icon: AppTheme.getSourceTypeIcon(q.dialect),
                         size: 13,
                         color: isSelected
                             ? colorScheme.onPrimaryContainer
@@ -1996,8 +1987,8 @@ DELETE users;''',
           childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           title: Row(
             children: [
-              Icon(
-                Icons.hub_outlined,
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedWorkflow,
                 size: 15,
                 color: colorScheme.primary,
               ),
@@ -2031,7 +2022,7 @@ DELETE users;''',
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
+                  const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 14, color: Colors.green),
                   const SizedBox(width: 6),
                   Text(
                     s.sourceName ?? s.sourceId,
@@ -2058,8 +2049,8 @@ DELETE users;''',
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
                   children: [
-                    Icon(
-                      isFailed ? Icons.error_outline : Icons.remove_circle_outline,
+                    HugeIcon(
+                      icon: isFailed ? HugeIcons.strokeRoundedAlertCircle : HugeIcons.strokeRoundedMinusSignCircle,
                       size: 14,
                       color: isFailed ? Colors.red : Colors.amber.shade700,
                     ),

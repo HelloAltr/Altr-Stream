@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
 
 class SchemaExplorer extends StatefulWidget {
@@ -85,7 +86,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
             ),
             child: Row(
               children: [
-                Icon(Icons.account_tree_outlined, size: 16, color: colorScheme.primary),
+                HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 16, color: colorScheme.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
@@ -133,7 +134,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
                               color: colorScheme.primary,
                             ),
                           )
-                        : const Icon(Icons.refresh, size: 16),
+                        : const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 16),
                     tooltip: 'Refresh / Discover Schema',
                     onPressed: widget.isLoading ? null : widget.onRefreshSchema,
                     visualDensity: VisualDensity.compact,
@@ -154,10 +155,10 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
                       ? 'Filter collections & fields...'
                       : 'Filter tables & columns...',
                   hintStyle: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
-                  prefixIcon: Icon(Icons.search, size: 16, color: colorScheme.onSurfaceVariant),
+                  prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, size: 16, color: colorScheme.onSurfaceVariant),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, size: 14),
+                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 14),
                           onPressed: () => _searchController.clear(),
                           visualDensity: VisualDensity.compact,
                         )
@@ -195,7 +196,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.dns_outlined, size: 28, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              HugeIcon(icon: HugeIcons.strokeRoundedDatabase, size: 28, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               const SizedBox(height: 8),
               Text(
                 'No Source Selected',
@@ -240,7 +241,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 24, color: colorScheme.error),
+              HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, size: 24, color: colorScheme.error),
               const SizedBox(height: 8),
               Text(
                 'Failed to Load Schema',
@@ -255,7 +256,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: widget.onRefreshSchema,
-                icon: const Icon(Icons.refresh, size: 14),
+                icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
                 label: const Text('Retry Discovery', style: TextStyle(fontSize: 11)),
                 style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
               ),
@@ -272,7 +273,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.inventory_2_outlined, size: 28, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              HugeIcon(icon: HugeIcons.strokeRoundedPackage, size: 28, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               const SizedBox(height: 8),
               Text(
                 'No Schema Discovered',
@@ -287,7 +288,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: widget.onRefreshSchema,
-                icon: const Icon(Icons.auto_awesome, size: 14),
+                icon: const HugeIcon(icon: HugeIcons.strokeRoundedSparkles, size: 14),
                 label: const Text('Discover Schema', style: TextStyle(fontSize: 11)),
                 style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
               ),
@@ -339,10 +340,10 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
             dense: true,
             tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
             childrenPadding: const EdgeInsets.only(bottom: 6),
-            leading: Icon(
-              entity.entityType.toUpperCase() == 'COLLECTION'
-                  ? Icons.folder_copy_outlined
-                  : (entity.entityType.toUpperCase() == 'VIEW' ? Icons.visibility_outlined : Icons.table_chart_outlined),
+            leading: HugeIcon(
+              icon: entity.entityType.toUpperCase() == 'COLLECTION'
+                  ? HugeIcons.strokeRoundedFolderLibrary
+                  : (entity.entityType.toUpperCase() == 'VIEW' ? HugeIcons.strokeRoundedView : HugeIcons.strokeRoundedTable01),
               size: 16,
               color: colorScheme.primary,
             ),
@@ -365,7 +366,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.code_rounded, size: 15),
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedCode, size: 15),
                   tooltip: isMongo ? 'Query Collection (Insert Template)' : 'Query Table (Insert Template)',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
@@ -373,7 +374,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
                   color: colorScheme.primary,
                   onPressed: () => widget.onSelectTable(entity),
                 ),
-                const Icon(Icons.expand_more, size: 16),
+                const HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 16),
               ],
             ),
             children: entity.fields.map((field) => _buildFieldRow(context, colorScheme, field, entity)).toList(),
@@ -414,7 +415,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
             if (field.isPrimaryKey)
               Padding(
                 padding: const EdgeInsets.only(right: 6),
-                child: Icon(Icons.vpn_key_rounded, size: 12, color: Colors.amber.shade700),
+                child: HugeIcon(icon: HugeIcons.strokeRoundedKey01, size: 12, color: Colors.amber.shade700),
               )
             else
               const SizedBox(width: 18),

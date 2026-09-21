@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class ApiSearchFilterBar extends StatelessWidget {
   final String searchQuery;
@@ -52,10 +53,10 @@ class ApiSearchFilterBar extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'Search APIs (path, method, summary, tags, parameters)...',
               hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 13),
-              prefixIcon: Icon(Icons.search, size: 20, color: colorScheme.primary),
+              prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, size: 20, color: colorScheme.primary),
               suffixIcon: searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear, size: 18),
+                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
                       tooltip: 'Clear search',
                       onPressed: () => onSearchChanged(''),
                     )
@@ -105,7 +106,7 @@ class ApiSearchFilterBar extends StatelessWidget {
                     key: const Key('api_method_filter_dropdown'),
                     value: selectedMethod,
                     isDense: true,
-                    icon: const Icon(Icons.arrow_drop_down, size: 18),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 18),
                     hint: Text(
                       'All Methods',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
@@ -147,7 +148,7 @@ class ApiSearchFilterBar extends StatelessWidget {
                     key: const Key('api_tag_filter_dropdown'),
                     value: selectedTag,
                     isDense: true,
-                    icon: const Icon(Icons.arrow_drop_down, size: 18),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 18),
                     hint: Text(
                       'All Tags',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
@@ -198,7 +199,7 @@ class ApiSearchFilterBar extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     visualDensity: VisualDensity.compact,
                   ),
-                  icon: const Icon(Icons.filter_alt_off, size: 14),
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedFilterRemove, size: 14),
                   label: const Text('Reset Filters', style: TextStyle(fontSize: 12)),
                   onPressed: onClearAll,
                 ),

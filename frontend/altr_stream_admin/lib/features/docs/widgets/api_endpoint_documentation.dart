@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/config/app_config.dart';
 import '../models/api_endpoint_model.dart';
 import 'api_curl_generator.dart';
@@ -49,8 +50,8 @@ class ApiEndpointDocumentation extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Icon(
-                Icons.chevron_right,
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedArrowRight01,
                 size: 14,
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -130,7 +131,10 @@ class ApiEndpointDocumentation extends StatelessWidget {
 
                 // Copy Path Action
                 IconButton(
-                  icon: const Icon(Icons.copy, size: 16),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedCopy01,
+                    size: 16,
+                  ),
                   tooltip: 'Copy endpoint path',
                   onPressed: () =>
                       _copyToClipboard(context, endpoint.path, 'Endpoint path'),
@@ -167,7 +171,7 @@ class ApiEndpointDocumentation extends StatelessWidget {
           // 5. Parameters Section
           _buildSectionHeader(
             context,
-            icon: Icons.tune_outlined,
+            icon: HugeIcons.strokeRoundedSlidersVertical,
             title: 'Parameters',
             count: endpoint.parameters.length,
           ),
@@ -186,7 +190,7 @@ class ApiEndpointDocumentation extends StatelessWidget {
           if (endpoint.hasRequestBody) ...[
             _buildSectionHeader(
               context,
-              icon: Icons.data_object_outlined,
+              icon: HugeIcons.strokeRoundedCode,
               title: 'Request Body Schema',
               badge: endpoint.requestBody?.required == true
                   ? 'Required'
@@ -203,7 +207,7 @@ class ApiEndpointDocumentation extends StatelessWidget {
           // 7. Response Codes & Schema Section
           _buildSectionHeader(
             context,
-            icon: Icons.output_outlined,
+            icon: HugeIcons.strokeRoundedShare01,
             title: 'Responses',
             count: endpoint.responses.length,
           ),
@@ -230,7 +234,7 @@ class ApiEndpointDocumentation extends StatelessWidget {
 
   Widget _buildSectionHeader(
     BuildContext context, {
-    required IconData icon,
+    required dynamic icon,
     required String title,
     int? count,
     String? badge,
@@ -240,7 +244,7 @@ class ApiEndpointDocumentation extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: 18, color: colorScheme.primary),
+        HugeIcon(icon: icon, size: 18, color: colorScheme.primary),
         const SizedBox(width: 8),
         Text(
           title,
@@ -703,7 +707,11 @@ class ApiEndpointDocumentation extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.terminal, size: 16, color: colorScheme.primary),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedCommandLine,
+                    size: 16,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'Example cURL Command',
@@ -716,7 +724,10 @@ class ApiEndpointDocumentation extends StatelessWidget {
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.copy, size: 15),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCopy01,
+                  size: 15,
+                ),
                 tooltip: 'Copy cURL command',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -767,8 +778,8 @@ class ApiEndpointDocumentation extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.library_books_outlined,
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedBook02,
                 size: 16,
                 color: colorScheme.primary,
               ),
@@ -803,7 +814,10 @@ class ApiEndpointDocumentation extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                icon: const Icon(Icons.rocket_launch, size: 15),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedRocket,
+                  size: 15,
+                ),
                 label: const Text(
                   'Launch Swagger UI (/docs)',
                   style: TextStyle(fontSize: 12),
@@ -822,7 +836,10 @@ class ApiEndpointDocumentation extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                icon: const Icon(Icons.article_outlined, size: 15),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedDocumentCode,
+                  size: 15,
+                ),
                 label: const Text(
                   'Open ReDoc (/redoc)',
                   style: TextStyle(fontSize: 12),
@@ -841,7 +858,10 @@ class ApiEndpointDocumentation extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                icon: const Icon(Icons.code, size: 15),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCode,
+                  size: 15,
+                ),
                 label: const Text(
                   'OpenAPI JSON (/openapi.json)',
                   style: TextStyle(fontSize: 12),
@@ -885,7 +905,10 @@ class ApiEndpointDocumentation extends StatelessWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.copy, size: 15),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCopy01,
+                  size: 15,
+                ),
                 tooltip: 'Copy cURL command',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../core/api/api_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
@@ -79,7 +80,7 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
           color: AppTheme.successBg(context),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(Icons.bolt, color: successColor, size: 20),
+        child: HugeIcon(icon: HugeIcons.strokeRoundedFlash, color: successColor, size: 20),
       ),
       topDivider: false,
       bottomDivider: false,
@@ -148,7 +149,7 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
                   height: 12,
                   child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
                 )
-              : const Icon(Icons.refresh, size: 14),
+              : HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: colorScheme.onSecondaryContainer, size: 14),
           label: Text(_isChecking ? 'Checking...' : 'Probe Node'),
         ),
         M3EButton(

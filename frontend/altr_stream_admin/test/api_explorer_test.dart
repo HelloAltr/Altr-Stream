@@ -673,7 +673,7 @@ void main() {
         expect(find.text('/api/v1/execute'), findsNothing);
 
         // Clear search
-        await tester.tap(find.byIcon(Icons.clear));
+        await tester.tap(find.byTooltip('Clear search'));
         await tester.pumpAndSettle();
         expect(find.text('9 endpoints'), findsOneWidget);
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
 
 class SourcesScreen extends StatefulWidget {
@@ -60,11 +62,11 @@ class _SourcesScreenState extends State<SourcesScreen> {
               child: TextField(
                 decoration: InputDecoration(
                   hintText: 'Search sources by name, host, or database...',
-                  prefixIcon: Icon(Icons.search, size: 18, color: colorScheme.onSurfaceVariant),
+                  prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, size: 18, color: colorScheme.onSurfaceVariant),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, size: 16),
+                          icon: HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 16, color: colorScheme.onSurfaceVariant),
                           onPressed: () => setState(() => _searchQuery = ''),
                         )
                       : null,
@@ -125,7 +127,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
+        color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
@@ -137,7 +139,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
               color: colorScheme.primaryContainer.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.storage, color: colorScheme.primary, size: 36),
+            child: HugeIcon(icon: HugeIcons.strokeRoundedDatabase, color: colorScheme.primary, size: 36),
           ),
           const SizedBox(height: 16),
           Text(
@@ -157,7 +159,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: widget.onAddSource,
-            icon: const Icon(Icons.add, size: 16),
+            icon: HugeIcon(icon: HugeIcons.strokeRoundedPlusSign, size: 16, color: colorScheme.onPrimary),
             label: const Text('Add Data Source'),
           ),
         ],
@@ -172,13 +174,13 @@ class _SourcesScreenState extends State<SourcesScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
+        color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
-          Icon(Icons.search_off, size: 32, color: colorScheme.onSurfaceVariant),
+          HugeIcon(icon: HugeIcons.strokeRoundedSearchRemove, size: 32, color: colorScheme.onSurfaceVariant),
           const SizedBox(height: 12),
           Text(
             'No matching data sources',
@@ -219,6 +221,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
+      color: colorScheme.surfaceContainerHighest,
       child: InkWell(
         onTap: () => widget.onSelectSource(source),
         borderRadius: BorderRadius.circular(10),
@@ -230,12 +233,12 @@ class _SourcesScreenState extends State<SourcesScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHigh,
+                  color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                 ),
-                child: Icon(
-                  source.type == 'SQLITE' ? Icons.insert_drive_file_outlined : Icons.storage_rounded,
+                child: HugeIcon(
+                  icon: AppTheme.getSourceTypeIcon(source.type),
                   color: colorScheme.primary,
                   size: 22,
                 ),
@@ -306,7 +309,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
               // Status Pill & Chevron (Right)
               StatusBadge(status: source.status),
               const SizedBox(width: 16),
-              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant, size: 20),
+              HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, color: colorScheme.onSurfaceVariant, size: 20),
             ],
           ),
         ),

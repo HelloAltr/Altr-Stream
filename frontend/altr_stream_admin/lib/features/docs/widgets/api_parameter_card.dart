@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
 import '../models/api_endpoint_model.dart';
 
@@ -46,7 +47,7 @@ class ApiParameterCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                Icon(Icons.tune_outlined, size: 16, color: colorScheme.primary),
+                HugeIcon(icon: HugeIcons.strokeRoundedSlidersVertical, size: 16, color: colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
                   'Parameters',
@@ -342,8 +343,8 @@ class ApiParameterCard extends StatelessWidget {
             'Select registered data source...',
             style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
           ),
-          icon: Icon(
-            Icons.arrow_drop_down,
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowDown01,
             size: 16,
             color: colorScheme.onSurfaceVariant,
           ),
@@ -393,8 +394,8 @@ class ApiParameterCard extends StatelessWidget {
             'Select logical model...',
             style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
           ),
-          icon: Icon(
-            Icons.arrow_drop_down,
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowDown01,
             size: 16,
             color: colorScheme.onSurfaceVariant,
           ),
@@ -441,8 +442,8 @@ class ApiParameterCard extends StatelessWidget {
             'Select source mapping...',
             style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
           ),
-          icon: Icon(
-            Icons.arrow_drop_down,
+          icon: HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowDown01,
             size: 16,
             color: colorScheme.onSurfaceVariant,
           ),

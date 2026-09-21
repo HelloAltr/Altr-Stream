@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/config/app_config.dart';
 import '../../../shared/widgets/status_badge.dart';
@@ -111,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.info_outline, color: colorScheme.primary, size: 18),
+                          HugeIcon(icon: HugeIcons.strokeRoundedInformationCircle, color: colorScheme.primary, size: 18),
                           const SizedBox(width: 8),
                           Text('Node Identity & Role', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                         ],
@@ -146,7 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.network_check, color: colorScheme.primary, size: 18),
+                          HugeIcon(icon: HugeIcons.strokeRoundedWifi01, color: colorScheme.primary, size: 18),
                           const SizedBox(width: 8),
                           Text('Networking & Runtime', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                         ],
@@ -196,7 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.menu_book_outlined, color: colorScheme.primary, size: 18),
+                        HugeIcon(icon: HugeIcons.strokeRoundedBook02, color: colorScheme.primary, size: 18),
                         const SizedBox(width: 8),
                         Text('API Documentation', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                         const SizedBox(width: 10),
@@ -215,7 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     ElevatedButton.icon(
                       onPressed: () => _launchExternalUrl(AppConfig.apiDocsUrl),
-                      icon: const Icon(Icons.open_in_new, size: 14),
+                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedShare01, size: 14),
                       label: const Text('Open Swagger UI'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.primary,
@@ -250,7 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(width: 6),
                       IconButton(
-                        icon: const Icon(Icons.copy, size: 14),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 14),
                         tooltip: 'Copy Swagger UI URL',
                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                         padding: EdgeInsets.zero,
@@ -279,7 +280,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(width: 6),
                       IconButton(
-                        icon: const Icon(Icons.copy, size: 14),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 14),
                         tooltip: 'Copy OpenAPI JSON URL',
                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                         padding: EdgeInsets.zero,
@@ -288,7 +289,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(width: 8),
                       OutlinedButton.icon(
                         onPressed: () => _launchExternalUrl(AppConfig.openApiJsonUrl),
-                        icon: const Icon(Icons.code, size: 12),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedCode, size: 12),
                         label: const Text('View JSON', style: TextStyle(fontSize: 11)),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -312,7 +313,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.palette_outlined, color: colorScheme.primary, size: 18),
+                    HugeIcon(icon: HugeIcons.strokeRoundedPaintBoard, color: colorScheme.primary, size: 18),
                     const SizedBox(width: 8),
                     Text('Theme & Appearance', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                   ],
@@ -337,17 +338,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ButtonSegment(
                           value: ThemeMode.system,
                           label: Text('System'),
-                          icon: Icon(Icons.brightness_auto, size: 16),
+                          icon: HugeIcon(icon: HugeIcons.strokeRoundedSettings02, size: 16),
                         ),
                         ButtonSegment(
                           value: ThemeMode.light,
                           label: Text('Light'),
-                          icon: Icon(Icons.light_mode, size: 16),
+                          icon: HugeIcon(icon: HugeIcons.strokeRoundedSun01, size: 16),
                         ),
                         ButtonSegment(
                           value: ThemeMode.dark,
                           label: Text('Dark'),
-                          icon: Icon(Icons.dark_mode, size: 16),
+                          icon: HugeIcon(icon: HugeIcons.strokeRoundedMoon02, size: 16),
                         ),
                       ],
                       selected: {widget.themeMode},
@@ -363,6 +364,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 80),
       ],
     );
   }

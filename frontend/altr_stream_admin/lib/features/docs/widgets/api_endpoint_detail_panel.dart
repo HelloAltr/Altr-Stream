@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../models/api_endpoint_model.dart';
@@ -436,7 +437,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                   ),
                   if (widget.onOpenSwagger != null)
                     IconButton(
-                      icon: const Icon(Icons.open_in_new, size: 18),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedShare01,
+                        size: 18,
+                      ),
                       tooltip: 'View in Swagger UI',
                       onPressed: widget.onOpenSwagger,
                     ),
@@ -515,7 +519,7 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : const Icon(Icons.play_arrow, size: 20),
+                : const HugeIcon(icon: HugeIcons.strokeRoundedPlay, size: 20),
             label: Text(
               _isExecuting ? 'Executing Request...' : 'Execute Request',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -564,7 +568,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
         children: [
           Row(
             children: [
-              Icon(Icons.tune, size: 16, color: colorScheme.primary),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedSlidersVertical,
+                size: 16,
+                color: colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Parameters',
@@ -691,7 +699,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.schema, size: 14, color: colorScheme.primary),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedStructure01,
+                    size: 14,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Text('Logical Model:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
                   const SizedBox(width: 8),
@@ -742,7 +754,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.dns, size: 14, color: colorScheme.primary),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedDatabase,
+                    size: 14,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Text('Physical Source:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
                   const SizedBox(width: 8),
@@ -794,7 +810,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.compare_arrows, size: 14, color: colorScheme.primary),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedExchange01,
+                    size: 14,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Text('Source Mapping:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
                   const SizedBox(width: 8),
@@ -949,7 +969,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
         children: [
           Row(
             children: [
-              Icon(Icons.data_object, size: 16, color: colorScheme.primary),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedCode,
+                size: 16,
+                color: colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Request Body',
@@ -980,7 +1004,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 ),
-                icon: const Icon(Icons.auto_fix_high, size: 14),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedMagicWand01,
+                  size: 14,
+                ),
                 label: const Text('Format JSON', style: TextStyle(fontSize: 12)),
                 onPressed: _formatJsonBody,
               ),
@@ -992,7 +1019,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 ),
-                icon: const Icon(Icons.restart_alt, size: 14),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedReload,
+                  size: 14,
+                ),
                 label: const Text('Reset Template', style: TextStyle(fontSize: 12)),
                 onPressed: _resetJsonBody,
               ),
@@ -1096,7 +1126,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
         children: [
           Row(
             children: [
-              Icon(Icons.auto_fix_high, size: 16, color: colorScheme.primary),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedMagicWand01,
+                size: 16,
+                color: colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Altr Align Suggestion Helper',
@@ -1517,7 +1551,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
               ),
-              icon: const Icon(Icons.check_circle_outline, size: 16),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                size: 16,
+              ),
               label: const Text('Apply Align Suggestion to Request Body', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               onPressed: _applyAlignSuggestionToBody,
             ),
@@ -1550,7 +1587,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
         children: [
           Row(
             children: [
-              Icon(Icons.auto_awesome, size: 14, color: colorScheme.primary),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedSparkles,
+                size: 14,
+                color: colorScheme.primary,
+              ),
               const SizedBox(width: 6),
               Text(
                 'Contextual ID Helpers',
@@ -1576,7 +1617,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
-                    Icon(Icons.schema, size: 13, color: colorScheme.primary),
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedStructure01,
+                      size: 13,
+                      color: colorScheme.primary,
+                    ),
                     const SizedBox(width: 6),
                     Text('Logical Model:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
                     const SizedBox(width: 8),
@@ -1626,7 +1671,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
-                    Icon(Icons.dns, size: 13, color: colorScheme.primary),
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedDatabase,
+                      size: 13,
+                      color: colorScheme.primary,
+                    ),
                     const SizedBox(width: 6),
                     Text('Physical Source:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
                     const SizedBox(width: 8),
@@ -1676,7 +1725,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
-                    Icon(Icons.compare_arrows, size: 13, color: colorScheme.primary),
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedExchange01,
+                      size: 13,
+                      color: colorScheme.primary,
+                    ),
                     const SizedBox(width: 6),
                     Text('Source Mapping:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
                     const SizedBox(width: 8),

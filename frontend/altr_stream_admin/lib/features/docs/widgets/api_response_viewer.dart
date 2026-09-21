@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
 import 'api_curl_generator.dart';
 
@@ -210,8 +211,10 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        isSuccess ? Icons.check_circle : Icons.error_outline,
+                      HugeIcon(
+                        icon: isSuccess
+                            ? HugeIcons.strokeRoundedCheckmarkCircle02
+                            : HugeIcons.strokeRoundedAlertCircle,
                         size: 14,
                         color: statusColor,
                       ),
@@ -239,7 +242,11 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.timer_outlined, size: 13, color: colorScheme.onSurfaceVariant),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedClock01,
+                        size: 13,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         widget.result.formattedDuration,
@@ -259,21 +266,30 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.code, size: 16),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedCode,
+                        size: 16,
+                      ),
                       tooltip: 'Copy cURL Command',
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       padding: const EdgeInsets.all(4),
                       onPressed: () => _copyToClipboard(context, curlCommand, 'cURL command'),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.link, size: 16),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedLink01,
+                        size: 16,
+                      ),
                       tooltip: 'Copy Request URL',
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       padding: const EdgeInsets.all(4),
                       onPressed: () => _copyToClipboard(context, widget.result.requestUrl, 'Request URL'),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.copy, size: 16),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedCopy01,
+                        size: 16,
+                      ),
                       tooltip: 'Copy Response Body',
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       padding: const EdgeInsets.all(4),
@@ -281,7 +297,10 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                     ),
                     if (widget.onClear != null)
                       IconButton(
-                        icon: const Icon(Icons.close, size: 16),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedCancel01,
+                          size: 16,
+                        ),
                         tooltip: 'Clear Response',
                         constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                         padding: const EdgeInsets.all(4),
@@ -302,7 +321,11 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber_rounded, size: 16, color: statusColor),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedAlert02,
+                    size: 16,
+                    color: statusColor,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -338,7 +361,11 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                     runSpacing: 6,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Icon(Icons.gpp_maybe, size: 18, color: colorScheme.error),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedShieldAlert,
+                        size: 18,
+                        color: colorScheme.error,
+                      ),
                       Text(
                         'Request validation failed',
                         style: TextStyle(
@@ -460,7 +487,12 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                       visualDensity: VisualDensity.compact,
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     ),
-                    icon: Icon(_showRawResponse ? Icons.visibility_off : Icons.visibility, size: 14),
+                    icon: HugeIcon(
+                      icon: _showRawResponse
+                          ? HugeIcons.strokeRoundedViewOff
+                          : HugeIcons.strokeRoundedView,
+                      size: 14,
+                    ),
                     label: Text(
                       _showRawResponse ? 'Hide Raw Response' : 'View Raw Response',
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),

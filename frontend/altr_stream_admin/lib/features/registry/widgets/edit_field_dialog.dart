@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 
@@ -97,7 +98,7 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.edit_outlined, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(icon: HugeIcons.strokeRoundedEdit02, color: colorScheme.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -121,7 +122,7 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, size: 18),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -200,7 +201,7 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.check, size: 16),
+                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
                     label: Text(_isSubmitting ? 'Saving...' : 'Save Changes'),
                   ),
                 ],

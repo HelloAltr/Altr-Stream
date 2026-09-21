@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 const List<String> kDestructiveKeywords = [
   'DROP',
@@ -89,7 +90,7 @@ class DestructiveQueryDialog extends StatelessWidget {
               color: colorScheme.errorContainer,
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.warning_amber_rounded, size: 20, color: colorScheme.error),
+            child: HugeIcon(icon: HugeIcons.strokeRoundedAlert02, size: 20, color: colorScheme.error),
           ),
           const SizedBox(width: 12),
           Expanded(

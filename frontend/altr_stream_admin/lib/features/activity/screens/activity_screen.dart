@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -35,7 +36,7 @@ class ActivityScreen extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Icon(Icons.history_toggle_off, size: 40, color: colorScheme.onSurfaceVariant),
+                HugeIcon(icon: HugeIcons.strokeRoundedClock01, size: 40, color: colorScheme.onSurfaceVariant),
                 const SizedBox(height: 16),
                 Text(
                   'No Activity Recorded Yet',
@@ -74,36 +75,36 @@ class ActivityScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final statusActiveColor = AppTheme.getStatusColor('ACTIVE', context);
 
-    IconData icon;
+    dynamic icon;
     Color iconColor;
 
     switch (act.type) {
       case ActivityType.nodeStart:
-        icon = Icons.bolt;
+        icon = HugeIcons.strokeRoundedFlash;
         iconColor = colorScheme.primary;
         break;
       case ActivityType.sourceRegistered:
-        icon = Icons.add_circle_outline;
+        icon = HugeIcons.strokeRoundedPlusSignCircle;
         iconColor = statusActiveColor;
         break;
       case ActivityType.sourceUpdated:
-        icon = Icons.edit_outlined;
+        icon = HugeIcons.strokeRoundedEdit02;
         iconColor = colorScheme.tertiary;
         break;
       case ActivityType.sourceDeleted:
-        icon = Icons.delete_outline;
+        icon = HugeIcons.strokeRoundedDelete02;
         iconColor = colorScheme.error;
         break;
       case ActivityType.connectionTested:
-        icon = Icons.wifi_tethering;
+        icon = HugeIcons.strokeRoundedWifi01;
         iconColor = act.isSuccess ? statusActiveColor : colorScheme.error;
         break;
       case ActivityType.schemaDiscovered:
-        icon = Icons.search;
+        icon = HugeIcons.strokeRoundedSearch01;
         iconColor = colorScheme.primary;
         break;
       case ActivityType.healthCheck:
-        icon = Icons.health_and_safety_outlined;
+        icon = HugeIcons.strokeRoundedShieldCheck;
         iconColor = act.isSuccess ? statusActiveColor : colorScheme.error;
         break;
     }
@@ -117,7 +118,7 @@ class ActivityScreen extends StatelessWidget {
             color: iconColor.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: iconColor, size: 16),
+          child: HugeIcon(icon: icon, color: iconColor, size: 16),
         ),
         const SizedBox(width: 14),
         Expanded(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
@@ -219,7 +220,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                           height: 12,
                           child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
                         )
-                      : const Icon(Icons.bolt, size: 14),
+                      : HugeIcon(icon: HugeIcons.strokeRoundedFlash, size: 14, color: colorScheme.primary),
                   label: Text(_isTesting ? 'Testing...' : 'Test Connection'),
                 ),
                 ElevatedButton.icon(
@@ -230,7 +231,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                           height: 12,
                           child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary),
                         )
-                      : const Icon(Icons.search, size: 14),
+                      : HugeIcon(icon: HugeIcons.strokeRoundedSearch01, size: 14, color: colorScheme.onPrimary),
                   label: Text(_isDiscovering ? 'Discovering...' : 'Discover Schema'),
                 ),
               ],
@@ -305,7 +306,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                 _buildConnectionTab(context, dateFormat),
                 _buildSchemasTab(context),
                 _buildPlaygroundTab(context),
-                _buildHealthTab(context, dateFormat),
+                _buildHealthTab(context),
               ],
             ),
           ),
@@ -393,7 +394,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _isDiscovering ? null : _discoverSchema,
-                          icon: const Icon(Icons.search, size: 14),
+                          icon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, size: 14, color: colorScheme.onPrimary),
                           label: const Text('Run Schema Discovery'),
                         ),
                       ),
@@ -402,7 +403,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: _isTesting ? null : _testConnection,
-                          icon: const Icon(Icons.bolt, size: 14),
+                          icon: HugeIcon(icon: HugeIcons.strokeRoundedFlash, size: 14, color: colorScheme.primary),
                           label: const Text('Probe Connection'),
                         ),
                       ),
@@ -432,7 +433,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
                         onPressed: widget.onDelete,
-                        icon: Icon(Icons.delete_outline, size: 14, color: colorScheme.error),
+                        icon: HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 14, color: colorScheme.error),
                         label: Text('Delete Data Source', style: TextStyle(color: colorScheme.error, fontSize: 12)),
                         style: OutlinedButton.styleFrom(side: BorderSide(color: colorScheme.error)),
                       ),
@@ -558,12 +559,25 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
   Widget _buildSchemasTab(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    if (_isDiscovering) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Introspecting database catalog and schemas...'),
+          ],
+        ),
+      );
+    }
+
     if (_schema == null || _schema!.entities.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.schema_outlined, size: 48, color: colorScheme.onSurfaceVariant),
+            HugeIcon(icon: HugeIcons.strokeRoundedHierarchySquare01, size: 48, color: colorScheme.onSurfaceVariant),
             const SizedBox(height: 16),
             Text(
               'No Schema Snapshot Discovered Yet',
@@ -579,7 +593,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _isDiscovering ? null : _discoverSchema,
-              icon: const Icon(Icons.search, size: 14),
+              icon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, size: 14, color: colorScheme.onPrimary),
               label: const Text('Discover Schema Now'),
             ),
           ],
@@ -625,7 +639,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Row(
                               children: [
-                                Icon(Icons.folder_outlined, size: 16, color: colorScheme.primary),
+                                HugeIcon(icon: HugeIcons.strokeRoundedFolder01, size: 16, color: colorScheme.primary),
                                 const SizedBox(width: 6),
                                 Text(
                                   ns,
@@ -654,8 +668,8 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(
-                                      isMongo ? Icons.folder_copy_outlined : Icons.table_chart_outlined,
+                                    HugeIcon(
+                                      icon: isMongo ? HugeIcons.strokeRoundedFolderLibrary : HugeIcons.strokeRoundedTable01,
                                       size: 14,
                                       color: colorScheme.onSurfaceVariant,
                                     ),
@@ -706,7 +720,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                     children: [
                       Row(
                         children: [
-                          Icon(isMongo ? Icons.dns_outlined : Icons.table_rows, color: colorScheme.primary, size: 18),
+                          HugeIcon(icon: isMongo ? HugeIcons.strokeRoundedFolder02 : HugeIcons.strokeRoundedTable01, color: colorScheme.primary, size: 18),
                           const SizedBox(width: 8),
                           Text(
                             '${currentEntity.namespace}.${currentEntity.name}',
@@ -814,7 +828,8 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
   }
 
   // --- TAB 4: HEALTH & DIAGNOSTICS ---
-  Widget _buildHealthTab(BuildContext context, DateFormat dateFormat) {
+  Widget _buildHealthTab(BuildContext context) {
+    final dateFormat = DateFormat('yyyy-MM-dd • hh:mm:ss a');
     final colorScheme = Theme.of(context).colorScheme;
 
     return SingleChildScrollView(
@@ -823,7 +838,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
         children: [
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -836,7 +851,7 @@ class _SourceDetailScreenState extends State<SourceDetailScreen> with SingleTick
                       ),
                       OutlinedButton.icon(
                         onPressed: _isTesting ? null : _testConnection,
-                        icon: const Icon(Icons.bolt, size: 14),
+                        icon: HugeIcon(icon: HugeIcons.strokeRoundedFlash, size: 14, color: colorScheme.primary),
                         label: Text(_isTesting ? 'Pinging...' : 'Probe Live Connection'),
                       ),
                     ],

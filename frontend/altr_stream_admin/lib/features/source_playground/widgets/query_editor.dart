@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
 
 class QueryEditor extends StatelessWidget {
@@ -157,7 +158,7 @@ class QueryEditor extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.terminal_outlined, size: 16, color: colorScheme.primary),
+                HugeIcon(icon: HugeIcons.strokeRoundedCommandLine, size: 16, color: colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
                   'Query Editor',
@@ -198,7 +199,7 @@ class QueryEditor extends StatelessWidget {
                       child: DropdownButton<String>(
                         value: currentMode,
                         isDense: true,
-                        icon: Icon(Icons.arrow_drop_down, size: 16, color: colorScheme.onSurfaceVariant),
+                        icon: HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 16, color: colorScheme.onSurfaceVariant),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -227,7 +228,7 @@ class QueryEditor extends StatelessWidget {
                 ],
                 const Spacer(),
                 OutlinedButton.icon(
-                  icon: const Icon(Icons.refresh, size: 14),
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
                   label: const Text(
                     'Clear',
                     style: TextStyle(fontSize: 12),
@@ -337,8 +338,8 @@ class QueryEditor extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Row(
                             children: [
-                              Icon(
-                                Icons.code,
+                              HugeIcon(
+                                icon: HugeIcons.strokeRoundedCode,
                                 size: 14,
                                 color: colorScheme.primary,
                               ),
@@ -368,8 +369,8 @@ class QueryEditor extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.code,
+                            HugeIcon(
+                              icon: HugeIcons.strokeRoundedCode,
                               size: 14,
                               color: colorScheme.primary,
                             ),
@@ -383,8 +384,8 @@ class QueryEditor extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 2),
-                            Icon(
-                              Icons.arrow_drop_down,
+                            HugeIcon(
+                              icon: HugeIcons.strokeRoundedArrowDown01,
                               size: 16,
                               color: colorScheme.onSurfaceVariant,
                             ),
@@ -403,7 +404,7 @@ class QueryEditor extends StatelessWidget {
                                 color: colorScheme.onPrimary,
                               ),
                             )
-                          : const Icon(Icons.play_arrow_rounded, size: 18),
+                          : const HugeIcon(icon: HugeIcons.strokeRoundedPlay, size: 18),
                       label: Text(isExecuting ? 'Running...' : 'Run Query'),
                       style: FilledButton.styleFrom(
                         visualDensity: VisualDensity.compact,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
@@ -402,8 +403,20 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
                     children: [
                       TabBar(
                         tabs: const [
-                          Tab(icon: Icon(Icons.description_outlined, size: 16), text: 'Documentation'),
-                          Tab(icon: Icon(Icons.play_circle_outline, size: 16), text: 'Try It Out'),
+                          Tab(
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedDocumentCode,
+                              size: 16,
+                            ),
+                            text: 'Documentation',
+                          ),
+                          Tab(
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedPlay,
+                              size: 16,
+                            ),
+                            text: 'Try It Out',
+                          ),
                         ],
                       ),
                       if (hasBoundedHeight)
@@ -470,9 +483,27 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
         children: [
           const TabBar(
             tabs: [
-              Tab(icon: Icon(Icons.list_alt, size: 16), text: 'Endpoints'),
-              Tab(icon: Icon(Icons.description_outlined, size: 16), text: 'Docs'),
-              Tab(icon: Icon(Icons.play_circle_outline, size: 16), text: 'Try It'),
+              Tab(
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedListView,
+                  size: 16,
+                ),
+                text: 'Endpoints',
+              ),
+              Tab(
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedDocumentCode,
+                  size: 16,
+                ),
+                text: 'Docs',
+              ),
+              Tab(
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedPlay,
+                  size: 16,
+                ),
+                text: 'Try It',
+              ),
             ],
           ),
           if (hasBoundedHeight)
@@ -544,7 +575,11 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.error_outline, color: colorScheme.error, size: 24),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedAlertCircle,
+                  color: colorScheme.error,
+                  size: 24,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -569,7 +604,10 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
                 backgroundColor: colorScheme.error,
                 foregroundColor: colorScheme.onError,
               ),
-              icon: const Icon(Icons.refresh, size: 16),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedRefresh,
+                size: 16,
+              ),
               label: const Text('Retry Loading OpenAPI'),
               onPressed: _loadOpenApiSpec,
             ),
@@ -589,7 +627,11 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.api_outlined, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedApi,
+              size: 48,
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+            ),
             const SizedBox(height: 12),
             Text(
               'No Endpoint Selected',
@@ -616,7 +658,11 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.play_circle_outline, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4)),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedPlay,
+              size: 48,
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+            ),
             const SizedBox(height: 12),
             Text(
               'Try It Out Console',

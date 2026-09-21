@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../models/api_endpoint_model.dart';
@@ -437,8 +438,8 @@ class _ApiTryItOutPanelState extends State<ApiTryItOutPanel> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.play_circle_outline,
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedPlay,
                     size: 18,
                     color: colorScheme.primary,
                   ),
@@ -478,7 +479,7 @@ class _ApiTryItOutPanelState extends State<ApiTryItOutPanel> {
                           color: colorScheme.onPrimary,
                         ),
                       )
-                    : const Icon(Icons.send_rounded, size: 14),
+                    : const HugeIcon(icon: HugeIcons.strokeRoundedSent, size: 14),
                 label: Text(
                   _isExecuting ? 'Executing...' : 'Execute Request',
                   style: const TextStyle(
@@ -638,8 +639,8 @@ class _ApiTryItOutPanelState extends State<ApiTryItOutPanel> {
               child: Center(
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.terminal_outlined,
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedCommandLine,
                       size: 28,
                       color: colorScheme.onSurfaceVariant.withValues(
                         alpha: 0.4,

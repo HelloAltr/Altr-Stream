@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 
@@ -92,7 +93,7 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.table_rows_outlined, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(icon: HugeIcons.strokeRoundedTable01, color: colorScheme.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -116,7 +117,7 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, size: 18),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -132,7 +133,7 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline, color: colorScheme.error, size: 18),
+                      HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -150,7 +151,7 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Entity Name *',
                   hintText: 'e.g. Student, Course, OrderItem',
-                  prefixIcon: Icon(Icons.table_rows_outlined, size: 18),
+                  prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 18),
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Entity name is required';
@@ -187,7 +188,7 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.check, size: 16),
+                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
                     label: Text(_isSubmitting ? 'Saving...' : 'Save Changes'),
                   ),
                 ],

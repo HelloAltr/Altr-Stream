@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
@@ -19,7 +20,7 @@ class LogicalModelDetailScreen extends StatefulWidget {
   final ApiClient apiClient;
   final VoidCallback onBack;
   final VoidCallback onModelDeleted;
-  final String nodeStatus;
+  final String nodeStatus; 
   final VoidCallback onNodeStatusTap;
 
   const LogicalModelDetailScreen({
@@ -618,7 +619,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                       ),
                       IconButton(
                         onPressed: _showEditModelDialog,
-                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 16),
                         tooltip: 'Edit Model Details',
                         visualDensity: VisualDensity.compact,
                       ),
@@ -636,7 +637,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
             ),
             IconButton(
               onPressed: _deleteModel,
-              icon: const Icon(Icons.delete_outline, size: 18),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
               color: colorScheme.error,
               tooltip: 'Delete Model',
             ),
@@ -654,15 +655,15 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
           indicatorColor: colorScheme.primary,
           tabs: [
             const Tab(
-              icon: Icon(Icons.info_outline, size: 16),
+              icon: HugeIcon(icon: HugeIcons.strokeRoundedInformationCircle, size: 16),
               text: 'Overview',
             ),
             Tab(
-              icon: const Icon(Icons.schema_outlined, size: 16),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 16),
               text: 'Logical Schema (${_currentModel.entityCount} entities, ${_currentModel.totalFieldCount} fields)',
             ),
             Tab(
-              icon: const Icon(Icons.link, size: 16),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedLink01, size: 16),
               text: 'Source Mappings (${_mappings.length} sources)',
             ),
           ],
@@ -701,7 +702,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.table_chart_outlined, size: 40, color: colorScheme.onSurfaceVariant),
+              HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 40, color: colorScheme.onSurfaceVariant),
               const SizedBox(height: 12),
               const Text('No logical entities defined yet.', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
@@ -709,7 +710,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: _showAddEntityDialog,
-                icon: const Icon(Icons.add, size: 16),
+                icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 16),
                 label: const Text('Add Logical Entity'),
               ),
             ],
@@ -734,7 +735,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
             ),
             ElevatedButton.icon(
               onPressed: _showAddEntityDialog,
-              icon: const Icon(Icons.add, size: 14),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
               label: const Text('Add Logical Entity'),
             ),
           ],
@@ -764,7 +765,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                             color: colorScheme.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Icon(Icons.table_rows_outlined, size: 16, color: colorScheme.primary),
+                          child: HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 16, color: colorScheme.primary),
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -786,19 +787,19 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                       children: [
                         TextButton.icon(
                           onPressed: () => _showAddFieldDialog(entity),
-                          icon: const Icon(Icons.add, size: 14),
+                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
                           label: const Text('Add Field', style: TextStyle(fontSize: 12)),
                         ),
                         const SizedBox(width: 4),
                         IconButton(
                           onPressed: () => _showEditEntityDialog(entity),
-                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 18),
                           tooltip: 'Edit Entity',
                         ),
                         const SizedBox(width: 4),
                         IconButton(
                           onPressed: () => _deleteEntity(entity),
-                          icon: const Icon(Icons.delete_outline, size: 18),
+                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
                           color: colorScheme.error,
                           tooltip: 'Delete Entity',
                         ),
@@ -856,8 +857,8 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Row(
                               children: [
-                                Icon(
-                                  f.isPrimaryKey ? Icons.key : Icons.tag,
+                                HugeIcon(
+                                  icon: f.isPrimaryKey ? HugeIcons.strokeRoundedKey01 : HugeIcons.strokeRoundedTag01,
                                   size: 13,
                                   color: f.isPrimaryKey ? Colors.amber : colorScheme.onSurfaceVariant,
                                 ),
@@ -914,13 +915,13 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                               children: [
                                 IconButton(
                                   onPressed: () => _showEditFieldDialog(f),
-                                  icon: const Icon(Icons.edit_outlined, size: 14),
+                                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 14),
                                   tooltip: 'Edit field',
                                   visualDensity: VisualDensity.compact,
                                 ),
                                 IconButton(
                                   onPressed: () => _deleteField(f),
-                                  icon: const Icon(Icons.delete_outline, size: 14),
+                                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 14),
                                   color: colorScheme.error.withValues(alpha: 0.7),
                                   tooltip: 'Delete field',
                                   visualDensity: VisualDensity.compact,
@@ -963,7 +964,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.warning_amber_rounded, size: 13, color: colorScheme.onSurfaceVariant),
+            HugeIcon(icon: HugeIcons.strokeRoundedAlert02, size: 13, color: colorScheme.onSurfaceVariant),
             const SizedBox(width: 5),
             Text(
               'Unmapped',
@@ -985,7 +986,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cancel_outlined, size: 13, color: colorScheme.error),
+            HugeIcon(icon: HugeIcons.strokeRoundedCancelCircle, size: 13, color: colorScheme.error),
             const SizedBox(width: 5),
             Text(
               'Missing in Schema',
@@ -1008,7 +1009,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.highlight_off, size: 13, color: colorScheme.error),
+            HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, size: 13, color: colorScheme.error),
             const SizedBox(width: 5),
             Text(
               'Type Mismatch',
@@ -1029,7 +1030,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check_circle_outline, size: 13, color: Colors.green),
+          HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 13, color: Colors.green),
           SizedBox(width: 5),
           Text(
             'Valid',
@@ -1081,14 +1082,14 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
             children: [
               Row(
                 children: [
-                  Icon(Icons.table_chart, size: 15, color: colorScheme.primary),
+                  HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 15, color: colorScheme.primary),
                   const SizedBox(width: 8),
                   Text(
                     'Entity: ${logicalEntity.name}',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward, size: 12),
+                  const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 12),
                   const SizedBox(width: 8),
                   Container(
                     height: 34,
@@ -1241,8 +1242,8 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Row(
                         children: [
-                          Icon(
-                            lf.isPrimaryKey ? Icons.key : Icons.tag,
+                          HugeIcon(
+                            icon: lf.isPrimaryKey ? HugeIcons.strokeRoundedKey01 : HugeIcons.strokeRoundedTag01,
                             size: 13,
                             color: lf.isPrimaryKey ? Colors.amber : colorScheme.onSurfaceVariant,
                           ),
@@ -1313,66 +1314,32 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                                         borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
                                       ),
                                     ),
+                                    hint: const Text('(Unmapped)', style: TextStyle(fontSize: 12)),
                                     items: [
                                       const DropdownMenuItem<String?>(
                                         value: null,
                                         child: Text('(Unmapped)', style: TextStyle(fontSize: 12)),
                                       ),
-                                      ...availableFields.map((pf) {
-                                        final isComp = areDataTypesCompatible(lf.dataType, pf.dataType);
-                                        return DropdownMenuItem<String?>(
+                                      ...availableFields.map(
+                                        (pf) => DropdownMenuItem<String?>(
                                           value: pf.name,
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Flexible(
-                                                child: Text(
-                                                  pf.name,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontFamily: 'monospace',
-                                                    fontWeight: FontWeight.w500,
-                                                    color: isComp ? null : colorScheme.error,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (!isComp) ...[
-                                                const SizedBox(width: 4),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                                  decoration: BoxDecoration(
-                                                    color: colorScheme.errorContainer.withValues(alpha: 0.4),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    pf.dataType,
-                                                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: colorScheme.error),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        );
-                                      }),
+                                          child: Text('${pf.name} (${pf.dataType})', style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+                                        ),
+                                      ),
                                     ],
                                     onChanged: (val) {
                                       setState(() {
-                                        final map = _editingFieldAssignments.putIfAbsent(logicalEntity.id, () => {});
-                                        map[lf.name] = val;
+                                        _editingFieldAssignments.putIfAbsent(logicalEntity.id, () => {})[lf.name] = val;
                                       });
                                     },
                                   ),
                                 ))
-                          : Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              child: Text(
-                                mappedPhysicalFieldName ?? '—',
-                                style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontFamily: 'monospace',
-                                  color: mappedPhysicalFieldName != null ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
-                                ),
+                          : Text(
+                              mappedPhysicalFieldName ?? '(Unmapped)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontFamily: 'monospace',
+                                color: mappedPhysicalFieldName != null ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
                               ),
                             ),
                     ),
@@ -1381,7 +1348,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                       alignment: Alignment.centerLeft,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Text(
-                        physicalDataType ?? (mappedPhysicalFieldName != null && mappedPhysicalFieldName != '—' ? 'UNKNOWN' : '—'),
+                        physicalDataType ?? '—',
                         style: TextStyle(
                           fontSize: 12,
                           fontFamily: 'monospace',
@@ -1442,8 +1409,8 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                       ),
-                      child: Icon(
-                        source?.type == 'SQLITE' ? Icons.insert_drive_file_outlined : Icons.storage,
+                      child: HugeIcon(
+                        icon: AppTheme.getSourceTypeIcon(source?.type),
                         color: colorScheme.primary,
                         size: 16,
                       ),
@@ -1493,7 +1460,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                     if (isEditing) ...[
                       OutlinedButton.icon(
                         onPressed: () => _autoMatchCurrentEdit(mapping),
-                        icon: const Icon(Icons.auto_fix_high, size: 14),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedMagicWand01, size: 14),
                         label: const Text('Auto-Match', style: TextStyle(fontSize: 12)),
                       ),
                       const SizedBox(width: 8),
@@ -1506,33 +1473,33 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                         onPressed: _isSavingInlineEdit ? null : () => _saveCurrentInlineEdit(mapping),
                         icon: _isSavingInlineEdit
                             ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.save, size: 14),
+                            : const HugeIcon(icon: HugeIcons.strokeRoundedFloppyDisk, size: 14),
                         label: const Text('Save Changes', style: TextStyle(fontSize: 12)),
                       ),
                     ] else ...[
                       OutlinedButton.icon(
                         onPressed: () => _startInlineEdit(mapping),
-                        icon: const Icon(Icons.edit_outlined, size: 14),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 14),
                         label: const Text('Edit', style: TextStyle(fontSize: 12)),
                       ),
                       const SizedBox(width: 8),
                       if (mapping.status != 'ACTIVE') ...[
                         OutlinedButton.icon(
                           onPressed: () => _validateMapping(mapping),
-                          icon: const Icon(Icons.check_circle_outline, size: 14),
+                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 14),
                           label: const Text('Validate', style: TextStyle(fontSize: 12)),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
                           onPressed: mapping.status == 'VALIDATED' ? () => _activateMapping(mapping) : null,
-                          icon: const Icon(Icons.bolt, size: 14),
+                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedFlash, size: 14),
                           label: const Text('Activate', style: TextStyle(fontSize: 12)),
                         ),
                         const SizedBox(width: 8),
                       ],
                       IconButton(
                         onPressed: () => _deleteMapping(mapping),
-                        icon: const Icon(Icons.delete_outline, size: 18),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
                         color: colorScheme.error,
                         tooltip: 'Delete mapping',
                       ),
@@ -1555,7 +1522,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.warning_amber_rounded, size: 16, color: colorScheme.error),
+                        HugeIcon(icon: HugeIcons.strokeRoundedAlert02, size: 16, color: colorScheme.error),
                         const SizedBox(width: 8),
                         Text(
                           'Validation Errors:',
@@ -1616,7 +1583,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.link_off, size: 40, color: colorScheme.onSurfaceVariant),
+              HugeIcon(icon: HugeIcons.strokeRoundedLink01, size: 40, color: colorScheme.onSurfaceVariant),
               const SizedBox(height: 12),
               const Text('No source mappings connected to this model.', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
@@ -1624,7 +1591,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: _showAddMappingDialog,
-                icon: const Icon(Icons.compare_arrows, size: 16),
+                icon: const HugeIcon(icon: HugeIcons.strokeRoundedExchange01, size: 16),
                 label: const Text('Add Source Mapping'),
               ),
             ],
@@ -1649,7 +1616,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
             ),
             ElevatedButton.icon(
               onPressed: _showAddMappingDialog,
-              icon: const Icon(Icons.compare_arrows, size: 14),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedExchange01, size: 14),
               label: const Text('Add Source Mapping'),
             ),
           ],
@@ -1766,8 +1733,8 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                           } else if (m.status == 'DRAFT') {
                             indicator = Tooltip(
                               message: 'Draft (Pending Validation)',
-                              child: Icon(
-                                Icons.warning_amber_rounded,
+                              child: HugeIcon(
+                                icon: HugeIcons.strokeRoundedAlert02,
                                 size: 14,
                                 color: AppTheme.getStatusColor('DRAFT', context),
                               ),
@@ -1866,7 +1833,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                             key: const ValueKey('model_id_copied'),
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.check_circle_rounded, size: 14, color: colorScheme.primary),
+                              HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 14, color: colorScheme.primary),
                               const SizedBox(width: 4),
                               Text(
                                 'Copied',
@@ -1930,7 +1897,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _showAddEntityDialog,
-                    icon: const Icon(Icons.add, size: 14),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
                     label: const Text('Add Logical Entity'),
                   ),
                 ),
@@ -1939,7 +1906,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: _showAddMappingDialog,
-                    icon: const Icon(Icons.compare_arrows, size: 14),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedExchange01, size: 14),
                     label: const Text('Map New Data Source'),
                   ),
                 ),
@@ -1948,7 +1915,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: _showEditModelDialog,
-                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 14),
                     label: const Text('Edit Model Details'),
                   ),
                 ),
@@ -1978,7 +1945,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
                   onPressed: _deleteModel,
-                  icon: Icon(Icons.delete_outline, size: 14, color: colorScheme.error),
+                  icon: HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 14, color: colorScheme.error),
                   label: Text('Delete Logical Model', style: TextStyle(color: colorScheme.error, fontSize: 12)),
                   style: OutlinedButton.styleFrom(side: BorderSide(color: colorScheme.error)),
                 ),

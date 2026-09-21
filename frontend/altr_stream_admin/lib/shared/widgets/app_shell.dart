@@ -114,21 +114,13 @@ class AppShell extends StatelessWidget {
 
   static const double _desktopDrawerWidth = 230.0;
 
-  // --- DESKTOP LAYOUT (M3E Navigation Drawer + M3E Top App Bar) ---
+  // --- DESKTOP LAYOUT (Full-row Navigation Sidebar + Top App Bar) ---
   Widget _buildDesktopLayout(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final selectedIndex = _getNavIndex(activeRoute);
-
-    final m3eThemeData = M3EThemeData(
-      colorScheme: colorScheme.toM3EColorScheme(),
-      navigationDrawerTheme: const M3ENavigationDrawerTheme(
-        width: _desktopDrawerWidth,
-      ),
-    );
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      backgroundColor: colorScheme.surfaceContainer,
       appBar: _buildTopAppBar(context),
       floatingActionButton:
           (activeRoute == '/altrql' || activeRoute == '/playground')
@@ -137,139 +129,235 @@ class AppShell extends StatelessWidget {
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Material 3 Expressive Navigation Drawer with rounded top-right and bottom-right edges
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomRight: Radius.circular(28),
-            ),
-            child: Container(
-              width: _desktopDrawerWidth,
-              color: colorScheme.surfaceContainerLow,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: M3ETheme(
-                      data: m3eThemeData,
-                      child: M3ENavigationDrawer(
-                        selectedIndex: selectedIndex,
-                        onDestinationSelected: (int index) {
-                          onNavigate(_navRoutes[index]);
-                        },
-                        destinations: <M3ENavigationDestination>[
-                          M3ENavigationDestination(
-                            icon: HugeIcon(
-                              icon: HugeIcons.strokeRoundedDashboardSquare01,
-                              color: colorScheme.primary,
-                              size: 20,
-                            ),
-                            label: 'Overview',
+          Container(
+            width: _desktopDrawerWidth,
+            color: colorScheme.surfaceContainer,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildDesktopNavList(context),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Divider(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 2,
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    onTap: () => onLaunchDocs != null
+                        ? onLaunchDocs!()
+                        : _launchDocs(context),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          HugeIcon(
+                            icon: HugeIcons.strokeRoundedBook02,
+                            color: colorScheme.primary,
+                            size: 20,
                           ),
-                          M3ENavigationDestination(
-                            icon: HugeIcon(
-                              icon: HugeIcons.strokeRoundedDatabase,
-                              color: colorScheme.primary,
-                              size: 20,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Documentation',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                            label: 'Data Sources',
-                          ),
-                          M3ENavigationDestination(
-                            icon: HugeIcon(
-                              icon: HugeIcons.strokeRoundedHierarchySquare01,
-                              color: colorScheme.primary,
-                              size: 20,
-                            ),
-                            label: 'Mapping Registry',
-                          ),
-                          M3ENavigationDestination(
-                            icon: HugeIcon(
-                              icon: HugeIcons.strokeRoundedActivity01,
-                              color: colorScheme.primary,
-                              size: 20,
-                            ),
-                            label: 'Activity',
-                          ),
-                          M3ENavigationDestination(
-                            icon: HugeIcon(
-                              icon: HugeIcons.strokeRoundedSettings01,
-                              color: colorScheme.primary,
-                              size: 20,
-                            ),
-                            label: 'Settings',
-                          ),
-                          M3ENavigationDestination(
-                            icon: HugeIcon(
-                              icon: HugeIcons.strokeRoundedApi,
-                              color: colorScheme.primary,
-                              size: 20,
-                            ),
-                            label: 'API Explorer',
                           ),
                         ],
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                      onTap: () => onLaunchDocs != null
-                          ? onLaunchDocs!()
-                          : _launchDocs(context),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        child: Row(
-                          children: [
-                            HugeIcon(
-                              icon: HugeIcons.strokeRoundedBook02,
-                              color: colorScheme.primary,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Documentation',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  _buildDrawerProfileTile(context),
-                ],
-              ),
+                ),
+                _buildDrawerProfileTile(context),
+              ],
             ),
           ),
-
-          // Main Workspace
+          // Main Workspace Canvas with Top-Left Concave Fillet Transition
           Expanded(
             child: Container(
-              color: colorScheme.surface,
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerLowest,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
               child: SafeArea(
                 child: SingleChildScrollView(
-                  child: Center(
+                  child: Align(
+                    alignment: Alignment.topLeft,
                     child: Container(
-                      constraints: const BoxConstraints(maxWidth: 1360),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 28,
+                      constraints: const BoxConstraints(maxWidth: 1600),
+                      padding: const EdgeInsets.only(
+                        left: 32,
+                        right: 32,
+                        top: 24,
+                        bottom: 28,
                       ),
                       child: child,
                     ),
                   ),
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static const double _navItemHeight = 40.0;
+  static const double _navItemSpacing = 4.0;
+  static const double _navTopPadding = 12.0;
+
+  int _getDesktopNavIndex(String route) {
+    if (route == '/') return 0;
+    if (route == '/sources' || route.startsWith('/sources/')) return 1;
+    if (route == '/registry' || route.startsWith('/registry/')) return 2;
+    if (route == '/activity' || route.startsWith('/activity/')) return 3;
+    if (route == '/settings' || route.startsWith('/settings/')) return 4;
+    if (route == '/api-explorer' || route == '/docs' || route == '/api-docs') return 5;
+    return -1;
+  }
+
+  Widget _buildDesktopNavList(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final selectedIndex = _getDesktopNavIndex(activeRoute);
+
+    const items = [
+      (
+        label: 'Overview',
+        icon: HugeIcons.strokeRoundedDashboardSquare01,
+        route: '/',
+      ),
+      (
+        label: 'Data Sources',
+        icon: HugeIcons.strokeRoundedDatabase,
+        route: '/sources',
+      ),
+      (
+        label: 'Mapping Registry',
+        icon: HugeIcons.strokeRoundedHierarchySquare01,
+        route: '/registry',
+      ),
+      (
+        label: 'Activity',
+        icon: HugeIcons.strokeRoundedActivity01,
+        route: '/activity',
+      ),
+      (
+        label: 'Settings',
+        icon: HugeIcons.strokeRoundedSettings01,
+        route: '/settings',
+      ),
+      (
+        label: 'API Explorer',
+        icon: HugeIcons.strokeRoundedApi,
+        route: '/api-explorer',
+      ),
+    ];
+
+    final totalHeight = _navTopPadding + items.length * _navItemHeight + (items.length - 1) * _navItemSpacing;
+
+    return SizedBox(
+      height: totalHeight,
+      child: Stack(
+        children: [
+          // Animated Moving Pill Highlight
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOutCubicEmphasized,
+            top: selectedIndex >= 0
+                ? _navTopPadding + selectedIndex * (_navItemHeight + _navItemSpacing)
+                : -100.0,
+            left: 12.0,
+            width: _desktopDrawerWidth - 24.0,
+            height: _navItemHeight,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: selectedIndex >= 0 ? 1.0 : 0.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          // Nav Items on top of moving highlight
+          Padding(
+            padding: const EdgeInsets.only(top: _navTopPadding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < items.length; i++) ...[
+                  SizedBox(
+                    height: _navItemHeight,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        onTap: () => onNavigate(items[i].route),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                          child: Row(
+                            children: [
+                              HugeIcon(
+                                icon: items[i].icon,
+                                color: selectedIndex == i
+                                    ? colorScheme.onSecondaryContainer
+                                    : colorScheme.onSurfaceVariant,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: AnimatedDefaultTextStyle(
+                                  duration: const Duration(milliseconds: 200),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontFamily: theme.textTheme.bodyMedium?.fontFamily,
+                                    fontWeight: selectedIndex == i
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: selectedIndex == i
+                                        ? colorScheme.onSecondaryContainer
+                                        : colorScheme.onSurfaceVariant,
+                                  ),
+                                  child: Text(
+                                    items[i].label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (i < items.length - 1)
+                    const SizedBox(height: _navItemSpacing),
+                ],
+              ],
             ),
           ),
         ],
@@ -284,7 +372,7 @@ class AppShell extends StatelessWidget {
     final selectedIndex = _getNavIndex(activeRoute);
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      backgroundColor: colorScheme.surfaceContainerLowest,
       floatingActionButton:
           (activeRoute == '/altrql' || activeRoute == '/playground')
           ? null
@@ -293,7 +381,7 @@ class AppShell extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           NavigationRail(
-            backgroundColor: colorScheme.surfaceContainerLow,
+            backgroundColor: colorScheme.surfaceContainer,
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) => onNavigate(_navRoutes[index]),
             labelType: NavigationRailLabelType.all,
@@ -310,7 +398,11 @@ class AppShell extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.menu_book_outlined, size: 18),
+                        icon: HugeIcon(
+                          icon: HugeIcons.strokeRoundedBook02,
+                          color: colorScheme.onSurfaceVariant,
+                          size: 18,
+                        ),
                         tooltip: 'API Documentation (Swagger UI)',
                         onPressed: () => _launchDocs(context),
                       ),
@@ -323,36 +415,84 @@ class AppShell extends StatelessWidget {
                 ),
               ),
             ),
-            destinations: const [
+            destinations: [
               NavigationRailDestination(
-                icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard),
-                label: Text('Overview', style: TextStyle(fontSize: 11)),
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedDashboardSquare01,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+                selectedIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedDashboardSquare01,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+                label: const Text('Overview', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.dns_outlined),
-                selectedIcon: Icon(Icons.dns),
-                label: Text('Sources', style: TextStyle(fontSize: 11)),
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedDatabase,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+                selectedIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedDatabase,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+                label: const Text('Data Sources', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.schema_outlined),
-                selectedIcon: Icon(Icons.schema),
-                label: Text('Registry', style: TextStyle(fontSize: 11)),
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedHierarchySquare01,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+                selectedIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedHierarchySquare01,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+                label: const Text('Mapping Registry', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.history_outlined),
-                selectedIcon: Icon(Icons.history),
-                label: Text('Activity', style: TextStyle(fontSize: 11)),
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedActivity01,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+                selectedIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedActivity01,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+                label: const Text('Activity', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('Settings', style: TextStyle(fontSize: 11)),
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedSettings01,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+                selectedIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedSettings01,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+                label: const Text('Settings', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.api_outlined),
-                selectedIcon: Icon(Icons.api),
-                label: Text('API Explorer', style: TextStyle(fontSize: 11)),
+                icon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedApi,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+                selectedIcon: HugeIcon(
+                  icon: HugeIcons.strokeRoundedApi,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+                label: const Text('API Explorer', style: TextStyle(fontSize: 11)),
               ),
             ],
           ),
@@ -383,13 +523,13 @@ class AppShell extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      backgroundColor: colorScheme.surfaceContainerLowest,
       floatingActionButton:
           (activeRoute == '/altrql' || activeRoute == '/playground')
           ? null
           : _buildCompactFab(context),
       appBar: AppBar(
-        backgroundColor: colorScheme.surfaceContainerLow,
+        backgroundColor: colorScheme.surfaceContainer,
         elevation: 0,
         titleSpacing: 0,
         title: Row(
@@ -410,7 +550,7 @@ class AppShell extends StatelessWidget {
         actions: [_buildThemeToggleButton(context), const SizedBox(width: 8)],
       ),
       drawer: Drawer(
-        backgroundColor: colorScheme.surfaceContainerLow,
+        backgroundColor: colorScheme.surfaceContainer,
         child: Column(
           children: [
             DrawerHeader(
@@ -450,9 +590,10 @@ class AppShell extends StatelessWidget {
               ),
             ),
             ListTile(
-              leading: Icon(
-                Icons.dashboard_outlined,
+              leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedDashboardSquare01,
                 color: colorScheme.primary,
+                size: 20,
               ),
               title: const Text('Overview'),
               selected: activeRoute == '/',
@@ -462,7 +603,11 @@ class AppShell extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.dns_outlined, color: colorScheme.primary),
+              leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedDatabase,
+                color: colorScheme.primary,
+                size: 20,
+              ),
               title: const Text('Data Sources'),
               selected:
                   activeRoute == '/sources' ||
@@ -473,7 +618,11 @@ class AppShell extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.schema_outlined, color: colorScheme.primary),
+              leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedHierarchySquare01,
+                color: colorScheme.primary,
+                size: 20,
+              ),
               title: const Text('Mapping Registry'),
               selected:
                   activeRoute == '/registry' ||
@@ -484,7 +633,11 @@ class AppShell extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.history_outlined, color: colorScheme.primary),
+              leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedActivity01,
+                color: colorScheme.primary,
+                size: 20,
+              ),
               title: const Text('Activity'),
               selected: activeRoute == '/activity',
               onTap: () {
@@ -494,9 +647,10 @@ class AppShell extends StatelessWidget {
             ),
             Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
             ListTile(
-              leading: Icon(
-                Icons.settings_outlined,
+              leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedSettings01,
                 color: colorScheme.primary,
+                size: 20,
               ),
               title: const Text('Settings'),
               selected: activeRoute == '/settings',
@@ -506,7 +660,11 @@ class AppShell extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: Icon(Icons.api_outlined, color: colorScheme.primary),
+              leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedApi,
+                color: colorScheme.primary,
+                size: 20,
+              ),
               title: const Text('API Explorer'),
               subtitle: const Text(
                 'OpenAPI / Swagger',
@@ -522,9 +680,10 @@ class AppShell extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: Icon(
-                Icons.menu_book_outlined,
+              leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedBook02,
                 color: colorScheme.primary,
+                size: 20,
               ),
               title: const Text('Documentation'),
               subtitle: const Text(
@@ -630,7 +789,7 @@ class AppShell extends StatelessWidget {
     final displaySubtitle = pageSubtitle ?? _getPageSubtitle(activeRoute);
 
     return M3EAppBar.top(
-      backgroundColor: colorScheme.surfaceContainerLow,
+      backgroundColor: colorScheme.surfaceContainer,
       title: Row(
         children: [
           SizedBox(
@@ -654,24 +813,25 @@ class AppShell extends StatelessWidget {
             color: colorScheme.outlineVariant.withValues(alpha: 0.5),
           ),
           const SizedBox(width: 16),
-          // Fixed slot for back button so the title & subtitle NEVER shift horizontally
-          if (onBack != null)
-            IconButton(
-              icon: HugeIcon(
-                icon: HugeIcons.strokeRoundedArrowLeft01,
-                color: colorScheme.onSurface,
-                size: 18,
-              ),
-              onPressed: onBack,
-              tooltip: 'Back',
-              style: IconButton.styleFrom(
-                minimumSize: const Size(28, 28),
-                maximumSize: const Size(28, 28),
-                padding: EdgeInsets.zero,
-              ),
-            )
-          else
-            const SizedBox(width: 28, height: 28),
+          // Permanent back button slot with disabled appearance when onBack is null
+          IconButton(
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowLeft01,
+              color: onBack != null
+                  ? colorScheme.onSurface
+                  : colorScheme.onSurface.withValues(alpha: 0.25),
+              size: 18,
+            ),
+            onPressed: onBack,
+            tooltip: onBack != null ? 'Back' : null,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(28, 28),
+              maximumSize: const Size(28, 28),
+              padding: EdgeInsets.zero,
+              hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              disabledForegroundColor: colorScheme.onSurface.withValues(alpha: 0.25),
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -794,22 +954,34 @@ class AppShell extends StatelessWidget {
                 M3EMenuEntry(
                   label: 'Node Telemetry',
                   value: 'telemetry',
-                  leading: const Icon(Icons.monitor_heart_outlined, size: 18),
+                  leading: HugeIcon(
+                    icon: HugeIcons.strokeRoundedActivity01,
+                    color: colorScheme.onSurface,
+                    size: 18,
+                  ),
                 ),
               ],
             ),
-            const M3EMenuGroup(
+            M3EMenuGroup(
               children: [
                 M3EMenuEntry(
                   enabled: false,
                   label: 'Version: v1.0.0',
                   value: 'version_info',
-                  leading: Icon(Icons.info_outline, size: 18),
+                  leading: HugeIcon(
+                    icon: HugeIcons.strokeRoundedInformationCircle,
+                    color: colorScheme.onSurface,
+                    size: 18,
+                  ),
                 ),
                 M3EMenuEntry(
                   label: 'Check for updates',
                   value: 'check_updates',
-                  leading: Icon(Icons.system_update_alt, size: 18),
+                  leading: HugeIcon(
+                    icon: HugeIcons.strokeRoundedSystemUpdate01,
+                    color: colorScheme.onSurface,
+                    size: 18,
+                  ),
                 ),
               ],
             ),
@@ -840,8 +1012,8 @@ class AppShell extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                Icon(
-                  Icons.account_circle_outlined,
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedUserCircle,
                   size: 20,
                   color: colorScheme.primary,
                 ),
@@ -879,8 +1051,8 @@ class AppShell extends StatelessWidget {
 
     if (!isSignedIn) {
       return IconButton(
-        icon: Icon(
-          Icons.account_circle_outlined,
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedUserCircle,
           size: 22,
           color: colorScheme.onSurfaceVariant,
         ),
@@ -895,56 +1067,16 @@ class AppShell extends StatelessWidget {
       );
     }
 
-    return IconButton(
-      icon: SizedBox(
-        width: 22,
-        height: 22,
-        child: ClipOval(
-          child: currentUser!.photoUrl != null &&
-                  currentUser!.photoUrl!.trim().isNotEmpty
-              ? Image.network(
-                  currentUser!.photoUrl!,
-                  width: 22,
-                  height: 22,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      _buildInitialsAvatar(currentUser!, colorScheme),
-                )
-              : _buildInitialsAvatar(currentUser!, colorScheme),
-        ),
-      ),
-      tooltip: currentUser!.displayName.isNotEmpty
-          ? currentUser!.displayName
-          : 'Profile',
-      onPressed: () {
-        if (onProfileTap != null) {
-          onProfileTap!();
-        } else {
-          _showProfileDialog(context, currentUser!);
-        }
-      },
+    return _DrawerProfilePopup(
+      currentUser: currentUser!,
+      colorScheme: colorScheme,
+      onSignOut: onSignOut,
+      buildInitialsAvatar: _buildInitialsAvatar,
+      isCompact: true,
     );
   }
 
-  Widget _buildUserAvatar(UserProfile user, ColorScheme colorScheme) {
-    if (user.photoUrl != null && user.photoUrl!.trim().isNotEmpty) {
-      return ClipOval(
-        child: Image.network(
-          user.photoUrl!,
-          width: 20,
-          height: 20,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              _buildInitialsAvatar(user, colorScheme),
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return _buildInitialsAvatar(user, colorScheme);
-          },
-        ),
-      );
-    }
-    return _buildInitialsAvatar(user, colorScheme);
-  }
+
 
   Widget _buildInitialsAvatar(UserProfile user, ColorScheme colorScheme) {
     final initial = user.displayName.isNotEmpty
@@ -982,7 +1114,7 @@ class AppShell extends StatelessWidget {
         backgroundColor: colorScheme.surfaceContainerHigh,
         title: Row(
           children: [
-            Icon(Icons.account_circle, color: colorScheme.primary, size: 24),
+            HugeIcon(icon: HugeIcons.strokeRoundedUserCircle, color: colorScheme.primary, size: 24),
             const SizedBox(width: 10),
             const Text('Sign In'),
           ],
@@ -1038,75 +1170,7 @@ class AppShell extends StatelessWidget {
     );
   }
 
-  void _showProfileDialog(BuildContext context, UserProfile user) {
-    final colorScheme = Theme.of(context).colorScheme;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainerHigh,
-        title: Row(
-          children: [
-            _buildUserAvatar(user, colorScheme),
-            const SizedBox(width: 12),
-            const Text('User Profile'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              user.displayName,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              user.email,
-              style: TextStyle(
-                color: colorScheme.onSurfaceVariant,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.verified_user,
-                    color: colorScheme.primary,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Provider: ${user.provider ?? "Google"}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   void _showUpdateDialog(BuildContext context) {
     M3EDialog.show<void>(
@@ -1120,26 +1184,26 @@ class AppShell extends StatelessWidget {
 
   Widget _buildThemeToggleButton(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    IconData icon;
+    dynamic icon;
     String tooltip;
 
     switch (themeMode) {
       case ThemeMode.light:
-        icon = Icons.light_mode;
+        icon = HugeIcons.strokeRoundedSun01;
         tooltip = 'Theme: Light (Click to switch)';
         break;
       case ThemeMode.dark:
-        icon = Icons.dark_mode;
+        icon = HugeIcons.strokeRoundedMoon02;
         tooltip = 'Theme: Dark (Click to switch)';
         break;
       case ThemeMode.system:
-        icon = Icons.brightness_auto;
+        icon = HugeIcons.strokeRoundedComputer;
         tooltip = 'Theme: System (Click to switch)';
         break;
     }
 
     return IconButton(
-      icon: Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
+      icon: HugeIcon(icon: icon, size: 18, color: colorScheme.onSurfaceVariant),
       tooltip: tooltip,
       onPressed: () {
         if (onThemeModeChanged == null) return;
@@ -1158,7 +1222,7 @@ class AppShell extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusColor = AppTheme.getStatusColor(nodeStatus, context);
-    final borderCutout = cutoutColor ?? colorScheme.surfaceContainerLow;
+    final borderCutout = cutoutColor ?? colorScheme.surfaceContainer;
 
     final logoWidget = Stack(
       clipBehavior: Clip.none,
@@ -1181,7 +1245,7 @@ class AppShell extends StatelessWidget {
             ],
           ),
           child: Center(
-            child: Icon(Icons.bolt, color: colorScheme.onPrimary, size: 18),
+            child: HugeIcon(icon: HugeIcons.strokeRoundedFlash, color: colorScheme.onPrimary, size: 18),
           ),
         ),
         Positioned(
@@ -1223,7 +1287,7 @@ class AppShell extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return FloatingActionButton.extended(
       onPressed: () => onNavigate('/altrql'),
-      icon: const Icon(Icons.terminal, size: 18),
+      icon: HugeIcon(icon: HugeIcons.strokeRoundedCommandLine, size: 18, color: colorScheme.onPrimary),
       tooltip: 'Open AltrQL Playground',
       label: const Text(
         'AltrQL Console',
@@ -1243,7 +1307,7 @@ class AppShell extends StatelessWidget {
       backgroundColor: colorScheme.primary,
       foregroundColor: colorScheme.onPrimary,
       elevation: 4,
-      child: const Icon(Icons.terminal, size: 20),
+      child: HugeIcon(icon: HugeIcons.strokeRoundedCommandLine, size: 20, color: colorScheme.onPrimary),
     );
   }
 }
@@ -1379,7 +1443,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
         ),
         child: Row(
           children: [
-            Icon(Icons.check_circle, color: colorScheme.primary, size: 18),
+            HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, color: colorScheme.primary, size: 18),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1402,8 +1466,8 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.system_update_rounded,
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedSystemUpdate01,
               color: colorScheme.primary,
               size: 20,
             ),
@@ -1452,7 +1516,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
       ),
       child: Row(
         children: [
-          Icon(Icons.check_circle, color: colorScheme.primary, size: 18),
+          HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, color: colorScheme.primary, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1471,7 +1535,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
 
     return M3EDialog(
       title: 'Altr Stream Version Info',
-      icon: Icon(Icons.system_update_alt, color: colorScheme.primary, size: 24),
+      icon: HugeIcon(icon: HugeIcons.strokeRoundedSystemUpdate01, color: colorScheme.primary, size: 24),
       topDivider: false,
       bottomDivider: false,
       content: Column(
@@ -1520,7 +1584,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                     color: colorScheme.onPrimary,
                   ),
                 )
-              : const Icon(Icons.refresh, size: 16),
+              : HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: colorScheme.onPrimary, size: 16),
           label: Text(_isChecking ? 'Checking...' : 'Check for Updates'),
         ),
       ],
@@ -1535,12 +1599,14 @@ class _DrawerProfilePopup extends StatelessWidget {
   final VoidCallback? onSignOut;
   final Widget Function(UserProfile user, ColorScheme colorScheme)
       buildInitialsAvatar;
+  final bool isCompact;
 
   const _DrawerProfilePopup({
     required this.currentUser,
     required this.colorScheme,
     this.onSignOut,
     required this.buildInitialsAvatar,
+    this.isCompact = false,
   });
 
   Widget _buildAvatar(double size) {
@@ -1586,7 +1652,9 @@ class _DrawerProfilePopup extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 16),
+      padding: isCompact
+          ? EdgeInsets.zero
+          : const EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 16),
       child: Theme(
         data: customTheme,
         child: M3ETheme(
@@ -1605,6 +1673,17 @@ class _DrawerProfilePopup extends StatelessWidget {
               }
             },
             anchorBuilder: (BuildContext context, VoidCallback open) {
+              if (isCompact) {
+                return IconButton(
+                  icon: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: _buildAvatar(22),
+                  ),
+                  tooltip: displayName,
+                  onPressed: open,
+                );
+              }
               return InkWell(
                 borderRadius: BorderRadius.circular(12),
                 hoverColor:
@@ -1642,26 +1721,34 @@ class _DrawerProfilePopup extends StatelessWidget {
               // Group 1 — Profile & Actions
               M3EMenuGroup(
                 children: [
-                  const M3EMenuEntry(
+                  M3EMenuEntry(
                     label: 'Profile',
                     value: 'profile',
-                    leading: Icon(Icons.person_outline_rounded, size: 18),
+                    leading: HugeIcon(
+                      icon: HugeIcons.strokeRoundedUser,
+                      color: cs.onSurface,
+                      size: 18,
+                    ),
                   ),
                 ],
               ),
               // Group 2 — Account actions
               M3EMenuGroup(
                 children: [
-                  const M3EMenuEntry(
+                  M3EMenuEntry(
                     label: 'Log Out',
                     value: 'sign_out',
-                    leading: Icon(Icons.logout_rounded, size: 18),
+                    leading: HugeIcon(
+                      icon: HugeIcons.strokeRoundedLogout01,
+                      color: cs.onSurface,
+                      size: 18,
+                    ),
                   ),
                   M3EMenuEntry(
                     label: 'Delete Account',
                     value: 'delete_account',
-                    leading: Icon(
-                      Icons.delete_outline_rounded,
+                    leading: HugeIcon(
+                      icon: HugeIcons.strokeRoundedDelete02,
                       size: 18,
                       color: cs.error,
                     ),
@@ -1693,14 +1780,14 @@ class _DrawerProfilePopup extends StatelessWidget {
           children: [
             _buildProfileRow(
               context,
-              icon: Icons.alternate_email,
+              icon: HugeIcons.strokeRoundedMail01,
               label: 'Email',
               value: currentUser.email,
             ),
             if (currentUser.displayName.isNotEmpty)
               _buildProfileRow(
                 context,
-                icon: Icons.badge_outlined,
+                icon: HugeIcons.strokeRoundedUser,
                 label: 'Display Name',
                 value: currentUser.displayName,
               ),
@@ -1719,7 +1806,7 @@ class _DrawerProfilePopup extends StatelessWidget {
 
   Widget _buildProfileRow(
     BuildContext context, {
-    required IconData icon,
+    required icon,
     required String label,
     required String value,
   }) {
@@ -1728,7 +1815,7 @@ class _DrawerProfilePopup extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: cs.onSurfaceVariant),
+          HugeIcon(icon: icon, size: 18, color: cs.onSurfaceVariant),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1758,11 +1845,16 @@ class _DrawerProfilePopup extends StatelessWidget {
   }
 
   void _showDeleteConfirmation(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     M3EDialog.show<void>(
       context,
       barrierDismissible: true,
       dialog: M3EDialog(
-        icon: const Icon(Icons.warning_amber_rounded),
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedAlert02,
+          color: colorScheme.error,
+          size: 24,
+        ),
         title: 'Delete Account',
         content: const Text(
           'Are you sure you want to delete your account? This action cannot be undone.',

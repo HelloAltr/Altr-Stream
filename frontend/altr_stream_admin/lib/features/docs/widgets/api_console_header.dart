@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/config/app_config.dart';
 
 /// Top header bar for the dedicated Altr Stream API Console.
@@ -70,7 +71,7 @@ class ApiConsoleHeader extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                icon: const Icon(Icons.arrow_back, size: 14),
+                icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowLeft01, size: 14),
                 label: const Text(
                   'Back to Admin',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
@@ -99,8 +100,8 @@ class ApiConsoleHeader extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Icon(
-                      Icons.terminal_rounded,
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedCommandLine,
                       size: 16,
                       color: colorScheme.primary,
                     ),
@@ -159,14 +160,14 @@ class ApiConsoleHeader extends StatelessWidget {
                             alpha: 0.7,
                           ),
                         ),
-                        prefixIcon: Icon(
-                          Icons.search,
+                        prefixIcon: HugeIcon(
+                          icon: HugeIcons.strokeRoundedSearch01,
                           size: 16,
                           color: colorScheme.primary,
                         ),
                         suffixIcon: searchQuery.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.clear, size: 15),
+                                icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 15),
                                 tooltip: 'Clear search',
                                 onPressed: () => onSearchChanged(''),
                               )
@@ -276,7 +277,7 @@ class ApiConsoleHeader extends StatelessWidget {
                               color: colorScheme.primary,
                             ),
                           )
-                        : const Icon(Icons.refresh, size: 17),
+                        : const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 17),
                     tooltip: 'Reload OpenAPI Specification',
                     padding: const EdgeInsets.all(6),
                     constraints: const BoxConstraints(
@@ -288,7 +289,7 @@ class ApiConsoleHeader extends StatelessWidget {
 
                   // External Documentation Links Menu
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.menu_book_outlined, size: 17),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedBook02, size: 17),
                     tooltip: 'External API Documentation',
                     padding: const EdgeInsets.all(6),
                     constraints: const BoxConstraints(
@@ -305,7 +306,7 @@ class ApiConsoleHeader extends StatelessWidget {
                         value: AppConfig.apiDocsUrl,
                         child: const Row(
                           children: [
-                            Icon(Icons.rocket_launch_outlined, size: 15),
+                            HugeIcon(icon: HugeIcons.strokeRoundedRocket, size: 15),
                             SizedBox(width: 8),
                             Text(
                               'FastAPI Swagger UI (/docs)',
@@ -318,7 +319,7 @@ class ApiConsoleHeader extends StatelessWidget {
                         value: AppConfig.redocDocsUrl,
                         child: const Row(
                           children: [
-                            Icon(Icons.article_outlined, size: 15),
+                            HugeIcon(icon: HugeIcons.strokeRoundedDocumentCode, size: 15),
                             SizedBox(width: 8),
                             Text(
                               'FastAPI ReDoc (/redoc)',
@@ -331,7 +332,7 @@ class ApiConsoleHeader extends StatelessWidget {
                         value: AppConfig.openApiJsonUrl,
                         child: const Row(
                           children: [
-                            Icon(Icons.code, size: 15),
+                            HugeIcon(icon: HugeIcons.strokeRoundedCode, size: 15),
                             SizedBox(width: 8),
                             Text(
                               'OpenAPI Specification (/openapi.json)',
@@ -346,10 +347,10 @@ class ApiConsoleHeader extends StatelessWidget {
                   // Theme Mode Toggle
                   if (onThemeModeChanged != null)
                     IconButton(
-                      icon: Icon(
-                        isDark
-                            ? Icons.light_mode_outlined
-                            : Icons.dark_mode_outlined,
+                      icon: HugeIcon(
+                        icon: isDark
+                            ? HugeIcons.strokeRoundedSun01
+                            : HugeIcons.strokeRoundedMoon02,
                         size: 17,
                       ),
                       tooltip: isDark

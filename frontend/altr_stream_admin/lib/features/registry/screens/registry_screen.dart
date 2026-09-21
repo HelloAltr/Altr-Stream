@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../widgets/create_logical_model_dialog.dart';
@@ -153,7 +154,7 @@ class RegistryScreenState extends State<RegistryScreen> {
             ),
             child: Row(
               children: [
-                Icon(Icons.error_outline, color: colorScheme.error, size: 24),
+                HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 24),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -188,28 +189,28 @@ class RegistryScreenState extends State<RegistryScreen> {
                       title: 'Logical Models',
                       value: '${_summary!.totalModels}',
                       subtitle: 'Domain schemas',
-                      icon: Icons.schema_outlined,
+                      icon: HugeIcons.strokeRoundedStructure01,
                     ),
                     _buildMetricCard(
                       context,
                       title: 'Logical Entities',
                       value: '${_summary!.totalEntities}',
                       subtitle: '${_summary!.totalLogicalFields} standard fields',
-                      icon: Icons.table_chart_outlined,
+                      icon: HugeIcons.strokeRoundedTable01,
                     ),
                     _buildMetricCard(
                       context,
                       title: 'Source Mappings',
                       value: '${_summary!.totalSourceMappings}',
                       subtitle: '${_summary!.activeSourceMappings} active',
-                      icon: Icons.link,
+                      icon: HugeIcons.strokeRoundedLink01,
                     ),
                     _buildMetricCard(
                       context,
                       title: 'Mapping Status',
                       value: '${_summary!.draftSourceMappings + _summary!.validatedSourceMappings}',
                       subtitle: '${_summary!.errorSourceMappings} with errors',
-                      icon: Icons.verified_outlined,
+                      icon: HugeIcons.strokeRoundedCheckmarkBadge01,
                     ),
                   ],
                 );
@@ -217,6 +218,37 @@ class RegistryScreenState extends State<RegistryScreen> {
             ),
             const SizedBox(height: 24),
           ],
+
+          // Models List Header
+          Row(
+            children: [
+              Text(
+                'Logical Models',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_models.length}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
 
           // Models List / Empty State
           if (_models.isEmpty)
@@ -227,14 +259,20 @@ class RegistryScreenState extends State<RegistryScreen> {
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _models.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, idx) {
-                final model = _models[idx];
+              itemBuilder: (context, index) {
+                final model = _models[index];
                 return Card(
+                  elevation: 0,
+                  color: colorScheme.surfaceContainer,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  ),
                   child: InkWell(
                     onTap: () => widget.onSelectModel(model),
                     borderRadius: BorderRadius.circular(10),
                     child: Padding(
-                      padding: const EdgeInsets.all(18),
+                      padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
                           Container(
@@ -243,7 +281,7 @@ class RegistryScreenState extends State<RegistryScreen> {
                               color: colorScheme.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(Icons.schema_outlined, color: colorScheme.primary, size: 22),
+                            child: HugeIcon(icon: HugeIcons.strokeRoundedStructure01, color: colorScheme.primary, size: 22),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -289,19 +327,19 @@ class RegistryScreenState extends State<RegistryScreen> {
                           ),
                           OutlinedButton.icon(
                             onPressed: () => widget.onSelectModel(model),
-                            icon: const Icon(Icons.arrow_forward, size: 14),
+                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
                             label: const Text('Inspect'),
                           ),
                           const SizedBox(width: 8),
                           IconButton(
                             onPressed: () => _showEditModelDialog(model),
-                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 18),
                             tooltip: 'Edit Model',
                           ),
                           const SizedBox(width: 4),
                           IconButton(
                             onPressed: () => _deleteModel(model),
-                            icon: const Icon(Icons.delete_outline, size: 18),
+                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
                             color: colorScheme.error,
                             tooltip: 'Delete Model',
                           ),
@@ -322,7 +360,7 @@ class RegistryScreenState extends State<RegistryScreen> {
     required String title,
     required String value,
     required String subtitle,
-    required IconData icon,
+    required icon,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -341,7 +379,7 @@ class RegistryScreenState extends State<RegistryScreen> {
               color: colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: colorScheme.primary, size: 20),
+            child: HugeIcon(icon: icon, color: colorScheme.primary, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -393,7 +431,7 @@ class RegistryScreenState extends State<RegistryScreen> {
                 color: colorScheme.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.schema_outlined, size: 36, color: colorScheme.primary),
+              child: HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 36, color: colorScheme.primary),
             ),
             const SizedBox(height: 16),
             Text(
@@ -409,7 +447,7 @@ class RegistryScreenState extends State<RegistryScreen> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _showCreateModelDialog,
-              icon: const Icon(Icons.add, size: 16),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 16),
               label: const Text('Create Your First Logical Model'),
             ),
           ],

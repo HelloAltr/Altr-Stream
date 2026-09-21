@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class QueryErrorPanel extends StatelessWidget {
   final String errorMessage;
@@ -28,7 +29,7 @@ class QueryErrorPanel extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, size: 20, color: colorScheme.error),
+          HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, size: 20, color: colorScheme.error),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -48,7 +49,7 @@ class QueryErrorPanel extends StatelessWidget {
                     if (onCopy != null) ...[
                       OutlinedButton.icon(
                         onPressed: onCopy,
-                        icon: const Icon(Icons.copy, size: 12),
+                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 12),
                         label: const Text(
                           'Copy Error',
                           style: TextStyle(fontSize: 11),
@@ -65,7 +66,7 @@ class QueryErrorPanel extends StatelessWidget {
                     ],
                     if (onDismiss != null)
                       IconButton(
-                        icon: Icon(Icons.close, size: 16, color: colorScheme.onSurfaceVariant),
+                        icon: HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 16, color: colorScheme.onSurfaceVariant),
                         onPressed: onDismiss,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),

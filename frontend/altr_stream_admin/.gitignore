@@ -46,3 +46,6 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# Local Storage runtime caches
+.altr_stream_overview_bento_*.json

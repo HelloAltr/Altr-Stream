@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class QueryMetadataBanner extends StatelessWidget {
   final int rowCount;
@@ -34,7 +35,7 @@ class QueryMetadataBanner extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_circle, size: 14, color: colorScheme.primary),
+                  HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 14, color: colorScheme.primary),
                   const SizedBox(width: 8),
                   Text(
                     'Success',
@@ -94,7 +95,7 @@ class QueryMetadataBanner extends StatelessWidget {
             const SizedBox(width: 8),
             OutlinedButton.icon(
               onPressed: onCopyResults,
-              icon: const Icon(Icons.copy, size: 12),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 12),
               label: const Text(
                 'Copy Results',
                 style: TextStyle(fontSize: 11),

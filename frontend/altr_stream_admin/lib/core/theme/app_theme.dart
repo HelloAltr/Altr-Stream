@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'material_theme.dart';
 import 'theme_util.dart';
 
@@ -58,6 +59,44 @@ class AppTheme {
     }
   }
 
+  /// Returns the appropriate stroke-rounded HugeIcon for a given database type.
+  static dynamic getSourceTypeIcon(String? type) {
+    switch (type?.toUpperCase()) {
+      case 'POSTGRESQL':
+      case 'POSTGRES':
+        return HugeIcons.strokeRoundedDatabase;
+      case 'MYSQL':
+        return HugeIcons.strokeRoundedServerStack01;
+      case 'MONGODB':
+      case 'MONGO':
+        return HugeIcons.strokeRoundedLeaf01;
+      case 'SQLITE':
+        return HugeIcons.strokeRoundedFile01;
+      default:
+        return HugeIcons.strokeRoundedDatabase;
+    }
+  }
+
+  /// Returns a semantic accent color for a given database type.
+  static Color getSourceTypeColor(String? type, BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    switch (type?.toUpperCase()) {
+      case 'POSTGRESQL':
+      case 'POSTGRES':
+        return colorScheme.primary;
+      case 'MYSQL':
+        return isDark ? const Color(0xFFFB923C) : const Color(0xFFEA580C);
+      case 'MONGODB':
+      case 'MONGO':
+        return isDark ? const Color(0xFF4ADE80) : const Color(0xFF16A34A);
+      case 'SQLITE':
+        return isDark ? const Color(0xFFA78BFA) : const Color(0xFF7C3AED);
+      default:
+        return colorScheme.primary;
+    }
+  }
+
   // --- THEME BUILDERS ---
 
   static final MaterialTheme _materialTheme = MaterialTheme(
@@ -81,14 +120,11 @@ class AppTheme {
   static ThemeData _applyComponentThemes(ThemeData base, ColorScheme scheme) {
     return base.copyWith(
       cardTheme: CardThemeData(
-        color: scheme.surfaceContainer,
+        color: scheme.surfaceContainerLow,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: 0.6),
-            width: 1,
-          ),
+          borderRadius: BorderRadius.circular(28),
+          side: BorderSide.none,
         ),
         margin: EdgeInsets.zero,
       ),

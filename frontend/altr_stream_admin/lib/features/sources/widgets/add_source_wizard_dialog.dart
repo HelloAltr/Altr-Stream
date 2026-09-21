@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
@@ -182,7 +183,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, size: 18),
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
                     onPressed: () => Navigator.of(context).pop(),
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -315,7 +316,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           type: 'POSTGRESQL',
           title: 'PostgreSQL',
           description: 'Supported connector with native introspection, SSL, and schema discovery.',
-          icon: Icons.storage,
+          icon: AppTheme.getSourceTypeIcon('POSTGRESQL'),
           isSupported: true,
         ),
         const SizedBox(height: 12),
@@ -324,7 +325,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           type: 'SQLITE',
           title: 'SQLite',
           description: 'Supported file-based database connector with direct file introspection.',
-          icon: Icons.insert_drive_file_outlined,
+          icon: AppTheme.getSourceTypeIcon('SQLITE'),
           isSupported: true,
         ),
         const SizedBox(height: 12),
@@ -333,7 +334,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           type: 'MYSQL',
           title: 'MySQL',
           description: 'Supported relational connector with connection pooling, schema discovery, and AltrQL execution.',
-          icon: Icons.storage_outlined,
+          icon: AppTheme.getSourceTypeIcon('MYSQL'),
           isSupported: true,
         ),
         const SizedBox(height: 12),
@@ -342,7 +343,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           type: 'MONGODB',
           title: 'MongoDB',
           description: 'Supported document connector with collection reachability, ping, and connection lifecycle testing.',
-          icon: Icons.folder_open,
+          icon: AppTheme.getSourceTypeIcon('MONGODB'),
           isSupported: true,
         ),
         const SizedBox(height: 24),
@@ -369,7 +370,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 children: [
                   Text('Continue'),
                   SizedBox(width: 6),
-                  Icon(Icons.arrow_forward, size: 14),
+                  HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
                 ],
               ),
             ),
@@ -384,7 +385,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     required String type,
     required String title,
     required String description,
-    required IconData icon,
+    required icon,
     required bool isSupported,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -405,8 +406,8 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
+            HugeIcon(
+              icon: icon,
               color: isSupported ? (isSelected ? colorScheme.primary : colorScheme.onSurface) : colorScheme.onSurfaceVariant,
               size: 24,
             ),
@@ -501,7 +502,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, size: 16, color: colorScheme.primary),
+                  HugeIcon(icon: HugeIcons.strokeRoundedInformationCircle, size: 16, color: colorScheme.primary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -567,8 +568,8 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                     decoration: InputDecoration(
                       labelText: 'Password *',
                       suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        icon: HugeIcon(
+                          icon: _obscurePassword ? HugeIcons.strokeRoundedViewOffSlash : HugeIcons.strokeRoundedView,
                           size: 16,
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -586,8 +587,8 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    _showAdvanced ? Icons.expand_less : Icons.expand_more,
+                  HugeIcon(
+                    icon: _showAdvanced ? HugeIcons.strokeRoundedArrowUp01 : HugeIcons.strokeRoundedArrowDown01,
                     size: 16,
                     color: colorScheme.primary,
                   ),
@@ -635,7 +636,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                   children: [
                     Text('Continue to Test'),
                     SizedBox(width: 6),
-                    Icon(Icons.arrow_forward, size: 14),
+                    HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
                   ],
                 ),
               ),
@@ -692,8 +693,8 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               children: [
                 Row(
                   children: [
-                    Icon(
-                      _testResult!.success ? Icons.check_circle : Icons.error,
+                    HugeIcon(
+                      icon: _testResult!.success ? HugeIcons.strokeRoundedCheckmarkCircle02 : HugeIcons.strokeRoundedAlertCircle,
                       color: _testResult!.success ? statusActiveColor : colorScheme.error,
                       size: 20,
                     ),
@@ -762,7 +763,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               children: [
                 OutlinedButton.icon(
                   onPressed: _isTesting ? null : _runConnectionTest,
-                  icon: const Icon(Icons.refresh, size: 14),
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
                   label: const Text('Retry Test'),
                 ),
                 const SizedBox(width: 10),
@@ -775,7 +776,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                     children: [
                       Text('Continue'),
                       SizedBox(width: 6),
-                      Icon(Icons.arrow_forward, size: 14),
+                      HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
                     ],
                   ),
                 ),
@@ -855,7 +856,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                       height: 14,
                       child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary),
                     )
-                  : const Icon(Icons.check, size: 16),
+                  : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
               label: Text(_isSaving ? 'Registering...' : 'Register Source'),
             ),
           ],
