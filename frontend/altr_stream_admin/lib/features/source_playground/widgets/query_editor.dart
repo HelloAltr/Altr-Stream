@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import '../../../core/api/models.dart';
 
 class QueryEditor extends StatelessWidget {
@@ -84,9 +85,12 @@ class QueryEditor extends StatelessWidget {
         return {
           'Basic Find': 'db.collection_name.find().pretty()',
           'Find with Filter': 'db.collection_name.find({ status: "active" })',
-          'Find with Projection': 'db.collection_name.find({}, { username: 1, age: 1, _id: 0 })',
-          'Sort & Limit': 'db.collection_name.find().sort({ age: -1 }).limit(10)',
-          'Chained Find': 'db.collection_name.find({ status: "active" }).sort({ age: -1 }).skip(10).limit(20)',
+          'Find with Projection':
+              'db.collection_name.find({}, { username: 1, age: 1, _id: 0 })',
+          'Sort & Limit':
+              'db.collection_name.find().sort({ age: -1 }).limit(10)',
+          'Chained Find':
+              'db.collection_name.find({ status: "active" }).sort({ age: -1 }).skip(10).limit(20)',
           'Insert Documents': '''db.collection_name.insertMany([
   { name: "alice", age: 25 },
   { name: "bob", age: 30 }
@@ -105,7 +109,8 @@ class QueryEditor extends StatelessWidget {
         'Select Top 10': 'SELECT * FROM table_name LIMIT 10;',
         'Count Records': 'SELECT COUNT(*) AS count FROM table_name;',
         'Filter by Condition': 'SELECT * FROM table_name WHERE id = 1;',
-        'Aggregate Group By': 'SELECT category, COUNT(*) AS count FROM table_name GROUP BY category;',
+        'Aggregate Group By':
+            'SELECT category, COUNT(*) AS count FROM table_name GROUP BY category;',
       };
     }
   }
@@ -114,16 +119,10 @@ class QueryEditor extends StatelessWidget {
     final text = controller.text;
     final selection = controller.selection;
     if (selection.start >= 0) {
-      final newText = text.replaceRange(
-        selection.start,
-        selection.end,
-        '  ',
-      );
+      final newText = text.replaceRange(selection.start, selection.end, '  ');
       controller.value = TextEditingValue(
         text: newText,
-        selection: TextSelection.collapsed(
-          offset: selection.start + 2,
-        ),
+        selection: TextSelection.collapsed(offset: selection.start + 2),
       );
     }
   }
@@ -137,28 +136,28 @@ class QueryEditor extends StatelessWidget {
     final currentMode = mongoQueryMode ?? 'shell';
     final templates = _getTemplates(selectedSource, currentMode);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(28)),
+        side: BorderSide.none,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header with DB info, Mode Selector (for MongoDB) & Clear Button
+          // Header styled like AltrQL Query Editor header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-              border: Border(
-                bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-              ),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(color: colorScheme.surfaceContainerLow),
             child: Row(
               children: [
-                HugeIcon(icon: HugeIcons.strokeRoundedCommandLine, size: 16, color: colorScheme.primary),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedCommandLine,
+                  size: 16,
+                  color: colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Query Editor',
@@ -170,7 +169,10 @@ class QueryEditor extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(4),
@@ -188,18 +190,24 @@ class QueryEditor extends StatelessWidget {
                 if (isMongo) ...[
                   const SizedBox(width: 12),
                   Container(
-                    height: 26,
+                    height: 28,
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.7)),
+                      border: Border.all(
+                        color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                      ),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: currentMode,
                         isDense: true,
-                        icon: HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 16, color: colorScheme.onSurfaceVariant),
+                        icon: HugeIcon(
+                          icon: HugeIcons.strokeRoundedArrowDown01,
+                          size: 16,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -218,7 +226,8 @@ class QueryEditor extends StatelessWidget {
                         onChanged: isExecuting
                             ? null
                             : (val) {
-                                if (val != null && onMongoQueryModeChanged != null) {
+                                if (val != null &&
+                                    onMongoQueryModeChanged != null) {
                                   onMongoQueryModeChanged!(val);
                                 }
                               },
@@ -227,19 +236,19 @@ class QueryEditor extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                OutlinedButton.icon(
-                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
-                  label: const Text(
-                    'Clear',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
+                M3EButton.icon(
+                  style: M3EButtonStyle.outlined,
+                  size: M3EButtonSize.sm,
+                  decoration: M3EButtonDecoration(
+                    side: WidgetStatePropertyAll(
+                      BorderSide(color: colorScheme.primaryContainer.withValues(alpha: 0.5),),
                     ),
                   ),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedRefresh,
+                    size: 14,
+                  ),
+                  label: const Text('Clear'),
                   onPressed: isExecuting
                       ? null
                       : () {
@@ -251,63 +260,79 @@ class QueryEditor extends StatelessWidget {
             ),
           ),
 
-          // Text Field with Top Alignment, Tab Support, Monospace Code Font, and Generous Padding
+          // Text Field with Surface Container Lowest Background & Code Styling
           Expanded(
-            child: CallbackShortcuts(
-              bindings: <ShortcutActivator, VoidCallback>{
-                const SingleActivator(LogicalKeyboardKey.tab): _handleTabKey,
-                const SingleActivator(LogicalKeyboardKey.enter, meta: true): () {
-                  if (canExecute && !isExecuting) {
-                    onExecute();
-                  }
-                },
-                const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
-                  if (canExecute && !isExecuting) {
-                    onExecute();
-                  }
-                },
-              },
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                style: GoogleFonts.robotoMono(
-                  fontWeight: FontWeight.normal,
-                  fontSize: 13,
-                  color: colorScheme.onSurface,
-                  height: 1.5,
-                  letterSpacing: 0.2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerLowest,
+                borderRadius: BorderRadius.zero,
+                border: BoxBorder.all(
+                  color: colorScheme.surfaceContainerLow
                 ),
-                cursorColor: colorScheme.primary,
-                decoration: InputDecoration(
-                  hintText: _getHintText(selectedSource, currentMode),
-                  hintStyle: GoogleFonts.robotoMono(
+              ),
+              child: CallbackShortcuts(
+                bindings: <ShortcutActivator, VoidCallback>{
+                  const SingleActivator(LogicalKeyboardKey.tab): _handleTabKey,
+                  const SingleActivator(
+                    LogicalKeyboardKey.enter,
+                    meta: true,
+                  ): () {
+                    if (canExecute && !isExecuting) {
+                      onExecute();
+                    }
+                  },
+                  const SingleActivator(
+                    LogicalKeyboardKey.enter,
+                    control: true,
+                  ): () {
+                    if (canExecute && !isExecuting) {
+                      onExecute();
+                    }
+                  },
+                },
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  style: GoogleFonts.robotoMono(
                     fontWeight: FontWeight.normal,
                     fontSize: 13,
+                    color: colorScheme.onSurface,
                     height: 1.5,
                     letterSpacing: 0.2,
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
                   ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.all(16),
+                  cursorColor: colorScheme.primary,
+                  decoration: InputDecoration(
+                    hintText: _getHintText(selectedSource, currentMode),
+                    hintStyle: GoogleFonts.robotoMono(
+                      fontWeight: FontWeight.normal,
+                      fontSize: 13,
+                      height: 1.5,
+                      letterSpacing: 0.2,
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.45,
+                      ),
+                    ),
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    hoverColor: Colors.transparent,
+                    fillColor: Colors.transparent,
+                    filled: false,
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
                 ),
               ),
             ),
           ),
 
-          // Footer Action Bar
+          // Footer Action Bar styled like AltrQL Query Editor footer
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
-              border: Border(
-                top: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-              ),
-            ),
+            decoration: BoxDecoration(color: colorScheme.surfaceContainerLow),
             child: Wrap(
               alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -363,7 +388,9 @@ class QueryEditor extends StatelessWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: colorScheme.outlineVariant.withValues(alpha: 0.8),
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.8,
+                            ),
                           ),
                         ),
                         child: Row(
@@ -393,8 +420,10 @@ class QueryEditor extends StatelessWidget {
                         ),
                       ),
                     ),
-                    FilledButton.icon(
-                      onPressed: (canExecute && !isExecuting) ? onExecute : null,
+                    M3EButton.icon(
+                      style: M3EButtonStyle.filled,
+                      size: M3EButtonSize.sm,
+                      enabled: canExecute && !isExecuting,
                       icon: isExecuting
                           ? SizedBox(
                               width: 14,
@@ -404,15 +433,14 @@ class QueryEditor extends StatelessWidget {
                                 color: colorScheme.onPrimary,
                               ),
                             )
-                          : const HugeIcon(icon: HugeIcons.strokeRoundedPlay, size: 18),
+                          : const HugeIcon(
+                              icon: HugeIcons.strokeRoundedPlay,
+                              size: 16,
+                            ),
                       label: Text(isExecuting ? 'Running...' : 'Run Query'),
-                      style: FilledButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                      ),
+                      onPressed: (canExecute && !isExecuting)
+                          ? onExecute
+                          : null,
                     ),
                   ],
                 ),

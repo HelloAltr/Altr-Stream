@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
@@ -115,7 +116,8 @@ UPDATE users (
 DELETE users WHERE {
     id = 1
 };''',
-    'Delete Mass': '''// Mass delete all records in entity (requires confirmation)
+    'Delete Mass':
+        '''// Mass delete all records in entity (requires confirmation)
 DELETE users;''',
   };
 
@@ -125,9 +127,7 @@ DELETE users;''',
     _apiClient = widget.apiClient ?? ApiClient();
     _queryController = TextEditingController();
     _focusNode = FocusNode();
-    if (widget.sources.isNotEmpty) {
-      _selectedSource = widget.sources.first;
-    }
+    _selectedSource = null; // Default option: Auto-Select / Federated
   }
 
   @override
@@ -215,7 +215,9 @@ DELETE users;''',
       final response = await _apiClient.bindAltrQL(
         query: queryText,
         sourceId: _selectedSource?.id,
-        normalize: _selectedSource == null ? true : _normalizeThroughLogicalSchema,
+        normalize: _selectedSource == null
+            ? true
+            : _normalizeThroughLogicalSchema,
       );
       if (!mounted) return;
 
@@ -282,7 +284,9 @@ DELETE users;''',
       final response = await _apiClient.executeAltrQL(
         query: queryText,
         sourceId: _selectedSource?.id,
-        normalize: _selectedSource == null ? true : _normalizeThroughLogicalSchema,
+        normalize: _selectedSource == null
+            ? true
+            : _normalizeThroughLogicalSchema,
         confirmMassMutation: confirmMassMutation,
       );
       if (!mounted) return;
@@ -325,10 +329,7 @@ DELETE users;''',
 
       if (!response.success &&
           response.error?.type == 'MassMutationConfirmationRequiredError') {
-        _showMassMutationConfirmationDialog(
-          response.classification,
-          queryText,
-        );
+        _showMassMutationConfirmationDialog(response.classification, queryText);
       }
     } catch (e) {
       if (!mounted) return;
@@ -356,7 +357,11 @@ DELETE users;''',
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const HugeIcon(icon: HugeIcons.strokeRoundedAlert02, color: Colors.amber, size: 36),
+        icon: const HugeIcon(
+          icon: HugeIcons.strokeRoundedAlert02,
+          color: Colors.amber,
+          size: 36,
+        ),
         title: Text('Mass $op Confirmation Required'),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
@@ -366,12 +371,18 @@ DELETE users;''',
             children: [
               Text(
                 'You are executing an unconstrained $op operation on entity \'$entity\' without a WHERE clause.',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'This will modify or delete ALL records in \'$entity\'. Are you sure you want to proceed?',
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -390,7 +401,10 @@ DELETE users;''',
               Navigator.of(ctx).pop();
               _handleExecute(confirmMassMutation: true);
             },
-            icon: const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
+            icon: const HugeIcon(
+              icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+              size: 16,
+            ),
             label: Text('Confirm & Execute Mass $op'),
           ),
         ],
@@ -431,167 +445,6 @@ DELETE users;''',
     }
   }
 
-  void _showEngineRoadmapDialog() {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: HugeIcon(
-                icon: HugeIcons.strokeRoundedCode,
-                color: colorScheme.primary,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'AltrQL Execution Engine',
-              style: TextStyle(fontSize: 16),
-            ),
-          ],
-        ),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'AltrQL provides a unified, vendor-neutral query interface with pure compilation and controlled database execution.',
-                style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Implementation Roadmap:',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildRoadmapItem(
-                      'Phase B',
-                      'Language Specification & Parser Core',
-                      true,
-                    ),
-                    _buildRoadmapItem(
-                      'Phase B.5',
-                      'Interactive Parser Playground',
-                      true,
-                    ),
-                    _buildRoadmapItem(
-                      'Phase C',
-                      'Semantic Validation & Normalization IR',
-                      true,
-                    ),
-                    _buildRoadmapItem(
-                      'Phase D',
-                      'Schema Binding & Type Validation',
-                      true,
-                    ),
-                    _buildRoadmapItem(
-                      'Phase E',
-                      'Physical Query Lowering & Controlled Execution',
-                      true,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'AltrQL compiles queries deterministically into parameterized SQL, executing them securely against connected data sources.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          if (_selectedSource != null && widget.onNavigateToSource != null)
-            TextButton.icon(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                widget.onNavigateToSource!(_selectedSource!);
-              },
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
-              label: Text('Open ${_selectedSource!.name} Detail'),
-            ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRoadmapItem(String phase, String label, bool isDoneOrNext) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: isDoneOrNext
-                  ? colorScheme.primary
-                  : colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              phase,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isDoneOrNext
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isDoneOrNext
-                    ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant,
-                fontWeight: isDoneOrNext ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -603,290 +456,274 @@ DELETE users;''',
         const SingleActivator(LogicalKeyboardKey.enter, control: true):
             _handleExecute,
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // AltrQL Editor Card
-          Container(
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.6),
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isBounded = constraints.hasBoundedHeight;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          // AltrQL Editor Card (styled like QueryEditor)
+          Card(
+            elevation: 0,
+            margin: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(28)),
+              side: BorderSide.none,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header with DB Selector & Expanded Reset Query Button
+                // Header with M3EMenu Target Source Selector & Normalize on Left, M3EButton Reset Query on Right
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 8,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainer,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(11),
-                    ),
-                    border: Border(
-                      bottom: BorderSide(
-                        color: colorScheme.outlineVariant.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                    ),
+                    color: colorScheme.surfaceContainerLow,
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      HugeIcon(
-                        icon: HugeIcons.strokeRoundedCommandLine,
-                        size: 16,
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'AltrQL Editor',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const Spacer(),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          reverse: true,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Target Source:',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: colorScheme.onSurfaceVariant,
+                      // Left side: Target Source M3EMenu & Normalize Checkbox
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Target Source:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Theme(
+                            data: Theme.of(context).copyWith(
+                              textTheme: Theme.of(context).textTheme.copyWith(
+                                bodyMedium: const TextStyle(fontSize: 11.5),
+                                bodySmall: const TextStyle(fontSize: 11),
+                                labelLarge: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
                                 ),
+                                labelMedium: const TextStyle(fontSize: 11),
                               ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerLow,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: colorScheme.outlineVariant.withValues(
-                                      alpha: 0.8,
-                                    ),
-                                    width: 1.0,
-                                  ),
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String?>(
-                                    value: _selectedSource?.id,
-                                    isDense: true,
-                                    dropdownColor:
-                                        colorScheme.surfaceContainerHighest,
-                                    icon: HugeIcon(
-                                      icon: HugeIcons.strokeRoundedArrowDown01,
-                                      size: 20,
-                                      color: colorScheme.primary,
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                    items: [
-                                      DropdownMenuItem<String?>(
-                                        value: null,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            HugeIcon(
-                                              icon: HugeIcons.strokeRoundedWorkflow,
-                                              size: 14,
-                                              color: colorScheme.primary,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              'Auto-Select / All Sources',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: colorScheme.onSurface,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 5,
-                                                vertical: 1,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: colorScheme.primaryContainer.withValues(alpha: 0.8),
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                'FEDERATED',
-                                                style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: colorScheme.onPrimaryContainer,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                            ),
+                            child: M3EMenu(
+                              position: M3EMenuAnchorPosition.bottomStart,
+                              colorStyle: M3EMenuColorStyle.standard,
+                              closeOnSelect: true,
+                              selectedValue: _selectedSource?.id ?? 'auto',
+                              onSelected: (Object? value) {
+                                setState(() {
+                                  if (value == 'auto' || value == null) {
+                                    _selectedSource = null;
+                                  } else {
+                                    final found = widget.sources.where(
+                                      (s) => s.id == value.toString(),
+                                    );
+                                    if (found.isNotEmpty) {
+                                      _selectedSource = found.first;
+                                    } else {
+                                      _selectedSource = null;
+                                    }
+                                  }
+                                });
+                              },
+                              anchorBuilder:
+                                  (BuildContext context, VoidCallback open) {
+                                    final isAuto = _selectedSource == null;
+                                    final labelText = isAuto
+                                        ? 'Auto-Select / All Sources (Federated)'
+                                        : '${_selectedSource!.name} (${_selectedSource!.type})';
+                                    final iconData = isAuto
+                                        ? HugeIcons.strokeRoundedWorkflow
+                                        : AppTheme.getSourceTypeIcon(
+                                            _selectedSource!.type,
+                                          );
+                                    final iconColor = isAuto
+                                        ? colorScheme.primary
+                                        : AppTheme.getSourceTypeColor(
+                                            _selectedSource!.type,
+                                            context,
+                                          );
+
+                                    return Theme(
+                                      data: Theme.of(context).copyWith(
+                                        colorScheme: colorScheme.copyWith(
+                                          secondaryContainer:
+                                              colorScheme.surfaceContainer,
+                                          onSecondaryContainer:
+                                              colorScheme.onSurface,
                                         ),
                                       ),
-                                      ...widget.sources.map((src) {
-                                        return DropdownMenuItem<String?>(
-                                          value: src.id,
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              HugeIcon(
-                                                icon: AppTheme.getSourceTypeIcon(src.type),
-                                                size: 14,
-                                                color: colorScheme.primary,
+                                      child: SizedBox(
+                                        width: 270,
+                                        child: M3EButton.icon(
+                                          style: M3EButtonStyle.outlined,
+                                          size: M3EButtonSize.sm,
+                                          decoration: M3EButtonDecoration(
+                                            side: WidgetStatePropertyAll(
+                                              BorderSide(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .outline
+                                                    .withAlpha(100),
                                               ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                src.name,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: colorScheme.onSurface,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 5,
-                                                  vertical: 1,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: colorScheme.surfaceContainerHighest,
-                                                  borderRadius: BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  src.type,
-                                                  style: TextStyle(
-                                                    fontSize: 9,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: colorScheme.onSurfaceVariant,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                    onChanged: (sourceId) {
-                                      setState(() {
-                                        if (sourceId == null) {
-                                          _selectedSource = null;
-                                        } else {
-                                          _selectedSource = widget.sources.firstWhere(
-                                            (s) => s.id == sourceId,
-                                          );
-                                        }
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: Checkbox(
-                                      value: _selectedSource == null
-                                          ? true
-                                          : _normalizeThroughLogicalSchema,
-                                      onChanged: _selectedSource == null
-                                          ? null
-                                          : (val) {
-                                              setState(() {
-                                                _normalizeThroughLogicalSchema =
-                                                    val ?? false;
-                                              });
-                                            },
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Tooltip(
-                                    message: _selectedSource == null
-                                        ? 'Normalization is mandatory for federated multi-source execution'
-                                        : 'When enabled, translates physical column names to canonical logical field names',
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'Normalize (Logical)',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color: _selectedSource == null
-                                                ? colorScheme.onSurface
-                                                    .withValues(alpha: 0.7)
-                                                : colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                        if (_selectedSource == null) ...[
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '(Auto)',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontStyle: FontStyle.italic,
-                                              color: colorScheme.outline,
                                             ),
                                           ),
-                                        ],
-                                      ],
+                                          icon: HugeIcon(
+                                            icon: iconData,
+                                            size: 14,
+                                            color: iconColor,
+                                          ),
+                                          label: Text(
+                                            labelText,
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: colorScheme.onSurface,
+                                            ),
+                                          ),
+                                          onPressed: open,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                              children: <M3EMenuNode>[
+                                M3EMenuSelectable(
+                                  label:
+                                      'Auto-Select / All Sources (Federated)',
+                                  value: 'auto',
+                                  selected: _selectedSource == null,
+                                  leading: HugeIcon(
+                                    icon: HugeIcons.strokeRoundedWorkflow,
+                                    color: colorScheme.primary,
+                                    size: 15,
+                                  ),
+                                ),
+                                ...widget.sources.map((src) {
+                                  final srcColor = AppTheme.getSourceTypeColor(
+                                    src.type,
+                                    context,
+                                  );
+                                  return M3EMenuSelectable(
+                                    label: '${src.name} (${src.type})',
+                                    value: src.id,
+                                    selected: _selectedSource?.id == src.id,
+                                    leading: HugeIcon(
+                                      icon: AppTheme.getSourceTypeIcon(
+                                        src.type,
+                                      ),
+                                      color: srcColor,
+                                      size: 15,
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 12),
-                              OutlinedButton.icon(
-                                icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
-                                label: const Text(
-                                  'Reset Query',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                                style: OutlinedButton.styleFrom(
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: Checkbox(
+                                  value: _selectedSource == null
+                                      ? true
+                                      : _normalizeThroughLogicalSchema,
+                                  onChanged: _selectedSource == null
+                                      ? null
+                                      : (val) {
+                                          setState(() {
+                                            _normalizeThroughLogicalSchema =
+                                                val ?? false;
+                                          });
+                                        },
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                   visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
                                 ),
-                                onPressed: () {
-                                  setState(() => _queryController.clear());
-                                  _focusNode.requestFocus();
-                                },
+                              ),
+                              const SizedBox(width: 4),
+                              Tooltip(
+                                message: _selectedSource == null
+                                    ? 'Normalization is mandatory for federated multi-source execution'
+                                    : 'When enabled, translates physical column names to canonical logical field names',
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Normalize (Logical)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: _selectedSource == null
+                                            ? colorScheme.onSurface.withValues(
+                                                alpha: 0.7,
+                                              )
+                                            : colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    if (_selectedSource == null) ...[
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '(Auto)',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontStyle: FontStyle.italic,
+                                          color: colorScheme.outline,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ],
                           ),
+                        ],
+                      ),
+                      // Right side: M3EButton for Reset Query
+                      M3EButton.icon(
+                        style: M3EButtonStyle.outlined,
+                        size: M3EButtonSize.sm,
+                        decoration: M3EButtonDecoration(
+                          side: WidgetStatePropertyAll(
+                            BorderSide(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outline.withAlpha(100),
+                            ),
+                          ),
                         ),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedRefresh,
+                          size: 14,
+                        ),
+                        label: const Text('Reset Query'),
+                        onPressed: () {
+                          setState(() => _queryController.clear());
+                          _focusNode.requestFocus();
+                        },
                       ),
                     ],
                   ),
                 ),
 
-                // Text Field with Top Alignment, Tab Support, Monospace Code Font, and Generous Padding
+                // Text Field Container with Surface Container Low Background Color (fitted for 10 lines: 10 * 19.5 + 32 = 227)
                 Container(
-                  height: 450,
-                  padding: const EdgeInsets.all(16),
+                  height: 227,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerLowest,
+                    border: BoxBorder.all(
+                      color: colorScheme.surfaceContainerLow,
+                    ),
+                  ),
                   child: CallbackShortcuts(
                     bindings: <ShortcutActivator, VoidCallback>{
                       const SingleActivator(LogicalKeyboardKey.tab):
@@ -918,8 +755,14 @@ DELETE users;''',
                           ),
                         ),
                         border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.all(16),
+                        focusedBorder: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        hoverColor: Colors.transparent,
+                        fillColor: Colors.transparent,
+                        filled: false,
+                        contentPadding: const EdgeInsets.all(16),
                       ),
                     ),
                   ),
@@ -932,17 +775,7 @@ DELETE users;''',
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainer,
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(11),
-                    ),
-                    border: Border(
-                      top: BorderSide(
-                        color: colorScheme.outlineVariant.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                    ),
+                    color: colorScheme.surfaceContainerLow,
                   ),
                   child: Wrap(
                     alignment: WrapAlignment.spaceBetween,
@@ -1037,69 +870,43 @@ DELETE users;''',
                               ),
                             ),
                           ),
-                          OutlinedButton.icon(
-                            onPressed: _isBusy ? null : _handleParse,
-                            icon: _isParsing
-                                ? const SizedBox(
-                                    width: 12,
-                                    height: 12,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const HugeIcon(
-                                    icon: HugeIcons.strokeRoundedStructure01,
-                                    size: 14,
-                                  ),
-                            label: Text(
-                              _isParsing ? 'Parsing...' : 'Parse Query',
-                              style: const TextStyle(fontSize: 12),
+                          M3ESplitButton<String>(
+                            label: _isExecuting
+                                ? 'Executing...'
+                                : (_isBinding
+                                      ? 'Binding...'
+                                      : (_isParsing
+                                            ? 'Parsing...'
+                                            : 'Execute Query')),
+                            leadingIcon: M3EIcons.play_arrow,
+                            style: M3EButtonStyle.filled,
+                            size: M3EButtonSize.sm,
+                            shape: M3EButtonShape.round,
+                            enabled: !_isBusy,
+                            selectedValue: null,
+                            decoration: const M3ESplitButtonDecoration(
+                              menuStyle: M3ESplitButtonMenuStyle.popup,
                             ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: (_isBusy || _selectedSource == null)
-                                ? null
-                                : _handleBind,
-                            icon: _isBinding
-                                ? const SizedBox(
-                                    width: 12,
-                                    height: 12,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const HugeIcon(
-                                    icon: HugeIcons.strokeRoundedTask01,
-                                    size: 14,
-                                  ),
-                            label: Text(
-                              _isBinding ? 'Binding...' : 'Bind Against Source',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          FilledButton.icon(
-                            onPressed: (_isBusy || _selectedSource == null)
-                                ? null
-                                : _handleExecute,
-                            icon: _isExecuting
-                                ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const HugeIcon(
-                                    icon: HugeIcons.strokeRoundedPlay,
-                                    size: 16,
-                                  ),
-                            label: Text(
-                              _isExecuting ? 'Executing...' : 'Execute Query',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
+                            onPressed: _handleExecute,
+                            onSelected: (String value) {
+                              if (value == 'execute') _handleExecute();
+                              if (value == 'bind') _handleBind();
+                              if (value == 'parse') _handleParse();
+                            },
+                            items: const <M3ESplitButtonItem<String>>[
+                              M3ESplitButtonItem<String>(
+                                value: 'execute',
+                                child: Text('Execute Query'),
                               ),
-                            ),
+                              M3ESplitButtonItem<String>(
+                                value: 'bind',
+                                child: Text('Bind Against Source'),
+                              ),
+                              M3ESplitButtonItem<String>(
+                                value: 'parse',
+                                child: Text('Parse Query'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -1112,66 +919,20 @@ DELETE users;''',
           const SizedBox(height: 16),
 
           // Output Panel: Multi-view switcher [Results, Physical Query, Bound IR, Canonical IR]
-          _buildOutputPanel(context),
-          const SizedBox(height: 16),
-
-          // Status / Architecture Card
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      HugeIcon(
-                        icon: HugeIcons.strokeRoundedStructure01,
-                        size: 18,
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'AltrQL Architecture Overview',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'AltrQL provides a strongly-typed compiler pipeline: Lexer -> Parser (AltrQueryIR) -> Semantic Validator -> Schema Binder (BoundAltrQueryIR) -> Physical Lowerer (PhysicalQuery) -> Controlled Database Execution.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurfaceVariant,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _showEngineRoadmapDialog,
-                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedInformationCircle, size: 14),
-                        label: const Text(
-                          'Engine Roadmap Details',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+          if (isBounded)
+            Expanded(
+              child: _buildOutputPanel(context),
+            )
+          else
+            SizedBox(
+              height: 500,
+              child: _buildOutputPanel(context),
             ),
-          ),
         ],
-      ),
-    );
+      );
+    },
+  ),
+);
   }
 
   Widget _buildOutputPanel(BuildContext context) {
@@ -1179,7 +940,8 @@ DELETE users;''',
 
     final hasResults =
         _columns.isNotEmpty || _rows.isNotEmpty || _metadata != null;
-    final hasPhysicalQuery = _physicalQuery != null || _physicalQueries.isNotEmpty;
+    final hasPhysicalQuery =
+        _physicalQuery != null || _physicalQueries.isNotEmpty;
     final hasBoundIr = _boundIr != null;
     final hasCanonicalIr = _ir != null;
 
@@ -1234,7 +996,7 @@ DELETE users;''',
       return Container(
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(28),
           border: Border.all(
             color: isSuccess
                 ? Colors.green.withValues(alpha: 0.4)
@@ -1281,7 +1043,8 @@ DELETE users;''',
                         Text(
                           isSuccess
                               ? (hasResults
-                                    ? (_metadata?.operation != null && _metadata!.operation != 'READ'
+                                    ? (_metadata?.operation != null &&
+                                              _metadata!.operation != 'READ'
                                           ? '${_metadata!.operation} Mutation Executed'
                                           : 'Query Executed Successfully')
                                     : (hasBoundIr
@@ -1291,9 +1054,7 @@ DELETE users;''',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: isSuccess
-                                ? Colors.green
-                                : colorScheme.error,
+                            color: isSuccess ? Colors.green : colorScheme.error,
                           ),
                         ),
                         if (_executionMode == 'federated') ...[
@@ -1307,11 +1068,13 @@ DELETE users;''',
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              _metadata != null && (_metadata!.includedSources.isNotEmpty || _metadata!.excludedSources.isNotEmpty)
+                              _metadata != null &&
+                                      (_metadata!.includedSources.isNotEmpty ||
+                                          _metadata!.excludedSources.isNotEmpty)
                                   ? 'FEDERATED (${_metadata!.includedSources.length}/${_metadata!.includedSources.length + _metadata!.excludedSources.length} Sources)'
                                   : (_sourcesExecuted.isNotEmpty
-                                      ? 'FEDERATED (${_sourcesExecuted.length} Sources)'
-                                      : 'FEDERATED'),
+                                        ? 'FEDERATED (${_sourcesExecuted.length} Sources)'
+                                        : 'FEDERATED'),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -1373,28 +1136,35 @@ DELETE users;''',
                               color: _classification!.operation == 'READ'
                                   ? colorScheme.primaryContainer
                                   : (_classification!.operation == 'DELETE'
-                                      ? Colors.red.withValues(alpha: 0.2)
-                                      : (_classification!.operation == 'CREATE'
-                                          ? Colors.green.withValues(alpha: 0.2)
-                                          : Colors.amber.withValues(alpha: 0.2))),
+                                        ? Colors.red.withValues(alpha: 0.2)
+                                        : (_classification!.operation ==
+                                                  'CREATE'
+                                              ? Colors.green.withValues(
+                                                  alpha: 0.2,
+                                                )
+                                              : Colors.amber.withValues(
+                                                  alpha: 0.2,
+                                                ))),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               _classification!.mutationScope == 'MASS'
                                   ? '${_classification!.operation} · MASS ⚠️'
-                                  : (_classification!.mutationScope == 'CONSTRAINED'
-                                      ? '${_classification!.operation} · CONSTRAINED'
-                                      : _classification!.operation),
+                                  : (_classification!.mutationScope ==
+                                            'CONSTRAINED'
+                                        ? '${_classification!.operation} · CONSTRAINED'
+                                        : _classification!.operation),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 color: _classification!.operation == 'READ'
                                     ? colorScheme.primary
                                     : (_classification!.operation == 'DELETE'
-                                        ? Colors.red
-                                        : (_classification!.operation == 'CREATE'
-                                            ? Colors.green.shade800
-                                            : Colors.amber.shade900)),
+                                          ? Colors.red
+                                          : (_classification!.operation ==
+                                                    'CREATE'
+                                                ? Colors.green.shade800
+                                                : Colors.amber.shade900)),
                               ),
                             ),
                           ),
@@ -1478,7 +1248,10 @@ DELETE users;''',
                                   : '${_error!.type}: ${_error!.message}';
                               _copyToClipboard(errText, 'Error Diagnostics');
                             },
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 12),
+                            icon: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedCopy01,
+                              size: 12,
+                            ),
                             label: const Text(
                               'Copy Error',
                               style: TextStyle(fontSize: 11),
@@ -1509,64 +1282,64 @@ DELETE users;''',
             ],
 
             // Active Tab Content View
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: _buildActiveTabContent(context),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(14),
+                child: _buildActiveTabContent(context),
+              ),
             ),
           ],
         ),
       );
     }
 
-    // Default / Initial Placeholder
+    // Idle / Initial Placeholder: "Ready to Execute" card
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      height: double.infinity,
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
+        borderRadius: BorderRadius.circular(28),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: HugeIcon(
-              icon: HugeIcons.strokeRoundedPlaySquare,
-              size: 22,
-              color: colorScheme.primary,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Interactive AST / IR Inspector',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Click "Execute Query" or press ⌘+Enter to compile and run queries with tabular results and physical SQL inspection.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedPlaySquare,
+                  size: 28,
+                  color: colorScheme.primary,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Ready to Execute',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Press ⌘/Ctrl+Enter or click Run Query to test queries in the AltrQL Console.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1635,93 +1408,180 @@ DELETE users;''',
 
     // 0: Results
     if (_activeResultTab == 0) {
-      final showParticipation = _metadata != null &&
-          (_metadata!.includedSources.isNotEmpty || _metadata!.excludedSources.isNotEmpty) &&
+      final showParticipation =
+          _metadata != null &&
+          (_metadata!.includedSources.isNotEmpty ||
+              _metadata!.excludedSources.isNotEmpty) &&
           _executionMode == 'federated';
 
       if (_columns.isEmpty && _rows.isEmpty) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (showParticipation) _buildSourceParticipationPanel(context, _metadata!),
+            if (showParticipation)
+              _buildSourceParticipationPanel(context, _metadata!),
             Container(
               padding: const EdgeInsets.all(24),
               alignment: Alignment.center,
               child: Text(
                 'No rows returned.',
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
         );
       }
 
+      final Map<String, double> colWidths = {};
+      for (final col in _columns) {
+        double maxW = (col.length * 10.0) + 32.0;
+        for (final row in _rows.take(100)) {
+          final val = row[col];
+          final str = val == null ? 'NULL' : val.toString();
+          final w = (str.length * 8.5) + 32.0;
+          if (w > maxW) maxW = w;
+        }
+        colWidths[col] = maxW.clamp(100.0, 450.0);
+      }
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (showParticipation) _buildSourceParticipationPanel(context, _metadata!),
+          if (showParticipation)
+            _buildSourceParticipationPanel(context, _metadata!),
           Container(
             width: double.infinity,
-            constraints: const BoxConstraints(maxHeight: 320),
             decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: colorScheme.outlineVariant.withValues(alpha: 0.4),
               ),
             ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                child: DataTable(
-              headingRowColor: WidgetStateProperty.all(
-                colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
-              ),
-              dataRowColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.hovered)) {
-                  return colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.3,
-                  );
-                }
-                return null;
-              }),
-              columns: _columns.map((col) {
-                return DataColumn(
-                  label: Text(
-                    col,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              }).toList(),
-              rows: _rows.map((row) {
-                return DataRow(
-                  cells: _columns.map((col) {
-                    final val = row[col];
-                    return DataCell(
-                      Text(
-                        val == null ? 'NULL' : val.toString(),
-                        style: TextStyle(
-                          fontFamily: val == null ? 'sans-serif' : 'monospace',
-                          fontSize: 12,
-                          color: val == null
-                              ? colorScheme.outline
-                              : colorScheme.onSurface,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header Row
+                    Container(
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.8,
                       ),
-                    );
-                  }).toList(),
-                );
-              }).toList(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 44,
+                            child: Text(
+                              '#',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.outline,
+                              ),
+                            ),
+                          ),
+                          ..._columns.map(
+                            (col) => SizedBox(
+                              width: colWidths[col],
+                              child: Text(
+                                col,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                    ),
+                    // Data Rows (unwrapped into Column for parent scrolling)
+                    ..._rows.asMap().entries.map((entry) {
+                      final idx = entry.key + 1;
+                      final row = entry.value;
+                      return Container(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: colorScheme.outlineVariant
+                                  .withValues(alpha: 0.2),
+                            ),
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 44,
+                              child: Text(
+                                '$idx',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colorScheme.outline,
+                                ),
+                              ),
+                            ),
+                            ..._columns.map((col) {
+                              final val = row[col];
+                              final strVal = val == null
+                                  ? 'NULL'
+                                  : val.toString();
+                              final isNull = val == null;
+                              return SizedBox(
+                                width: colWidths[col],
+                                child: SelectableText(
+                                  strVal,
+                                  style: TextStyle(
+                                    fontFamily: isNull
+                                        ? 'sans-serif'
+                                        : 'monospace',
+                                    fontSize: 12,
+                                    color: isNull
+                                        ? colorScheme.outline
+                                        : colorScheme.onSurface,
+                                    fontStyle: isNull
+                                        ? FontStyle.italic
+                                        : FontStyle.normal,
+                                  ),
+                                  maxLines: 1,
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    ],
-  );
-}
+        ],
+      );
+    }
 
     // 1: Physical Query
     final queriesToDisplay = _physicalQueries.isNotEmpty
@@ -1729,7 +1589,10 @@ DELETE users;''',
         : (_physicalQuery != null ? [_physicalQuery!] : <PhysicalQueryModel>[]);
 
     if (_activeResultTab == 1 && queriesToDisplay.isNotEmpty) {
-      final selectedIdx = _selectedPhysicalQueryIndex.clamp(0, queriesToDisplay.length - 1);
+      final selectedIdx = _selectedPhysicalQueryIndex.clamp(
+        0,
+        queriesToDisplay.length - 1,
+      );
       final currentQuery = queriesToDisplay[selectedIdx];
 
       return Column(
@@ -1767,7 +1630,9 @@ DELETE users;''',
                         '${q.sourceName} (${q.dialect.toUpperCase()})',
                         style: TextStyle(
                           fontSize: 11,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                         ),
                       ),
                     ],
@@ -1965,7 +1830,10 @@ DELETE users;''',
     return const SizedBox.shrink();
   }
 
-  Widget _buildSourceParticipationPanel(BuildContext context, QueryMetadataModel meta) {
+  Widget _buildSourceParticipationPanel(
+    BuildContext context,
+    QueryMetadataModel meta,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
     final total = meta.includedSources.length + meta.excludedSources.length;
     final isEphemeral = meta.isEphemeral;
@@ -1995,12 +1863,18 @@ DELETE users;''',
               const SizedBox(width: 8),
               Text(
                 'Source Participation (${meta.includedSources.length}/$total sources)',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               if (isEphemeral) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.purple.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(3),
@@ -2018,31 +1892,46 @@ DELETE users;''',
             ],
           ),
           children: [
-            ...meta.includedSources.map((s) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 14, color: Colors.green),
-                  const SizedBox(width: 6),
-                  Text(
-                    s.sourceName ?? s.sourceId,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '— included — ${s.rows} rows',
-                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
-                  ),
-                  if (s.executionTimeMs != null) ...[
-                    const SizedBox(width: 4),
-                    Text(
-                      '(${s.executionTimeMs} ms)',
-                      style: TextStyle(fontSize: 10, color: colorScheme.outline),
+            ...meta.includedSources.map(
+              (s) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                      size: 14,
+                      color: Colors.green,
                     ),
+                    const SizedBox(width: 6),
+                    Text(
+                      s.sourceName ?? s.sourceId,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '— included — ${s.rows} rows',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (s.executionTimeMs != null) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '(${s.executionTimeMs} ms)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            )),
+            ),
             ...meta.excludedSources.map((s) {
               final isFailed = s.status.toUpperCase() == 'FAILED';
               return Padding(
@@ -2050,21 +1939,28 @@ DELETE users;''',
                 child: Row(
                   children: [
                     HugeIcon(
-                      icon: isFailed ? HugeIcons.strokeRoundedAlertCircle : HugeIcons.strokeRoundedMinusSignCircle,
+                      icon: isFailed
+                          ? HugeIcons.strokeRoundedAlertCircle
+                          : HugeIcons.strokeRoundedMinusSignCircle,
                       size: 14,
                       color: isFailed ? Colors.red : Colors.amber.shade700,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       s.sourceName ?? s.sourceId,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       '— ${isFailed ? 'failed' : 'excluded'} — ${s.reasonCode}',
                       style: TextStyle(
                         fontSize: 11,
-                        color: isFailed ? Colors.red : colorScheme.onSurfaceVariant,
+                        color: isFailed
+                            ? Colors.red
+                            : colorScheme.onSurfaceVariant,
                       ),
                     ),
                     if (s.message.isNotEmpty) ...[
@@ -2072,7 +1968,10 @@ DELETE users;''',
                       Expanded(
                         child: Text(
                           '(${s.message})',
-                          style: TextStyle(fontSize: 10, color: colorScheme.outline),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: colorScheme.outline,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),

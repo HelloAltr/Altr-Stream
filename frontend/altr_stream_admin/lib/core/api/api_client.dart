@@ -74,9 +74,27 @@ class ApiClient {
     return _processResponse(res) as Map<String, dynamic>;
   }
 
-  /// List all registered data sources
-  Future<List<SourceModel>> listSources() async {
-    final res = await _client.get(_uri('/sources'), headers: _headers);
+  /// Get real-time read and write usage metrics (optional per-source filtering)
+  Future<UsageMetricsModel> getUsageMetrics({String timeWindow = '30m', String? sourceId}) async {
+    final endpoint = (sourceId != null && sourceId.isNotEmpty)
+        ? '/metrics/usage?time_window=$timeWindow&source_id=$sourceId'
+        : '/metrics/usage?time_window=$timeWindow';
+    final res = await _client.get(_uri(endpoint), headers: _headers);
+    return UsageMetricsModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+  }
+
+  /// Clear all monitored usage logs and metrics
+  Future<void> clearUsageMetrics() async {
+    final res = await _client.delete(_uri('/metrics/usage'), headers: _headers);
+    _processResponse(res);
+  }
+
+
+
+  /// List all registered data sources (optional probe=true tests physical reachability for each DB source)
+  Future<List<SourceModel>> listSources({bool probe = false}) async {
+    final endpoint = probe ? '/sources?probe=true' : '/sources';
+    final res = await _client.get(_uri(endpoint), headers: _headers);
     final data = _processResponse(res) as List<dynamic>;
     return data.map((e) => SourceModel.fromJson(e as Map<String, dynamic>)).toList();
   }

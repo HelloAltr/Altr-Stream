@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import '../../core/theme/app_theme.dart';
 
 class StatusBadge extends StatelessWidget {
@@ -67,8 +68,18 @@ class StatusBadge extends StatelessWidget {
     Color bgColor;
     Color textColor;
     String label;
+    bool isPinging = false;
 
     switch (status.toUpperCase()) {
+      case 'PINGING':
+      case 'CONNECTING':
+      case 'REFRESHING':
+        dotColor = isDark ? Colors.orangeAccent : Colors.orange.shade800;
+        bgColor = isDark ? Colors.orange.withValues(alpha: 0.2) : Colors.orange.shade50;
+        textColor = dotColor;
+        label = 'Pinging';
+        isPinging = true;
+        break;
       case 'ACTIVE':
       case 'HEALTHY':
         dotColor = isDark ? AppTheme.successDark : AppTheme.successLight;
@@ -114,18 +125,31 @@ class StatusBadge extends StatelessWidget {
         label = status;
     }
 
-    if (isCompact) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
+    final Widget dotWidget = isPinging
+        ? SizedBox(
+            width: 12,
+            height: 12,
+            child: M3EProgressIndicator.circular(
+              value: null,
+              strokeWidth: 2.5,
+              trackStrokeWidth: 2.5,
+              color: dotColor,
+            ),
+          )
+        : Container(
+            width: isCompact ? 7 : 6,
+            height: isCompact ? 7 : 6,
             decoration: BoxDecoration(
               color: dotColor,
               shape: BoxShape.circle,
             ),
-          ),
+          );
+
+    if (isCompact) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          dotWidget,
           const SizedBox(width: 6),
           Text(
             label,
@@ -149,14 +173,7 @@ class StatusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: dotColor,
-              shape: BoxShape.circle,
-            ),
-          ),
+          dotWidget,
           const SizedBox(width: 6),
           Text(
             label,
@@ -171,3 +188,4 @@ class StatusBadge extends StatelessWidget {
     );
   }
 }
+

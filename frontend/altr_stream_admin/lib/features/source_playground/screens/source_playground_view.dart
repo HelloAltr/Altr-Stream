@@ -485,7 +485,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
 
         // Editor
         SizedBox(
-          height: 240,
+          height: 280,
           child: QueryEditor(
             controller: _queryController,
             focusNode: _focusNode,
@@ -545,7 +545,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
         const SizedBox(height: 10),
 
         SizedBox(
-          height: 200,
+          height: 280,
           child: QueryEditor(
             controller: _queryController,
             focusNode: _focusNode,
@@ -623,12 +623,11 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
       );
     }
 
-    // Idle Placeholder
+    // Idle Placeholder inspired by AltrQL Console "Ready to Execute" card
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Center(
         child: Padding(
@@ -636,23 +635,30 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              HugeIcon(
-                icon: HugeIcons.strokeRoundedCommandLine,
-                size: 36,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedPlaySquare,
+                  size: 28,
+                  color: colorScheme.primary,
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Text(
                 'Ready to Execute',
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
                   color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 6),
               Text(
-                'Press ⌘+Enter or click Run Query to test queries against ${widget.source.name}.',
+                'Press ⌘/Ctrl+Enter or click Run Query to test queries against ${widget.source.name}.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
@@ -35,14 +36,19 @@ class LogicalModelDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<LogicalModelDetailScreen> createState() => _LogicalModelDetailScreenState();
+  State<LogicalModelDetailScreen> createState() => LogicalModelDetailScreenState();
 }
 
-class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with SingleTickerProviderStateMixin {
+class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late final M3ERefreshIndicatorController _refreshController;
   late LogicalModelModel _currentModel;
   List<SourceMappingModel> _mappings = [];
   bool _isLoadingMappings = true;
+
+  Future<void> triggerRefresh() async {
+    await Future.wait([_refreshModel(), _fetchMappings()]);
+  }
 
   // Inline mapping editor state
   String? _editingMappingId;
@@ -66,6 +72,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
+    _refreshController = M3ERefreshIndicatorController();
     _currentModel = widget.model;
     _refreshModel();
     _fetchMappings();
@@ -74,6 +81,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
   @override
   void dispose() {
     _tabController.dispose();
+    _refreshController.dispose();
     _copiedModelIdTimer?.cancel();
     super.dispose();
   }
@@ -326,19 +334,29 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
 
   Future<void> _deleteModel() async {
     final colorScheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainerHigh,
-        title: const Text('Delete Logical Model?'),
+    final confirmed = await M3EDialog.show<bool>(
+      context,
+      barrierDismissible: true,
+      dialog: M3EDialog(
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedDelete02,
+          color: colorScheme.error,
+          size: 28,
+        ),
+        title: 'Delete Logical Model?',
         content: Text(
           'Are you sure you want to delete "${_currentModel.name}" and all its entities and source mappings? This action cannot be undone.',
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error, foregroundColor: colorScheme.onError),
-            onPressed: () => Navigator.of(ctx).pop(true),
+          M3EButton(
+            style: M3EButtonStyle.text,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          M3EButton(
+            style: M3EButtonStyle.filled,
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete Model'),
           ),
         ],
@@ -442,17 +460,29 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
 
   Future<void> _deleteEntity(LogicalEntityModel entity) async {
     final colorScheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainerHigh,
-        title: const Text('Delete Logical Entity?'),
-        content: Text('Are you sure you want to delete "${entity.name}" and its fields?'),
+    final confirmed = await M3EDialog.show<bool>(
+      context,
+      barrierDismissible: true,
+      dialog: M3EDialog(
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedDelete02,
+          color: colorScheme.error,
+          size: 28,
+        ),
+        title: 'Delete Logical Entity?',
+        content: Text(
+          'Are you sure you want to delete "${entity.name}" and its fields? This action cannot be undone.',
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error, foregroundColor: colorScheme.onError),
-            onPressed: () => Navigator.of(ctx).pop(true),
+          M3EButton(
+            style: M3EButtonStyle.text,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          M3EButton(
+            style: M3EButtonStyle.filled,
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete Entity'),
           ),
         ],
@@ -475,17 +505,29 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
 
   Future<void> _deleteField(LogicalFieldModel field) async {
     final colorScheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainerHigh,
-        title: const Text('Delete Field?'),
-        content: Text('Are you sure you want to delete field "${field.name}"?'),
+    final confirmed = await M3EDialog.show<bool>(
+      context,
+      barrierDismissible: true,
+      dialog: M3EDialog(
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedDelete02,
+          color: colorScheme.error,
+          size: 28,
+        ),
+        title: 'Delete Field?',
+        content: Text(
+          'Are you sure you want to delete field "${field.name}"?',
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error, foregroundColor: colorScheme.onError),
-            onPressed: () => Navigator.of(ctx).pop(true),
+          M3EButton(
+            style: M3EButtonStyle.text,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          M3EButton(
+            style: M3EButtonStyle.filled,
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete Field'),
           ),
         ],
@@ -544,17 +586,29 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
 
   Future<void> _deleteMapping(SourceMappingModel mapping) async {
     final colorScheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainerHigh,
-        title: const Text('Delete Source Mapping?'),
-        content: const Text('Are you sure you want to delete this source mapping?'),
+    final confirmed = await M3EDialog.show<bool>(
+      context,
+      barrierDismissible: true,
+      dialog: M3EDialog(
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedDelete02,
+          color: colorScheme.error,
+          size: 28,
+        ),
+        title: 'Delete Source Mapping?',
+        content: Text(
+          'Are you sure you want to delete this source mapping?',
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error, foregroundColor: colorScheme.onError),
-            onPressed: () => Navigator.of(ctx).pop(true),
+          M3EButton(
+            style: M3EButtonStyle.text,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          M3EButton(
+            style: M3EButtonStyle.filled,
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete Mapping'),
           ),
         ],
@@ -581,128 +635,142 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
     final colorScheme = theme.colorScheme;
     final dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Top Header
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      Text(
-                        _currentModel.name,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
-                        ),
-                        child: Text(
-                          'v${_currentModel.version}',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.primary),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _showEditModelDialog,
-                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 16),
-                        tooltip: 'Edit Model Details',
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
-                  ),
-                  if (_currentModel.description != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      _currentModel.description!,
-                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            IconButton(
-              onPressed: _deleteModel,
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
-              color: colorScheme.error,
-              tooltip: 'Delete Model',
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
+    final mainContent = LayoutBuilder(
+      builder: (context, constraints) {
+        final isBounded = constraints.hasBoundedHeight;
 
-        // Tab Bar
-        TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          labelColor: colorScheme.primary,
-          unselectedLabelColor: colorScheme.onSurfaceVariant,
-          indicatorColor: colorScheme.primary,
-          tabs: [
-            const Tab(
-              icon: HugeIcon(icon: HugeIcons.strokeRoundedInformationCircle, size: 16),
-              text: 'Overview',
-            ),
-            Tab(
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 16),
-              text: 'Logical Schema (${_currentModel.entityCount} entities, ${_currentModel.totalFieldCount} fields)',
-            ),
-            Tab(
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedLink01, size: 16),
-              text: 'Source Mappings (${_mappings.length} sources)',
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // Tab Views
-        AnimatedBuilder(
+        final tabViews = AnimatedBuilder(
           animation: _tabController,
           builder: (context, _) {
             if (_tabController.index == 0) {
-              return _buildOverviewTab(context, dateFormat);
+              return isBounded
+                  ? SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: ClampingScrollPhysics(),
+                      ),
+                      child: _buildOverviewTab(context, dateFormat),
+                    )
+                  : _buildOverviewTab(context, dateFormat);
             } else if (_tabController.index == 1) {
-              return _buildLogicalSchemaTab(context);
+              return _buildLogicalSchemaTab(context, isBounded: isBounded);
             } else {
-              return _buildSourceMappingsTab(context);
+              return _buildSourceMappingsTab(context, isBounded: isBounded);
             }
           },
-        ),
-      ],
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Header
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          Text(
+                            _currentModel.name,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              'v${_currentModel.version}',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.primary),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (_currentModel.description != null && _currentModel.description!.isNotEmpty)
+                            ? _currentModel.description!
+                            : '${_currentModel.entityCount} ${_currentModel.entityCount == 1 ? "entity" : "entities"} • ${_currentModel.totalFieldCount} fields • ${_mappings.length} ${_mappings.length == 1 ? "source mapped" : "sources mapped"}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: 'monospace',
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Tab Bar
+            TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              labelColor: colorScheme.primary,
+              unselectedLabelColor: colorScheme.onSurfaceVariant,
+              indicatorColor: colorScheme.primary,
+              tabs: [
+                const Tab(
+                  text: 'Overview',
+                ),
+                Tab(
+                  text: 'Logical Schemas (${_currentModel.entityCount} entities, ${_currentModel.totalFieldCount} fields)',
+                ),
+                Tab(
+                  text: 'Source Mappings (${_mappings.length} sources)',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Tab Views
+            if (isBounded) Expanded(child: tabViews) else tabViews,
+          ],
+        );
+      },
+    );
+
+    return M3ERefreshIndicator.contained(
+      controller: _refreshController,
+      onRefresh: () async {
+        await triggerRefresh();
+      },
+      triggerMode: M3ERefreshTriggerMode.onEdge,
+      child: mainContent,
     );
   }
 
-  Widget _buildLogicalSchemaTab(BuildContext context) {
+  Widget _buildLogicalSchemaTab(BuildContext context, {bool isBounded = true}) {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (_currentModel.entities.isEmpty) {
-      return Container(
+      final emptyWidget = Container(
         width: double.infinity,
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
         ),
         child: Center(
           child: Column(
             children: [
-              HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 40, color: colorScheme.onSurfaceVariant),
+              HugeIcon(icon: HugeIcons.strokeRoundedSheet, size: 40, color: colorScheme.onSurfaceVariant),
               const SizedBox(height: 12),
               const Text('No logical entities defined yet.', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
@@ -717,36 +785,20 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
           ),
         ),
       );
+      return isBounded
+          ? SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: emptyWidget,
+            )
+          : emptyWidget;
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Logical Entities (${_currentModel.entities.length})',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: _showAddEntityDialog,
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
-              label: const Text('Add Logical Entity'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _currentModel.entities.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 16),
-          itemBuilder: (context, idx) {
+    final list = ListView.separated(
+      shrinkWrap: !isBounded,
+      physics: isBounded ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
+      itemCount: _currentModel.entities.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 16),
+      itemBuilder: (context, idx) {
         final entity = _currentModel.entities[idx];
         return Card(
           child: Padding(
@@ -765,7 +817,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                             color: colorScheme.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 16, color: colorScheme.primary),
+                          child: HugeIcon(icon: HugeIcons.strokeRoundedSheet, size: 16, color: colorScheme.primary),
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -939,9 +991,33 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
           ),
         );
       },
-    ),
-  ],
-);
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Logical Entities (${_currentModel.entities.length})',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _showAddEntityDialog,
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
+              label: const Text('Add Logical Entity'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (isBounded) Expanded(child: list) else list,
+      ],
+    );
   }
 
   Widget _buildCompatibilityBadge({
@@ -1082,7 +1158,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
             children: [
               Row(
                 children: [
-                  HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 15, color: colorScheme.primary),
+                  HugeIcon(icon: HugeIcons.strokeRoundedSheet, size: 15, color: colorScheme.primary),
                   const SizedBox(width: 8),
                   Text(
                     'Entity: ${logicalEntity.name}',
@@ -1387,10 +1463,10 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
     return Card(
       elevation: isEditing ? 3 : 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(28),
         side: isEditing
             ? BorderSide(color: colorScheme.primary, width: 2)
-            : BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+            : BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1405,9 +1481,8 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHigh,
+                        color: colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                       ),
                       child: HugeIcon(
                         icon: AppTheme.getSourceTypeIcon(source?.type),
@@ -1559,7 +1634,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
     );
   }
 
-  Widget _buildSourceMappingsTab(BuildContext context) {
+  Widget _buildSourceMappingsTab(BuildContext context, {bool isBounded = true}) {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (_isLoadingMappings) {
@@ -1572,12 +1647,12 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
     }
 
     if (_mappings.isEmpty) {
-      return Container(
+      final emptyWidget = Container(
         width: double.infinity,
         padding: const EdgeInsets.all(40),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
         ),
         child: Center(
@@ -1598,7 +1673,24 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
           ),
         ),
       );
+      return isBounded
+          ? SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: emptyWidget,
+            )
+          : emptyWidget;
     }
+
+    final list = ListView.separated(
+      shrinkWrap: !isBounded,
+      physics: isBounded ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
+      itemCount: _mappings.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 16),
+      itemBuilder: (context, idx) {
+        final mapping = _mappings[idx];
+        return _buildSourceMappingCard(context, mapping);
+      },
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1622,16 +1714,7 @@ class _LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> wit
           ],
         ),
         const SizedBox(height: 12),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _mappings.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 16),
-          itemBuilder: (context, idx) {
-            final mapping = _mappings[idx];
-            return _buildSourceMappingCard(context, mapping);
-          },
-        ),
+        if (isBounded) Expanded(child: list) else list,
       ],
     );
   }

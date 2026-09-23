@@ -1109,3 +1109,80 @@ class UserProfile {
     'provider': provider,
   };
 }
+
+class UsageMetricsModel {
+  final int totalReads;
+  final int totalWrites;
+  final double opsPerMinute;
+  final double readPercentage;
+  final double writePercentage;
+  final String timeWindow;
+  final List<String> timestamps;
+  final List<int> rawReads;
+  final List<int> rawWrites;
+  final List<double> readHistory;
+  final List<double> writeHistory;
+  final int yMax;
+
+  const UsageMetricsModel({
+    required this.totalReads,
+    required this.totalWrites,
+    required this.opsPerMinute,
+    required this.readPercentage,
+    required this.writePercentage,
+    this.timeWindow = '30m',
+    this.timestamps = const [],
+    this.rawReads = const [],
+    this.rawWrites = const [],
+    required this.readHistory,
+    required this.writeHistory,
+    this.yMax = 10,
+  });
+
+  factory UsageMetricsModel.fromJson(Map<String, dynamic> json) {
+    return UsageMetricsModel(
+      totalReads: (json['total_reads'] as num?)?.toInt() ?? 0,
+      totalWrites: (json['total_writes'] as num?)?.toInt() ?? 0,
+      opsPerMinute: (json['ops_per_minute'] as num?)?.toDouble() ?? 0.0,
+      readPercentage: (json['read_percentage'] as num?)?.toDouble() ?? 0.0,
+      writePercentage: (json['write_percentage'] as num?)?.toDouble() ?? 0.0,
+      timeWindow: json['time_window']?.toString() ?? '30m',
+      timestamps: (json['timestamps'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
+      rawReads: (json['raw_reads'] as List<dynamic>?)?.map((e) => (e as num).toInt()).toList() ?? const [],
+      rawWrites: (json['raw_writes'] as List<dynamic>?)?.map((e) => (e as num).toInt()).toList() ?? const [],
+      readHistory: (json['read_history'] as List<dynamic>?)
+              ?.map((e) => (e as num).toDouble())
+              .toList() ??
+          const [],
+      writeHistory: (json['write_history'] as List<dynamic>?)
+              ?.map((e) => (e as num).toDouble())
+              .toList() ??
+          const [],
+      yMax: (json['y_max'] as num?)?.toInt() ?? 10,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'total_reads': totalReads,
+        'total_writes': totalWrites,
+        'ops_per_minute': opsPerMinute,
+        'read_percentage': readPercentage,
+        'write_percentage': writePercentage,
+        'time_window': timeWindow,
+        'timestamps': timestamps,
+        'raw_reads': rawReads,
+        'raw_writes': rawWrites,
+        'read_history': readHistory,
+        'write_history': writeHistory,
+        'y_max': yMax,
+      };
+
+  String get formattedOpsPerMinute {
+    if (opsPerMinute >= 1000) {
+      return '${(opsPerMinute / 1000).toStringAsFixed(1)}k ops/m';
+    }
+    return '${opsPerMinute.toStringAsFixed(1)} ops/m';
+  }
+}
+
+

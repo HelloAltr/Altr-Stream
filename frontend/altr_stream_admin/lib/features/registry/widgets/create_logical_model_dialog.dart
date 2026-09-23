@@ -188,7 +188,6 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Model Name *',
                         hintText: 'e.g. CoreCommerce, UnifiedSchool',
-                        prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTag01, size: 18),
                       ),
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) return 'Model name is required';
@@ -207,7 +206,6 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Version',
                         hintText: '1.0.0',
-                        prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTag01, size: 18),
                       ),
                     ),
                   ),
@@ -230,7 +228,6 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                   labelText: 'Initial Entity (Optional)',
                   hintText: 'e.g. Customer, Order, Product',
                   helperText: 'Creates starter entity with id (INTEGER PK) and name (STRING)',
-                  prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 18),
                 ),
               ),
               const SizedBox(height: 24),

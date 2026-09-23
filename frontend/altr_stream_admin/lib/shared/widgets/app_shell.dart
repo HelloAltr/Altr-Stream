@@ -26,6 +26,9 @@ class AppShell extends StatelessWidget {
   final VoidCallback? onBack;
   final List<Widget>? pageActions;
   final VoidCallback? onLaunchDocs;
+  final Widget? floatingActionButton;
+  final int sourcesCount;
+  final int modelsCount;
 
   const AppShell({
     super.key,
@@ -45,6 +48,9 @@ class AppShell extends StatelessWidget {
     this.onBack,
     this.pageActions,
     this.onLaunchDocs,
+    this.floatingActionButton,
+    this.sourcesCount = 0,
+    this.modelsCount = 0,
   });
 
   Future<void> _launchDocs(BuildContext context) async {
@@ -69,26 +75,21 @@ class AppShell extends StatelessWidget {
 
   static const List<String> _navRoutes = [
     '/',
+    '/altrql',
     '/sources',
     '/registry',
     '/activity',
-    '/settings',
-    '/api-explorer',
   ];
 
   int _getNavIndex(String route) {
-    if (route == '/sources' || route.startsWith('/sources/')) {
+    if (route == '/altrql' || route == '/playground') {
       return 1;
-    } else if (route == '/registry' || route.startsWith('/registry/')) {
+    } else if (route == '/sources' || route.startsWith('/sources/')) {
       return 2;
-    } else if (route == '/activity') {
+    } else if (route == '/registry' || route.startsWith('/registry/')) {
       return 3;
-    } else if (route == '/settings') {
+    } else if (route == '/activity') {
       return 4;
-    } else if (route == '/api-explorer' ||
-        route == '/docs' ||
-        route == '/api-docs') {
-      return 5;
     }
     return 0;
   }
@@ -122,10 +123,13 @@ class AppShell extends StatelessWidget {
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainer,
       appBar: _buildTopAppBar(context),
-      floatingActionButton:
-          (activeRoute == '/altrql' || activeRoute == '/playground')
-          ? null
-          : _buildDesktopFab(context),
+      floatingActionButton: floatingActionButton != null
+          ? UnconstrainedBox(
+              alignment: Alignment.bottomRight,
+              child: floatingActionButton,
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -137,52 +141,37 @@ class AppShell extends StatelessWidget {
               children: [
                 _buildDesktopNavList(context),
                 const Spacer(),
+                _buildDesktopFooterItem(
+                  context,
+                  icon: HugeIcons.strokeRoundedApi,
+                  label: 'API Explorer',
+                  isActive: activeRoute == '/api-explorer' ||
+                      activeRoute == '/docs' ||
+                      activeRoute == '/api-docs',
+                  onTap: () => onNavigate('/api-explorer'),
+                ),
+                _buildDesktopFooterItem(
+                  context,
+                  icon: HugeIcons.strokeRoundedBook02,
+                  label: 'Documentation',
+                  onTap: () => onLaunchDocs != null
+                      ? onLaunchDocs!()
+                      : _launchDocs(context),
+                ),
+                const SizedBox(height: 4),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Divider(
                     color: colorScheme.outlineVariant.withValues(alpha: 0.5),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 2,
-                  ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                    onTap: () => onLaunchDocs != null
-                        ? onLaunchDocs!()
-                        : _launchDocs(context),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          HugeIcon(
-                            icon: HugeIcons.strokeRoundedBook02,
-                            color: colorScheme.primary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Documentation',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                const SizedBox(height: 4),
+                _buildDesktopFooterItem(
+                  context,
+                  icon: HugeIcons.strokeRoundedSettings01,
+                  label: 'Settings',
+                  isActive: activeRoute == '/settings',
+                  onTap: () => onNavigate('/settings'),
                 ),
                 _buildDrawerProfileTile(context),
               ],
@@ -199,19 +188,17 @@ class AppShell extends StatelessWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: SafeArea(
-                child: SingleChildScrollView(
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 1600),
-                      padding: const EdgeInsets.only(
-                        left: 32,
-                        right: 32,
-                        top: 24,
-                        bottom: 28,
-                      ),
-                      child: child,
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 1600),
+                    padding: const EdgeInsets.only(
+                      left: 32,
+                      right: 32,
+                      top: 24,
+                      bottom: 28,
                     ),
+                    child: child,
                   ),
                 ),
               ),
@@ -228,11 +215,10 @@ class AppShell extends StatelessWidget {
 
   int _getDesktopNavIndex(String route) {
     if (route == '/') return 0;
-    if (route == '/sources' || route.startsWith('/sources/')) return 1;
-    if (route == '/registry' || route.startsWith('/registry/')) return 2;
-    if (route == '/activity' || route.startsWith('/activity/')) return 3;
-    if (route == '/settings' || route.startsWith('/settings/')) return 4;
-    if (route == '/api-explorer' || route == '/docs' || route == '/api-docs') return 5;
+    if (route == '/altrql' || route == '/playground') return 1;
+    if (route == '/sources' || route.startsWith('/sources/')) return 2;
+    if (route == '/registry' || route.startsWith('/registry/')) return 3;
+    if (route == '/activity' || route.startsWith('/activity/')) return 4;
     return -1;
   }
 
@@ -241,36 +227,36 @@ class AppShell extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final selectedIndex = _getDesktopNavIndex(activeRoute);
 
-    const items = [
+    final items = [
       (
         label: 'Overview',
         icon: HugeIcons.strokeRoundedDashboardSquare01,
         route: '/',
+        badgeCount: null,
+      ),
+      (
+        label: 'AltrQL Console',
+        icon: HugeIcons.strokeRoundedCommandLine,
+        route: '/altrql',
+        badgeCount: null,
       ),
       (
         label: 'Data Sources',
         icon: HugeIcons.strokeRoundedDatabase,
         route: '/sources',
+        badgeCount: sourcesCount,
       ),
       (
-        label: 'Mapping Registry',
+        label: 'Logical Models',
         icon: HugeIcons.strokeRoundedHierarchySquare01,
         route: '/registry',
+        badgeCount: modelsCount,
       ),
       (
         label: 'Activity',
         icon: HugeIcons.strokeRoundedActivity01,
         route: '/activity',
-      ),
-      (
-        label: 'Settings',
-        icon: HugeIcons.strokeRoundedSettings01,
-        route: '/settings',
-      ),
-      (
-        label: 'API Explorer',
-        icon: HugeIcons.strokeRoundedApi,
-        route: '/api-explorer',
+        badgeCount: null,
       ),
     ];
 
@@ -348,6 +334,28 @@ class AppShell extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                              if (items[i].badgeCount != null) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: selectedIndex == i
+                                        ? colorScheme.primary
+                                        : colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '${items[i].badgeCount}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: selectedIndex == i
+                                        ? colorScheme.onPrimary
+                                        : colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -365,6 +373,71 @@ class AppShell extends StatelessWidget {
     );
   }
 
+  Widget _buildDesktopFooterItem(
+    BuildContext context, {
+    required dynamic icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isActive = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 2,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+          splashColor: colorScheme.primary.withValues(alpha: 0.08),
+          highlightColor: colorScheme.primary.withValues(alpha: 0.05),
+          onTap: onTap,
+          child: Container(
+            decoration: isActive
+                ? BoxDecoration(
+                    color: colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  )
+                : null,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            child: Row(
+              children: [
+                HugeIcon(
+                  icon: icon,
+                  color: isActive
+                      ? colorScheme.onSecondaryContainer
+                      : colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                      color: isActive
+                          ? colorScheme.onSecondaryContainer
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- TABLET LAYOUT (Compact Navigation Rail) ---
   Widget _buildTabletLayout(BuildContext context) {
     final theme = Theme.of(context);
@@ -373,16 +446,19 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLowest,
-      floatingActionButton:
-          (activeRoute == '/altrql' || activeRoute == '/playground')
-          ? null
-          : _buildCompactFab(context),
+      floatingActionButton: floatingActionButton != null
+          ? UnconstrainedBox(
+              alignment: Alignment.bottomRight,
+              child: floatingActionButton,
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           NavigationRail(
             backgroundColor: colorScheme.surfaceContainer,
-            selectedIndex: selectedIndex,
+            selectedIndex: selectedIndex >= 0 ? selectedIndex : null,
             onDestinationSelected: (index) => onNavigate(_navRoutes[index]),
             labelType: NavigationRailLabelType.all,
             leading: Padding(
@@ -399,12 +475,52 @@ class AppShell extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: HugeIcon(
-                          icon: HugeIcons.strokeRoundedBook02,
-                          color: colorScheme.onSurfaceVariant,
+                          icon: HugeIcons.strokeRoundedApi,
+                          color: activeRoute == '/api-explorer' || activeRoute == '/docs' || activeRoute == '/api-docs'
+                              ? colorScheme.primary
+                              : colorScheme.primary.withValues(alpha: 0.7),
                           size: 18,
                         ),
-                        tooltip: 'API Documentation (Swagger UI)',
+                        tooltip: 'API Explorer',
+                        onPressed: () => onNavigate('/api-explorer'),
+                        style: IconButton.styleFrom(
+                          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      IconButton(
+                        icon: HugeIcon(
+                          icon: HugeIcons.strokeRoundedBook02,
+                          color: colorScheme.primary.withValues(alpha: 0.7),
+                          size: 18,
+                        ),
+                        tooltip: 'Documentation',
                         onPressed: () => _launchDocs(context),
+                        style: IconButton.styleFrom(
+                          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        child: Divider(
+                          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      IconButton(
+                        icon: HugeIcon(
+                          icon: HugeIcons.strokeRoundedSettings01,
+                          color: activeRoute == '/settings'
+                              ? colorScheme.primary
+                              : colorScheme.primary.withValues(alpha: 0.7),
+                          size: 18,
+                        ),
+                        tooltip: 'Settings',
+                        onPressed: () => onNavigate('/settings'),
+                        style: IconButton.styleFrom(
+                          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       _buildRailProfileIcon(context),
@@ -419,7 +535,7 @@ class AppShell extends StatelessWidget {
               NavigationRailDestination(
                 icon: HugeIcon(
                   icon: HugeIcons.strokeRoundedDashboardSquare01,
-                  color: colorScheme.onSurfaceVariant,
+                  color: colorScheme.primary,
                   size: 20,
                 ),
                 selectedIcon: HugeIcon(
@@ -431,34 +547,71 @@ class AppShell extends StatelessWidget {
               ),
               NavigationRailDestination(
                 icon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedDatabase,
-                  color: colorScheme.onSurfaceVariant,
+                  icon: HugeIcons.strokeRoundedCommandLine,
+                  color: colorScheme.primary,
                   size: 20,
                 ),
                 selectedIcon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedDatabase,
+                  icon: HugeIcons.strokeRoundedCommandLine,
                   color: colorScheme.primary,
                   size: 20,
+                ),
+                label: const Text('AltrQL', style: TextStyle(fontSize: 11)),
+              ),
+              NavigationRailDestination(
+                icon: Badge.count(
+                  count: sourcesCount,
+                  isLabelVisible: true,
+                  backgroundColor: colorScheme.primary,
+                  textColor: colorScheme.onPrimary,
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedDatabase,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
+                ),
+                selectedIcon: Badge.count(
+                  count: sourcesCount,
+                  isLabelVisible: true,
+                  backgroundColor: colorScheme.primary,
+                  textColor: colorScheme.onPrimary,
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedDatabase,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
                 ),
                 label: const Text('Data Sources', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
-                icon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedHierarchySquare01,
-                  color: colorScheme.onSurfaceVariant,
-                  size: 20,
+                icon: Badge.count(
+                  count: modelsCount,
+                  isLabelVisible: true,
+                  backgroundColor: colorScheme.primary,
+                  textColor: colorScheme.onPrimary,
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedHierarchySquare01,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
                 ),
-                selectedIcon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedHierarchySquare01,
-                  color: colorScheme.primary,
-                  size: 20,
+                selectedIcon: Badge.count(
+                  count: modelsCount,
+                  isLabelVisible: true,
+                  backgroundColor: colorScheme.primary,
+                  textColor: colorScheme.onPrimary,
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedHierarchySquare01,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
                 ),
-                label: const Text('Mapping Registry', style: TextStyle(fontSize: 11)),
+                label: const Text('Models', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
                 icon: HugeIcon(
                   icon: HugeIcons.strokeRoundedActivity01,
-                  color: colorScheme.onSurfaceVariant,
+                  color: colorScheme.primary,
                   size: 20,
                 ),
                 selectedIcon: HugeIcon(
@@ -468,32 +621,6 @@ class AppShell extends StatelessWidget {
                 ),
                 label: const Text('Activity', style: TextStyle(fontSize: 11)),
               ),
-              NavigationRailDestination(
-                icon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedSettings01,
-                  color: colorScheme.onSurfaceVariant,
-                  size: 20,
-                ),
-                selectedIcon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedSettings01,
-                  color: colorScheme.primary,
-                  size: 20,
-                ),
-                label: const Text('Settings', style: TextStyle(fontSize: 11)),
-              ),
-              NavigationRailDestination(
-                icon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedApi,
-                  color: colorScheme.onSurfaceVariant,
-                  size: 20,
-                ),
-                selectedIcon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedApi,
-                  color: colorScheme.primary,
-                  size: 20,
-                ),
-                label: const Text('API Explorer', style: TextStyle(fontSize: 11)),
-              ),
             ],
           ),
           VerticalDivider(
@@ -502,14 +629,12 @@ class AppShell extends StatelessWidget {
             color: colorScheme.outlineVariant.withValues(alpha: 0.5),
           ),
           Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 24,
-                ),
-                child: child,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
               ),
+              child: child,
             ),
           ),
         ],
@@ -524,10 +649,13 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLowest,
-      floatingActionButton:
-          (activeRoute == '/altrql' || activeRoute == '/playground')
-          ? null
-          : _buildCompactFab(context),
+      floatingActionButton: floatingActionButton != null
+          ? UnconstrainedBox(
+              alignment: Alignment.bottomRight,
+              child: floatingActionButton,
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       appBar: AppBar(
         backgroundColor: colorScheme.surfaceContainer,
         elevation: 0,
@@ -604,11 +732,43 @@ class AppShell extends StatelessWidget {
             ),
             ListTile(
               leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedCommandLine,
+                color: colorScheme.primary,
+                size: 20,
+              ),
+              title: const Text('AltrQL Console'),
+              selected: activeRoute == '/altrql' || activeRoute == '/playground',
+              onTap: () {
+                Navigator.of(context).pop();
+                onNavigate('/altrql');
+              },
+            ),
+            ListTile(
+              leading: HugeIcon(
                 icon: HugeIcons.strokeRoundedDatabase,
                 color: colorScheme.primary,
                 size: 20,
               ),
               title: const Text('Data Sources'),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: activeRoute == '/sources' || activeRoute.startsWith('/sources/')
+                      ? colorScheme.primary
+                      : colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$sourcesCount',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: activeRoute == '/sources' || activeRoute.startsWith('/sources/')
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
               selected:
                   activeRoute == '/sources' ||
                   activeRoute.startsWith('/sources/'),
@@ -623,7 +783,26 @@ class AppShell extends StatelessWidget {
                 color: colorScheme.primary,
                 size: 20,
               ),
-              title: const Text('Mapping Registry'),
+              title: const Text('Logical Models'),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: activeRoute == '/registry' || activeRoute.startsWith('/registry/')
+                      ? colorScheme.primary
+                      : colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$modelsCount',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: activeRoute == '/registry' || activeRoute.startsWith('/registry/')
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
               selected:
                   activeRoute == '/registry' ||
                   activeRoute.startsWith('/registry/'),
@@ -646,19 +825,6 @@ class AppShell extends StatelessWidget {
               },
             ),
             Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            ListTile(
-              leading: HugeIcon(
-                icon: HugeIcons.strokeRoundedSettings01,
-                color: colorScheme.primary,
-                size: 20,
-              ),
-              title: const Text('Settings'),
-              selected: activeRoute == '/settings',
-              onTap: () {
-                Navigator.of(context).pop();
-                onNavigate('/settings');
-              },
-            ),
             ListTile(
               leading: HugeIcon(
                 icon: HugeIcons.strokeRoundedApi,
@@ -699,13 +865,27 @@ class AppShell extends StatelessWidget {
                 }
               },
             ),
+            Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            ListTile(
+              leading: HugeIcon(
+                icon: HugeIcons.strokeRoundedSettings01,
+                color: colorScheme.primary,
+                size: 20,
+              ),
+              title: const Text('Settings'),
+              selected: activeRoute == '/settings',
+              onTap: () {
+                Navigator.of(context).pop();
+                onNavigate('/settings');
+              },
+            ),
             const Spacer(),
             Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
             _buildDrawerProfileTile(context),
           ],
         ),
       ),
-      body: SingleChildScrollView(
+      body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: child,
       ),
@@ -729,7 +909,7 @@ class AppShell extends StatelessWidget {
       return 'Logical Model Details';
     }
     if (route == '/registry' || route.startsWith('/registry')) {
-      return 'Mapping Registry';
+      return 'Logical Models';
     }
     if (route == '/activity') {
       return 'Activity';
@@ -1283,33 +1463,7 @@ class AppShell extends StatelessWidget {
     return Tooltip(message: 'Node: $nodeStatus', child: logoWidget);
   }
 
-  Widget _buildDesktopFab(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return FloatingActionButton.extended(
-      onPressed: () => onNavigate('/altrql'),
-      icon: HugeIcon(icon: HugeIcons.strokeRoundedCommandLine, size: 18, color: colorScheme.onPrimary),
-      tooltip: 'Open AltrQL Playground',
-      label: const Text(
-        'AltrQL Console',
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-      ),
-      backgroundColor: colorScheme.primary,
-      foregroundColor: colorScheme.onPrimary,
-      elevation: 4,
-    );
-  }
 
-  Widget _buildCompactFab(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return FloatingActionButton(
-      onPressed: () => onNavigate('/altrql'),
-      tooltip: 'Open AltrQL Playground',
-      backgroundColor: colorScheme.primary,
-      foregroundColor: colorScheme.onPrimary,
-      elevation: 4,
-      child: HugeIcon(icon: HugeIcons.strokeRoundedCommandLine, size: 20, color: colorScheme.onPrimary),
-    );
-  }
 }
 
 

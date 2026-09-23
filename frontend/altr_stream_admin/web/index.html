@@ -41,6 +41,12 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <script>
+    // Prevent default browser/macOS context menu so in-app context menus function exclusively
+    window.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+    }, false);
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

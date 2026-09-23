@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 import 'package:intl/intl.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -12,6 +13,7 @@ class OverviewScreen extends StatefulWidget {
   final List<SourceModel> sources;
   final List<ActivityLogModel> activities;
   final bool isLoading;
+  final UsageMetricsModel? usageMetrics;
   final VoidCallback onRefresh;
   final VoidCallback onAddSource;
   final Function(SourceModel source) onSelectSource;
@@ -19,12 +21,16 @@ class OverviewScreen extends StatefulWidget {
   final VoidCallback? onNavigateToRegistry;
   final VoidCallback onNodeStatusTap;
   final String nodeStatus;
+  final String selectedTimeWindow;
+  final Function(String window)? onTimeWindowChanged;
+  final VoidCallback? onClearUsageData;
 
   const OverviewScreen({
     super.key,
     required this.sources,
     required this.activities,
     required this.isLoading,
+    this.usageMetrics,
     required this.onRefresh,
     required this.onAddSource,
     required this.onSelectSource,
@@ -32,16 +38,29 @@ class OverviewScreen extends StatefulWidget {
     this.onNavigateToRegistry,
     required this.onNodeStatusTap,
     this.nodeStatus = 'ACTIVE',
+    this.selectedTimeWindow = '30m',
+    this.onTimeWindowChanged,
+    this.onClearUsageData,
   });
 
+
   @override
-  State<OverviewScreen> createState() => _OverviewScreenState();
+  State<OverviewScreen> createState() => OverviewScreenState();
 }
 
-class _OverviewScreenState extends State<OverviewScreen> {
+class OverviewScreenState extends State<OverviewScreen> {
   List<BentoCardConfig> _cardConfigs = OverviewLayoutService.getLayoutSync();
   bool _isEditMode = false;
+  bool _isRefreshing = false;
   late final M3ERefreshIndicatorController _refreshController;
+  Offset? _chartHoverOffset;
+
+  Future<void> triggerRefresh() async {
+    if (mounted) setState(() => _isRefreshing = true);
+    widget.onRefresh();
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) setState(() => _isRefreshing = false);
+  }
 
   @override
   void initState() {
@@ -83,7 +102,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (widget.isLoading)
+          if (widget.isLoading && widget.sources.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(60),
@@ -118,8 +137,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
     return M3ERefreshIndicator.contained(
       controller: _refreshController,
       onRefresh: () async {
+        if (mounted) setState(() => _isRefreshing = true);
         widget.onRefresh();
-        await Future.delayed(const Duration(milliseconds: 600));
+        await Future.delayed(const Duration(milliseconds: 1000));
+        if (mounted) setState(() => _isRefreshing = false);
       },
       triggerMode: M3ERefreshTriggerMode.onEdge,
       child: scrollContent,
@@ -392,8 +413,8 @@ class _OverviewScreenState extends State<OverviewScreen> {
               children: [
                 Text(
                   '$totalSources',
-                  style: textTheme.headlineLarge?.copyWith(
-                    fontSize: 56,
+                  style: textTheme.displayLarge?.copyWith(
+                    fontSize: 64,
                     fontWeight: FontWeight.w800,
                     color: colorScheme.onSurface,
                     letterSpacing: -1.0,
@@ -448,102 +469,282 @@ class _OverviewScreenState extends State<OverviewScreen> {
     ColorScheme colorScheme,
     TextTheme textTheme,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Altr Stream Usage',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
+    final metrics = widget.usageMetrics;
+    final opsText = metrics?.formattedOpsPerMinute ?? '0.0 ops/m';
+    final readsCountText = metrics != null ? _formatCount(metrics.totalReads) : '0';
+    final writesCountText = metrics != null ? _formatCount(metrics.totalWrites) : '0';
+    final currentWindow = widget.selectedTimeWindow;
+
+    final readPoints = (metrics != null && metrics.readHistory.isNotEmpty)
+        ? metrics.readHistory
+        : const [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    final writePoints = (metrics != null && metrics.writeHistory.isNotEmpty)
+        ? metrics.writeHistory
+        : const [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    final timestamps = metrics?.timestamps ?? const [];
+    final rawReads = metrics?.rawReads ?? const [];
+    final rawWrites = metrics?.rawWrites ?? const [];
+    final yMax = metrics?.yMax ?? 10;
+
+    return GestureDetector(
+      onSecondaryTapUp: (details) => _showUsageCardContextMenu(context, details.globalPosition),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Altr Stream Usage',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Read / Write Operations',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          fontSize: 11,
-                          color: colorScheme.onSurfaceVariant,
+                        const SizedBox(height: 2),
+                        Text(
+                          'Read / Write Operations • Right-click to clear',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            fontSize: 11,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
+                  const SizedBox(width: 8),
+                  Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      HugeIcon(
-                        icon: HugeIcons.strokeRoundedChartLineData01,
-                        size: 14,
-                        color: colorScheme.primary,
+                      // Time Window Menu Button (Material 3 Expressive M3EMenu)
+                      M3EMenu(
+                        position: M3EMenuAnchorPosition.bottomStart,
+                        colorStyle: M3EMenuColorStyle.standard,
+                        closeOnSelect: true,
+                        selectedValue: currentWindow,
+                        onSelected: (Object? value) {
+                          if (value != null && widget.onTimeWindowChanged != null) {
+                            widget.onTimeWindowChanged!(value.toString());
+                          }
+                        },
+                        anchorBuilder: (BuildContext context, VoidCallback open) {
+                          return M3EButton.icon(
+                            style: M3EButtonStyle.tonal,
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedArrowDown01,
+                              size: 14,
+                              color: colorScheme.primary,
+                            ),
+                            label: Text(currentWindow),
+                            onPressed: open,
+                          );
+                        },
+                        children: <M3EMenuNode>[
+                          M3EMenuSelectable(
+                            label: '30m',
+                            value: '30m',
+                            selected: currentWindow == '30m',
+                          ),
+                          M3EMenuSelectable(
+                            label: '1h',
+                            value: '1h',
+                            selected: currentWindow == '1h',
+                          ),
+                          M3EMenuSelectable(
+                            label: '1d',
+                            value: '1d',
+                            selected: currentWindow == '1d',
+                          ),
+                          M3EMenuSelectable(
+                            label: '1w',
+                            value: '1w',
+                            selected: currentWindow == '1w',
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '1.4k ops/m',
-                        style: textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.primary,
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            HugeIcon(
+                              icon: HugeIcons.strokeRoundedChartLineData01,
+                              size: 14,
+                              color: colorScheme.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              opsText,
+                              style: textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
+                ],
+              ),
+              const SizedBox(height: 12),
 
-            // Mini Line Chart
-            SizedBox(
-              height: 48,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: _UsageLineChartPainter(
-                  readColor: colorScheme.primary,
-                  writeColor: colorScheme.tertiary,
-                  gridColor: colorScheme.outlineVariant.withValues(alpha: 0.3),
+              // Flexible Line Chart with X & Y Axis Labels and Hover Indicator
+              Expanded(
+                child: SizedBox(
+                  width: double.infinity,
+                  child: MouseRegion(
+                    onHover: (event) {
+                      setState(() {
+                        _chartHoverOffset = event.localPosition;
+                      });
+                    },
+                    onExit: (_) {
+                      setState(() {
+                        _chartHoverOffset = null;
+                      });
+                    },
+                    child: CustomPaint(
+                      painter: UsageLineChartPainter(
+                        readColor: colorScheme.primary,
+                        writeColor: colorScheme.tertiary,
+                        gridColor: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                        textColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                        readPoints: readPoints,
+                        writePoints: writePoints,
+                        timestamps: timestamps,
+                        rawReads: rawReads,
+                        rawWrites: rawWrites,
+                        yMax: yMax,
+                        hoverOffset: _chartHoverOffset,
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
+              const SizedBox(height: 12),
 
-            // Legend
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                _buildLegendItem(context, 'Reads (82%)', colorScheme.primary),
-                _buildLegendItem(context, 'Writes (18%)', colorScheme.tertiary),
-              ],
-            ),
-          ],
+              // Legend with numerical counts
+              Wrap(
+                spacing: 16,
+                runSpacing: 4,
+                children: [
+                  _buildLegendItem(context, 'Reads ($readsCountText)', colorScheme.primary),
+                  _buildLegendItem(context, 'Writes ($writesCountText)', colorScheme.tertiary),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _showUsageCardContextMenu(BuildContext context, Offset globalPosition) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        globalPosition & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'clear',
+          child: Row(
+            children: [
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedDelete02,
+                size: 16,
+                color: colorScheme.error,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Clear Monitored Usage Data',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.error,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).then((selected) {
+      if (selected == 'clear') {
+        _showClearUsageConfirmationDialog(context);
+      }
+    });
+  }
+
+  void _showClearUsageConfirmationDialog(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    M3EDialog.show<void>(
+      context,
+      barrierDismissible: true,
+      dialog: M3EDialog(
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedAlert02,
+          color: colorScheme.error,
+          size: 28,
+        ),
+        title: 'Clear Monitored Usage Data?',
+        content: Text(
+          'Are you sure you want to clear all monitored read/write operation logs and reset cumulative counters to 0? This action cannot be undone.',
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          M3EButton(
+            style: M3EButtonStyle.text,
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          M3EButton(
+            style: M3EButtonStyle.filled,
+            onPressed: () {
+              Navigator.of(context).pop();
+              widget.onClearUsageData?.call();
+            },
+            child: const Text('Clear All Monitored Data'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  String _formatCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    }
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}k';
+    }
+    return '$count';
   }
 
   Widget _buildSourcesListCard(
@@ -911,7 +1112,11 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 ),
               ),
               const SizedBox(width: 14),
-              StatusBadge(status: source.status),
+              StatusBadge(
+                status: (_isRefreshing || (widget.isLoading && source.isUnreachable))
+                    ? 'PINGING'
+                    : source.status,
+              ),
               const SizedBox(width: 8),
               HugeIcon(
                 icon: HugeIcons.strokeRoundedArrowRight01,
@@ -951,45 +1156,219 @@ class _OverviewScreenState extends State<OverviewScreen> {
   }
 }
 
-class _UsageLineChartPainter extends CustomPainter {
+class UsageLineChartPainter extends CustomPainter {
   final Color readColor;
   final Color writeColor;
   final Color gridColor;
+  final Color textColor;
+  final List<double> readPoints;
+  final List<double> writePoints;
+  final List<String> timestamps;
+  final List<int> rawReads;
+  final List<int> rawWrites;
+  final int yMax;
+  final Offset? hoverOffset;
 
-  const _UsageLineChartPainter({
+  const UsageLineChartPainter({
     required this.readColor,
     required this.writeColor,
     required this.gridColor,
+    required this.textColor,
+    this.readPoints = const [0.05, 0.05, 0.05],
+    this.writePoints = const [0.02, 0.02, 0.02],
+    this.timestamps = const [],
+    this.rawReads = const [],
+    this.rawWrites = const [],
+    this.yMax = 10,
+    this.hoverOffset,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    const leftMargin = 28.0;
+    const bottomMargin = 18.0;
+    final chartWidth = size.width - leftMargin;
+    final chartHeight = size.height - bottomMargin;
+
+    if (chartWidth <= 0 || chartHeight <= 0) return;
+
     final gridPaint = Paint()
       ..color = gridColor
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
 
-    canvas.drawLine(
-      Offset(0, size.height * 0.33),
-      Offset(size.width, size.height * 0.33),
-      gridPaint,
-    );
-    canvas.drawLine(
-      Offset(0, size.height * 0.66),
-      Offset(size.width, size.height * 0.66),
-      gridPaint,
-    );
-    canvas.drawLine(
-      Offset(0, size.height),
-      Offset(size.width, size.height),
-      gridPaint,
-    );
+    // Draw horizontal grid lines & Y-axis labels
+    final yTicks = [
+      (yMax).toString(),
+      (yMax / 2).round().toString(),
+      '0',
+    ];
 
-    final readPoints = [0.45, 0.6, 0.4, 0.75, 0.55, 0.85, 0.7, 0.9, 0.8];
-    final writePoints = [0.15, 0.25, 0.2, 0.35, 0.25, 0.4, 0.3, 0.45, 0.35];
+    final yPositions = [
+      4.0,
+      chartHeight / 2,
+      chartHeight - 4.0,
+    ];
 
-    _drawSmoothCurve(canvas, size, readPoints, readColor, true);
-    _drawSmoothCurve(canvas, size, writePoints, writeColor, false);
+    for (int i = 0; i < yTicks.length; i++) {
+      final y = yPositions[i];
+      canvas.drawLine(
+        Offset(leftMargin, y),
+        Offset(size.width, y),
+        gridPaint,
+      );
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: yTicks[i],
+          style: TextStyle(
+            color: textColor,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: ui.TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(leftMargin - tp.width - 4, y - (tp.height / 2)));
+    }
+
+    // Draw X-axis timestamps
+    if (timestamps.isNotEmpty) {
+      final sampleCount = 5;
+      final step = (timestamps.length - 1) / (sampleCount - 1);
+      for (int i = 0; i < sampleCount; i++) {
+        final index = (i * step).round().clamp(0, timestamps.length - 1);
+        final label = timestamps[index];
+        final xRatio = timestamps.length > 1 ? index / (timestamps.length - 1) : 0.5;
+        final x = leftMargin + (xRatio * chartWidth);
+
+        final tp = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          textDirection: ui.TextDirection.ltr,
+        );
+        tp.layout();
+
+        double drawX = x - (tp.width / 2);
+        if (drawX < leftMargin) drawX = leftMargin;
+        if (drawX + tp.width > size.width) drawX = size.width - tp.width;
+
+        tp.paint(canvas, Offset(drawX, chartHeight + 2));
+      }
+    }
+
+    // Draw read and write smooth curves within inner chart bounds
+    final innerSize = Size(chartWidth, chartHeight);
+    canvas.save();
+    canvas.translate(leftMargin, 0);
+    _drawSmoothCurve(canvas, innerSize, readPoints, readColor, true);
+    _drawSmoothCurve(canvas, innerSize, writePoints, writeColor, false);
+
+    // Draw hover guide line & peak activity tooltip
+    if (hoverOffset != null && timestamps.isNotEmpty && hoverOffset!.dx >= leftMargin) {
+      final xInChart = (hoverOffset!.dx - leftMargin).clamp(0.0, chartWidth);
+      final index = timestamps.length > 1
+          ? ((xInChart / chartWidth) * (timestamps.length - 1)).round().clamp(0, timestamps.length - 1)
+          : 0;
+
+      final xPos = timestamps.length > 1 ? (index / (timestamps.length - 1)) * chartWidth : (chartWidth / 2);
+      final paddingY = chartHeight * 0.08;
+      final usableHeight = chartHeight - (paddingY * 2);
+
+      final rVal = index < readPoints.length ? readPoints[index].clamp(0.0, 1.0) : 0.0;
+      final wVal = index < writePoints.length ? writePoints[index].clamp(0.0, 1.0) : 0.0;
+
+      final rY = chartHeight - paddingY - (rVal * usableHeight);
+      final wY = chartHeight - paddingY - (wVal * usableHeight);
+
+      final rCount = index < rawReads.length ? rawReads[index] : 0;
+      final wCount = index < rawWrites.length ? rawWrites[index] : 0;
+      final timestampStr = index < timestamps.length ? timestamps[index] : '';
+
+      // Vertical guideline
+      final linePaint = Paint()
+        ..color = textColor.withValues(alpha: 0.45)
+        ..strokeWidth = 1.2
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(xPos, 0), Offset(xPos, chartHeight), linePaint);
+
+      // Highlighted dots on curves
+      final dotPaintR = Paint()..color = readColor;
+      final dotPaintW = Paint()..color = writeColor;
+      final whiteBorderPaint = Paint()
+        ..color = Colors.white
+        ..strokeWidth = 2.0
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawCircle(Offset(xPos, rY), 4.5, dotPaintR);
+      canvas.drawCircle(Offset(xPos, rY), 4.5, whiteBorderPaint);
+
+      canvas.drawCircle(Offset(xPos, wY), 4.5, dotPaintW);
+      canvas.drawCircle(Offset(xPos, wY), 4.5, whiteBorderPaint);
+
+      // Floating peak activity tooltip card (Bigger Read & Write text, smaller timestamp)
+      final tooltipSpan = TextSpan(
+        children: [
+          TextSpan(
+            text: 'Reads: $rCount   Writes: $wCount\n',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          TextSpan(
+            text: '$timestampStr (1m step)',
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      );
+
+      final tp = TextPainter(
+        text: tooltipSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      tp.layout();
+
+      const tooltipPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 5);
+      final boxWidth = tp.width + tooltipPadding.horizontal;
+      final boxHeight = tp.height + tooltipPadding.vertical;
+
+      double tooltipX = xPos - (boxWidth / 2);
+      if (tooltipX < 0) tooltipX = 0;
+      if (tooltipX + boxWidth > chartWidth) tooltipX = chartWidth - boxWidth;
+
+      double tooltipY = (rY < wY ? rY : wY) - boxHeight - 8;
+      if (tooltipY < 0) tooltipY = (rY > wY ? rY : wY) + 8;
+
+      final tooltipRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(tooltipX, tooltipY, boxWidth, boxHeight),
+        const Radius.circular(6),
+      );
+
+      final bgPaint = Paint()..color = const Color(0xFF1E1E2E).withValues(alpha: 0.94);
+      final borderPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.25)
+        ..strokeWidth = 1
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawRRect(tooltipRect, bgPaint);
+      canvas.drawRRect(tooltipRect, borderPaint);
+      tp.paint(canvas, Offset(tooltipX + tooltipPadding.left, tooltipY + tooltipPadding.top));
+    }
+
+    canvas.restore();
   }
 
   void _drawSmoothCurve(
@@ -1006,9 +1385,12 @@ class _UsageLineChartPainter extends CustomPainter {
     final fillPath = Path();
 
     final points = <Offset>[];
+    final paddingY = size.height * 0.08;
+    final usableHeight = size.height - (paddingY * 2);
     for (int i = 0; i < values.length; i++) {
       final x = i * stepX;
-      final y = size.height * (1.0 - values[i]);
+      final clampedVal = values[i].clamp(0.0, 1.0);
+      final y = size.height - paddingY - (clampedVal * usableHeight);
       points.add(Offset(x, y));
     }
 
@@ -1050,8 +1432,17 @@ class _UsageLineChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _UsageLineChartPainter oldDelegate) =>
+  bool shouldRepaint(covariant UsageLineChartPainter oldDelegate) =>
       oldDelegate.readColor != readColor ||
       oldDelegate.writeColor != writeColor ||
-      oldDelegate.gridColor != gridColor;
+      oldDelegate.gridColor != gridColor ||
+      oldDelegate.textColor != textColor ||
+      oldDelegate.yMax != yMax ||
+      oldDelegate.readPoints != readPoints ||
+      oldDelegate.writePoints != writePoints ||
+      oldDelegate.timestamps != timestamps ||
+      oldDelegate.rawReads != rawReads ||
+      oldDelegate.rawWrites != rawWrites ||
+      oldDelegate.hoverOffset != hoverOffset;
 }
+

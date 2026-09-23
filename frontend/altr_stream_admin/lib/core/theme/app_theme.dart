@@ -218,7 +218,7 @@ class AppTheme {
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: scheme.surfaceContainerLow,
         selectedIconTheme: IconThemeData(color: scheme.primary),
-        unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+        unselectedIconTheme: IconThemeData(color: scheme.primary),
         selectedLabelTextStyle: TextStyle(
           color: scheme.primary,
           fontSize: 11,

@@ -32,6 +32,18 @@ class BentoCardConfig {
         return 2;
       case 'registry':
         return 1;
+      case 'source_summary':
+        return 2;
+      case 'quick_actions':
+        return 1;
+      case 'health_diagnostics':
+        return 1;
+      case 'source_capabilities':
+        return 2;
+      case 'schema_summary':
+        return 1;
+      case 'source_usage':
+        return 3;
       default:
         return 3;
     }
@@ -48,6 +60,18 @@ class BentoCardConfig {
       case 'activity':
         return 3;
       case 'registry':
+        return 3;
+      case 'source_summary':
+        return 2;
+      case 'quick_actions':
+        return 2;
+      case 'health_diagnostics':
+        return 2;
+      case 'source_capabilities':
+        return 2;
+      case 'schema_summary':
+        return 1;
+      case 'source_usage':
         return 3;
       default:
         return 3;

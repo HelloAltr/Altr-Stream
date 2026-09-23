@@ -24,8 +24,7 @@ class QueryMetadataBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [

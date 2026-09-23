@@ -347,7 +347,7 @@ class MockApiExplorerClient extends ApiClient {
   }
 
   @override
-  Future<List<SourceModel>> listSources() async {
+  Future<List<SourceModel>> listSources({bool probe = false}) async {
     return sourcesToReturn ??
         [
           SourceModel(

@@ -141,7 +141,7 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: HugeIcon(icon: HugeIcons.strokeRoundedTable01, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(icon: HugeIcons.strokeRoundedSheet, color: colorScheme.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -199,7 +199,6 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Entity Name *',
                   hintText: 'e.g. Student, Course, OrderItem',
-                  prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 18),
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Entity name is required';
@@ -240,27 +239,45 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
               Expanded(
                 child: ListView.separated(
                   itemCount: _fields.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (context, idx) {
                     final f = _fields[idx];
+                    final BorderRadius borderRadius;
+                    if (_fields.length <= 1) {
+                      borderRadius = BorderRadius.circular(16);
+                    } else if (idx == 0) {
+                      borderRadius = const BorderRadius.vertical(
+                        top: Radius.circular(16),
+                        bottom: Radius.circular(6),
+                      );
+                    } else if (idx == _fields.length - 1) {
+                      borderRadius = const BorderRadius.vertical(
+                        top: Radius.circular(6),
+                        bottom: Radius.circular(16),
+                      );
+                    } else {
+                      borderRadius = BorderRadius.circular(6);
+                    }
+
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainer,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: borderRadius,
                         border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             flex: 3,
                             child: TextFormField(
                               controller: f.nameController,
-                              style: const TextStyle(fontSize: 13),
+                              style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
                               decoration: const InputDecoration(
                                 isDense: true,
                                 labelText: 'Field Name',
-                                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                               ),
                               validator: (val) {
                                 if (val == null || val.trim().isEmpty) return 'Required';
@@ -273,13 +290,20 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                             flex: 2,
                             child: DropdownButtonFormField<String>(
                               initialValue: f.dataType,
+                              isDense: true,
+                              isExpanded: true,
                               style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
                               decoration: const InputDecoration(
                                 isDense: true,
                                 labelText: 'Type',
-                                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                               ),
-                              items: dataTypes.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12)))).toList(),
+                              items: dataTypes
+                                  .map((t) => DropdownMenuItem(
+                                        value: t,
+                                        child: Text(t, style: const TextStyle(fontSize: 13)),
+                                      ))
+                                  .toList(),
                               onChanged: (val) {
                                 if (val != null) setState(() => f.dataType = val);
                               },

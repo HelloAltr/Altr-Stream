@@ -22,8 +22,7 @@ class QueryResultTable extends StatelessWidget {
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
+          borderRadius: BorderRadius.circular(28),
         ),
         child: Column(
           children: [
@@ -42,81 +41,137 @@ class QueryResultTable extends StatelessWidget {
       );
     }
 
+    final Map<String, double> colWidths = {};
+    for (final col in columns) {
+      double maxW = (col.length * 10.0) + 32.0;
+      for (final row in rows.take(100)) {
+        final val = row[col];
+        final str = val == null ? 'NULL' : val.toString();
+        final w = (str.length * 8.5) + 32.0;
+        if (w > maxW) maxW = w;
+      }
+      colWidths[col] = maxW.clamp(100.0, 450.0);
+    }
+
     return Container(
       width: double.infinity,
+      constraints: const BoxConstraints(maxHeight: 540),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
+        borderRadius: BorderRadius.circular(28),
       ),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.vertical,
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(colorScheme.surfaceContainer),
-            dataRowColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.hovered)) {
-                return colorScheme.surfaceContainerHighest.withValues(alpha: 0.5);
-              }
-              return Colors.transparent;
-            }),
-            columnSpacing: 24,
-            horizontalMargin: 16,
-            headingTextStyle: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
-              fontFamily: 'monospace',
-            ),
-            dataTextStyle: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurface,
-              fontFamily: 'monospace',
-            ),
-            columns: [
-              const DataColumn(
-                label: Text('#', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-              ),
-              ...columns.map(
-                (col) => DataColumn(
-                  label: Text(col),
-                ),
-              ),
-            ],
-            rows: rows.asMap().entries.map((entry) {
-              final idx = entry.key + 1;
-              final row = entry.value;
-
-              return DataRow(
-                cells: [
-                  DataCell(
-                    Text(
-                      idx.toString(),
-                      style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 11),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Pinned Sticky Header Row
+            Container(
+              color: colorScheme.surfaceContainer,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 44,
+                    child: Text(
+                      '#',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
-                  ...columns.map((col) {
-                    final val = row[col];
-                    final strVal = val == null ? 'NULL' : val.toString();
-                    final isNull = val == null;
-
-                    return DataCell(
-                      SelectableText(
-                        strVal,
+                  ...columns.map(
+                    (col) => SizedBox(
+                      width: colWidths[col],
+                      child: Text(
+                        col,
                         style: TextStyle(
-                          color: isNull ? colorScheme.onSurfaceVariant.withValues(alpha: 0.5) : colorScheme.onSurface,
-                          fontStyle: isNull ? FontStyle.italic : FontStyle.normal,
                           fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                          fontFamily: 'monospace',
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+            ),
+            // Scrollable Data Rows
+            Flexible(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.vertical,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: rows.asMap().entries.map((entry) {
+                    final idx = entry.key + 1;
+                    final row = entry.value;
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                          ),
                         ),
                       ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 44,
+                            child: Text(
+                              '$idx',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                          ...columns.map((col) {
+                            final val = row[col];
+                            final strVal = val == null ? 'NULL' : val.toString();
+                            final isNull = val == null;
+
+                            return SizedBox(
+                              width: colWidths[col],
+                              child: SelectableText(
+                                strVal,
+                                style: TextStyle(
+                                  color: isNull
+                                      ? colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
+                                      : colorScheme.onSurface,
+                                  fontStyle: isNull ? FontStyle.italic : FontStyle.normal,
+                                  fontSize: 12,
+                                  fontFamily: 'monospace',
+                                ),
+                                maxLines: 1,
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
                     );
-                  }),
-                ],
-              );
-            }).toList(),
-          ),
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

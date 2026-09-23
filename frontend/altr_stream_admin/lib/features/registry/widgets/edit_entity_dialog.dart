@@ -93,7 +93,7 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: HugeIcon(icon: HugeIcons.strokeRoundedTable01, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(icon: HugeIcons.strokeRoundedSheet, color: colorScheme.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -151,7 +151,6 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Entity Name *',
                   hintText: 'e.g. Student, Course, OrderItem',
-                  prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTable01, size: 18),
                 ),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Entity name is required';

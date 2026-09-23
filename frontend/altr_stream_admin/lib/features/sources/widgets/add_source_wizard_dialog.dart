@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
@@ -146,61 +147,50 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Dialog(
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+    return M3EDialog(
+      title: 'Add Data Source',
+      icon: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: HugeIcon(
+          icon: HugeIcons.strokeRoundedDatabase,
+          color: colorScheme.primary,
+          size: 22,
+        ),
       ),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 680),
-        padding: const EdgeInsets.all(28),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Add Data Source',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _getStepSubtitle(),
-                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
-                    onPressed: () => Navigator.of(context).pop(),
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+      topDivider: false,
+      bottomDivider: false,
+      content: Material(
+        color: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _getStepSubtitle(),
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
 
-              // Step Progress Indicator
-              _buildStepIndicator(context),
-              const SizedBox(height: 24),
+                // Step Progress Indicator
+                _buildStepIndicator(context),
+                const SizedBox(height: 20),
 
-              // Step Content
-              if (_currentStep == 0) _buildStep1ChooseType(context),
-              if (_currentStep == 1) _buildStep2Configure(context),
-              if (_currentStep == 2) _buildStep3Test(context),
-              if (_currentStep == 3) _buildStep4Review(context),
-            ],
+                // Step Content
+                if (_currentStep == 0) _buildStep1ChooseType(context),
+                if (_currentStep == 1) _buildStep2Configure(context),
+                if (_currentStep == 2) _buildStep3Test(context),
+                if (_currentStep == 3) _buildStep4Review(context),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
         ),
       ),
@@ -318,8 +308,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           description: 'Supported connector with native introspection, SSL, and schema discovery.',
           icon: AppTheme.getSourceTypeIcon('POSTGRESQL'),
           isSupported: true,
+          index: 0,
+          totalCount: 4,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         _buildConnectorOption(
           context: context,
           type: 'SQLITE',
@@ -327,8 +319,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           description: 'Supported file-based database connector with direct file introspection.',
           icon: AppTheme.getSourceTypeIcon('SQLITE'),
           isSupported: true,
+          index: 1,
+          totalCount: 4,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         _buildConnectorOption(
           context: context,
           type: 'MYSQL',
@@ -336,8 +330,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           description: 'Supported relational connector with connection pooling, schema discovery, and AltrQL execution.',
           icon: AppTheme.getSourceTypeIcon('MYSQL'),
           isSupported: true,
+          index: 2,
+          totalCount: 4,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         _buildConnectorOption(
           context: context,
           type: 'MONGODB',
@@ -345,11 +341,17 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           description: 'Supported document connector with collection reachability, ping, and connection lifecycle testing.',
           icon: AppTheme.getSourceTypeIcon('MONGODB'),
           isSupported: true,
+          index: 3,
+          totalCount: 4,
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
             ElevatedButton(
               onPressed: () {
                 if (_nameController.text.isEmpty) {
@@ -385,80 +387,119 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     required String type,
     required String title,
     required String description,
-    required icon,
+    required dynamic icon,
     required bool isSupported,
+    required int index,
+    required int totalCount,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final isSelected = _selectedType == type;
 
-    return InkWell(
-      onTap: isSupported ? () => _onTypeSelected(type) : null,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isSelected ? colorScheme.primaryContainer.withValues(alpha: 0.5) : colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant.withValues(alpha: 0.5),
-            width: isSelected ? 1.5 : 1.0,
+    final BorderRadius borderRadius;
+    if (totalCount <= 1) {
+      borderRadius = BorderRadius.circular(16);
+    } else if (index == 0) {
+      borderRadius = const BorderRadius.vertical(
+        top: Radius.circular(16),
+        bottom: Radius.circular(4),
+      );
+    } else if (index == totalCount - 1) {
+      borderRadius = const BorderRadius.vertical(
+        top: Radius.circular(4),
+        bottom: Radius.circular(16),
+      );
+    } else {
+      borderRadius = BorderRadius.circular(4);
+    }
+
+    return Material(
+      color: isSelected
+          ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+          : colorScheme.surfaceContainerHigh.withValues(alpha: 0.6),
+      borderRadius: borderRadius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: isSupported ? () => _onTypeSelected(type) : null,
+        borderRadius: borderRadius,
+        hoverColor: colorScheme.primary.withValues(alpha: 0.08),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            border: Border.all(
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.outlineVariant.withValues(alpha: 0.4),
+              width: isSelected ? 1.5 : 1.0,
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            HugeIcon(
-              icon: icon,
-              color: isSupported ? (isSelected ? colorScheme.primary : colorScheme.onSurface) : colorScheme.onSurfaceVariant,
-              size: 24,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isSupported ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (!isSupported)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: AppTheme.getStatusColor('DISCOVERING', context).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'Future Milestone',
-                            style: TextStyle(fontSize: 10, color: AppTheme.getStatusColor('DISCOVERING', context)),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colorScheme.primary.withValues(alpha: 0.15)
+                      : colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: HugeIcon(
+                  icon: icon,
+                  color: isSupported
+                      ? (isSelected ? colorScheme.primary : colorScheme.onSurface)
+                      : colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                            color: isSupported ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        if (!isSupported)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppTheme.getStatusColor('DISCOVERING', context).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Future Milestone',
+                              style: TextStyle(fontSize: 10, color: AppTheme.getStatusColor('DISCOVERING', context)),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.85)),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            if (isSupported)
-              Radio<String>(
-                value: type,
-                groupValue: _selectedType,
-                activeColor: colorScheme.primary,
-                onChanged: (val) {
-                  if (val != null) _onTypeSelected(val);
-                },
-              ),
-          ],
+              if (isSupported)
+                Radio<String>(
+                  value: type,
+                  groupValue: _selectedType,
+                  activeColor: colorScheme.primary,
+                  onChanged: (val) {
+                    if (val != null) _onTypeSelected(val);
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -752,21 +793,25 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           ),
         ],
         const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             OutlinedButton(
               onPressed: () => setState(() => _currentStep = 1),
               child: const Text('Edit Connection'),
             ),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 OutlinedButton.icon(
                   onPressed: _isTesting ? null : _runConnectionTest,
                   icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
                   label: const Text('Retry Test'),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: (_testResult != null && _testResult!.success)
                       ? () => setState(() => _currentStep = 3)
@@ -775,7 +820,7 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text('Continue'),
-                      SizedBox(width: 6),
+                      SizedBox(width: 4),
                       HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
                     ],
                   ),
@@ -872,9 +917,14 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
-        Text(
-          value,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+          ),
         ),
       ],
     );

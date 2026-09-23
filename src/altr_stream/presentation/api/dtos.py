@@ -701,4 +701,23 @@ class EntityResolutionResponseDTO(BaseModel):
         )
 
 
+class NodeUsageResponseDTO(BaseModel):
+    """Real-time read/write usage metrics DTO for the Altr Stream node."""
+
+    total_reads: int = Field(..., description="Total cumulative read operations recorded")
+    total_writes: int = Field(..., description="Total cumulative write operations recorded")
+    ops_per_minute: float = Field(..., description="Throughput operations per minute")
+    read_percentage: float = Field(..., description="Percentage of read operations (0-100)")
+    write_percentage: float = Field(..., description="Percentage of write operations (0-100)")
+    time_window: str = Field(default="30m", description="Monitoring time window (30m, 1h, 1d, 1w)")
+    timestamps: list[str] = Field(default_factory=list, description="X-axis step timestamps for the time window")
+    raw_reads: list[int] = Field(default_factory=list, description="Raw read count for each step")
+    raw_writes: list[int] = Field(default_factory=list, description="Raw write count for each step")
+    read_history: list[float] = Field(default_factory=list, description="Normalized read curve points (0.0-1.0)")
+    write_history: list[float] = Field(default_factory=list, description="Normalized write curve points (0.0-1.0)")
+    y_max: int = Field(default=10, description="Max scale value for Y-axis rendering")
+
+
+
+
 

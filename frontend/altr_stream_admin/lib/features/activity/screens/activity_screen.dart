@@ -22,51 +22,56 @@ class ActivityScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (activities.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 48),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            ),
-            child: Column(
-              children: [
-                HugeIcon(icon: HugeIcons.strokeRoundedClock01, size: 40, color: colorScheme.onSurfaceVariant),
-                const SizedBox(height: 16),
-                Text(
-                  'No Activity Recorded Yet',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (activities.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 48),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+              ),
+              child: Column(
+                children: [
+                  HugeIcon(icon: HugeIcons.strokeRoundedClock01, size: 40, color: colorScheme.onSurfaceVariant),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No Activity Recorded Yet',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Operational events like connection tests and schema discoveries will appear here.',
+                    style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            )
+          else
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: activities.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 18),
+                  itemBuilder: (context, index) {
+                    final act = activities[index];
+                    return _buildTimelineItem(context, act);
+                  },
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Operational events like connection tests and schema discoveries will appear here.',
-                  style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          )
-        else
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: activities.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 18),
-                itemBuilder: (context, index) {
-                  final act = activities[index];
-                  return _buildTimelineItem(context, act);
-                },
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 

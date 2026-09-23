@@ -1,5 +1,6 @@
 """Source management REST API endpoints."""
 
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,10 +57,16 @@ async def create_source(
 
 @router.get("", response_model=list[SourceResponseDTO])
 async def list_sources(
+    probe: bool = False,
     service: SourceService = Depends(get_source_service),
 ) -> list[SourceResponseDTO]:
-    """List all registered data sources."""
+    """List all registered data sources. If probe=True, tests physical reachability for each source concurrently and updates status."""
     sources = await service.list_sources()
+    if probe and sources:
+        tasks = [service.test_source_connection(s.id) for s in sources]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await service.repository.session.commit()
+        sources = await service.list_sources()
     return [SourceResponseDTO.from_domain(s) for s in sources]
 
 
@@ -147,6 +154,7 @@ async def test_saved_source_connection(
     """Test physical connection for an already registered data source."""
     try:
         result = await service.test_source_connection(source_id)
+        await service.repository.session.commit()
         return ConnectionTestResponseDTO(
             success=result.success,
             message=result.message,

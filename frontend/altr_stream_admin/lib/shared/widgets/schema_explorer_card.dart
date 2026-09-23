@@ -1,32 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
-import '../../../core/api/models.dart';
+import '../../core/api/models.dart';
 
-class SchemaExplorer extends StatefulWidget {
+class SchemaExplorerCard extends StatefulWidget {
   final SourceModel? selectedSource;
   final SourceSchemaModel? schema;
   final bool isLoading;
   final String? errorMessage;
-  final VoidCallback onRefreshSchema;
-  final ValueChanged<EntitySchemaModel> onSelectTable;
-  final void Function(FieldSchemaModel field, EntitySchemaModel entity) onSelectColumn;
+  final VoidCallback? onRefreshSchema;
+  
+  /// Controls whether entity tiles expand to show fields (`true`),
+  /// or act as selection tiles that trigger [onSelectEntity] (`false`).
+  final bool isExpandable;
+  
+  /// Currently selected namespace (for selection mode highlighting).
+  final String? selectedNamespace;
+  
+  /// Currently selected entity/table name (for selection mode highlighting).
+  final String? selectedEntityName;
+  
+  /// Callback when an entity tile is selected in non-expandable mode.
+  final void Function(EntitySchemaModel entity, String namespace)? onSelectEntity;
+  
+  /// Callback when inserting query template for an entity.
+  final void Function(EntitySchemaModel entity)? onInsertTemplate;
+  
+  /// Callback when a field inside an expanded entity is clicked.
+  final void Function(FieldSchemaModel field, EntitySchemaModel entity)? onSelectColumn;
 
-  const SchemaExplorer({
+  const SchemaExplorerCard({
     super.key,
     required this.selectedSource,
     required this.schema,
-    required this.isLoading,
+    this.isLoading = false,
     this.errorMessage,
-    required this.onRefreshSchema,
-    required this.onSelectTable,
-    required this.onSelectColumn,
+    this.onRefreshSchema,
+    this.isExpandable = false,
+    this.selectedNamespace,
+    this.selectedEntityName,
+    this.onSelectEntity,
+    this.onInsertTemplate,
+    this.onSelectColumn,
   });
 
   @override
-  State<SchemaExplorer> createState() => _SchemaExplorerState();
+  State<SchemaExplorerCard> createState() => _SchemaExplorerCardState();
 }
 
-class _SchemaExplorerState extends State<SchemaExplorer> {
+class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -34,9 +55,11 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.trim().toLowerCase();
-      });
+      if (mounted) {
+        setState(() {
+          _searchQuery = _searchController.text.trim().toLowerCase();
+        });
+      }
     });
   }
 
@@ -80,7 +103,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Card Title (Matches Discovered Schemas card)
+            // Card Title
             Text(
               isMongo ? 'SCHEMAS & COLLECTIONS' : 'SCHEMAS & TABLES',
               style: TextStyle(
@@ -252,13 +275,15 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
               ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: widget.onRefreshSchema,
-                icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
-                label: const Text('Retry Discovery', style: TextStyle(fontSize: 11)),
-                style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-              ),
+              if (widget.onRefreshSchema != null) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: widget.onRefreshSchema,
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
+                  label: const Text('Retry Discovery', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                ),
+              ],
             ],
           ),
         ),
@@ -292,13 +317,15 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
               ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: widget.onRefreshSchema,
-                icon: const HugeIcon(icon: HugeIcons.strokeRoundedSparkles, size: 14),
-                label: const Text('Discover Schema', style: TextStyle(fontSize: 11)),
-                style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
-              ),
+              if (widget.onRefreshSchema != null) ...[
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: widget.onRefreshSchema,
+                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedSparkles, size: 14),
+                  label: const Text('Discover Schema', style: TextStyle(fontSize: 11)),
+                  style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+                ),
+              ],
             ],
           ),
         ),
@@ -351,6 +378,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
             return tables.asMap().entries.map((entry) {
               final index = entry.key;
               final entity = entry.value;
+              final isSelected = widget.selectedEntityName == entity.name && widget.selectedNamespace == ns;
 
               final BorderRadius borderRadius;
               if (totalCount <= 1) {
@@ -372,7 +400,9 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Material(
-                  color: Colors.transparent,
+                  color: isSelected
+                      ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+                      : Colors.transparent,
                   borderRadius: borderRadius,
                   clipBehavior: Clip.antiAlias,
                   child: Container(
@@ -380,69 +410,76 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
                     decoration: BoxDecoration(
                       borderRadius: borderRadius,
                       border: Border.all(
-                        color: colorScheme.outline.withAlpha(50),
+                        color: isSelected
+                            ? colorScheme.primary.withValues(alpha: 0.5)
+                            : colorScheme.outline.withAlpha(50),
                         width: 1,
                       ),
                     ),
-                    child: Theme(
-                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        dense: true,
-                        tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                        childrenPadding: const EdgeInsets.only(bottom: 6),
-                        leading: Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: HugeIcon(
-                            icon: entity.entityType.toUpperCase() == 'COLLECTION'
-                                ? HugeIcons.strokeRoundedFolderLibrary
-                                : (entity.entityType.toUpperCase() == 'VIEW'
-                                    ? HugeIcons.strokeRoundedView
-                                    : HugeIcons.strokeRoundedSheet),
-                            size: 16,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        title: Text(
-                          entity.name,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontFamily: 'monospace',
-                            fontWeight: FontWeight.w500,
-                            color: colorScheme.onSurface,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '${entity.fields.length} ${entity.fields.length == 1 ? "field" : "fields"}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const HugeIcon(icon: HugeIcons.strokeRoundedCode, size: 15),
-                              tooltip: isMongo ? 'Query Collection (Insert Template)' : 'Query Table (Insert Template)',
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                              color: colorScheme.primary,
-                              onPressed: () => widget.onSelectTable(entity),
+                    child: widget.isExpandable
+                        ? Theme(
+                            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                            child: ExpansionTile(
+                              dense: true,
+                              tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                              childrenPadding: const EdgeInsets.only(bottom: 6),
+                              leading: _buildLeadingBadge(colorScheme, isMongo, entity, isSelected),
+                              title: _buildTitle(colorScheme, entity, isSelected),
+                              subtitle: _buildSubtitle(colorScheme, isMongo, entity, isSelected),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (widget.onInsertTemplate != null)
+                                    IconButton(
+                                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedCode, size: 15),
+                                      tooltip: isMongo ? 'Query Collection (Insert Template)' : 'Query Table (Insert Template)',
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                      color: colorScheme.primary,
+                                      onPressed: () => widget.onInsertTemplate?.call(entity),
+                                    ),
+                                  const HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 16),
+                                ],
+                              ),
+                              children: entity.fields
+                                  .map((field) => _buildFieldRow(context, colorScheme, field, entity))
+                                  .toList(),
                             ),
-                            const HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 16),
-                          ],
-                        ),
-                        children: entity.fields
-                            .map((field) => _buildFieldRow(context, colorScheme, field, entity))
-                            .toList(),
-                      ),
-                    ),
+                          )
+                        : InkWell(
+                            borderRadius: borderRadius,
+                            hoverColor: colorScheme.primary.withValues(alpha: 0.08),
+                            onTap: () => widget.onSelectEntity?.call(entity, ns),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+                              child: Row(
+                                children: [
+                                  _buildLeadingBadge(colorScheme, isMongo, entity, isSelected),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _buildTitle(colorScheme, entity, isSelected),
+                                        const SizedBox(height: 2),
+                                        _buildSubtitle(colorScheme, isMongo, entity, isSelected),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  HugeIcon(
+                                    icon: HugeIcons.strokeRoundedArrowRight01,
+                                    size: 14,
+                                    color: isSelected
+                                        ? colorScheme.primary
+                                        : colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                   ),
                 ),
               );
@@ -454,6 +491,52 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
     );
   }
 
+  Widget _buildLeadingBadge(ColorScheme colorScheme, bool isMongo, EntitySchemaModel entity, bool isSelected) {
+    return Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? colorScheme.primaryContainer
+            : colorScheme.surfaceContainerHigh.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: HugeIcon(
+        icon: entity.entityType.toUpperCase() == 'COLLECTION'
+            ? HugeIcons.strokeRoundedFolderLibrary
+            : (entity.entityType.toUpperCase() == 'VIEW'
+                ? HugeIcons.strokeRoundedView
+                : HugeIcons.strokeRoundedSheet),
+        size: 16,
+        color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+
+  Widget _buildTitle(ColorScheme colorScheme, EntitySchemaModel entity, bool isSelected) {
+    return Text(
+      entity.name,
+      style: TextStyle(
+        fontSize: 12.5,
+        fontFamily: 'monospace',
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+        color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+      ),
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  Widget _buildSubtitle(ColorScheme colorScheme, bool isMongo, EntitySchemaModel entity, bool isSelected) {
+    return Text(
+      '${entity.fields.length} ${entity.fields.length == 1 ? "field" : "fields"}',
+      style: TextStyle(
+        fontSize: 11,
+        color: isSelected
+            ? colorScheme.primary.withValues(alpha: 0.8)
+            : colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+
   Widget _buildFieldRow(
     BuildContext context,
     ColorScheme colorScheme,
@@ -462,7 +545,7 @@ class _SchemaExplorerState extends State<SchemaExplorer> {
   ) {
     return InkWell(
       onTap: () {
-        widget.onSelectColumn(field, entity);
+        widget.onSelectColumn?.call(field, entity);
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

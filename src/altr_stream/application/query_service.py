@@ -3,6 +3,7 @@
 import json
 from typing import Any
 
+from altr_stream.application.usage_tracker import usage_tracker
 from altr_stream.domain.errors import (
     QueryExecutionError,
     QueryExecutionNotSupportedError,
@@ -17,6 +18,18 @@ from altr_stream.infrastructure.connectors.mongodb.shell_parser import (
     parse_mongodb_shell_query,
 )
 from altr_stream.infrastructure.database.repository import SqliteSourceRepository
+
+
+def _is_write_query(query: str) -> bool:
+    q = query.strip().upper()
+    if q.startswith("MONGODB:"):
+        op = q.replace("MONGODB:", "").strip()
+        return any(w in op for w in ["INSERT", "UPDATE", "DELETE", "DROP"])
+    for keyword in ["INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER", "TRUNCATE", "REPLACE"]:
+        if q.startswith(keyword):
+            return True
+    return False
+
 
 
 def _prepare_mongodb_query(
@@ -168,7 +181,12 @@ class QueryService:
 
         # 5. Execute within connector context
         async with connector:
-            return await connector.execute_query(cleaned_query, parameters=final_params)
+            res = await connector.execute_query(cleaned_query, parameters=final_params)
+            if _is_write_query(cleaned_query):
+                usage_tracker.record_write(1, source_id=source_id)
+            else:
+                usage_tracker.record_read(1, source_id=source_id)
+            return res
 
     async def execute_batch(
         self,
@@ -202,5 +220,13 @@ class QueryService:
 
         # 5. Execute within connector context
         async with connector:
-            return await connector.execute_batch(cleaned_queries)
+            res = await connector.execute_batch(cleaned_queries)
+            write_count = sum(1 for q, _ in cleaned_queries if _is_write_query(q))
+            read_count = len(cleaned_queries) - write_count
+            if write_count > 0:
+                usage_tracker.record_write(write_count, source_id=source_id)
+            if read_count > 0:
+                usage_tracker.record_read(read_count, source_id=source_id)
+            return res
+
 

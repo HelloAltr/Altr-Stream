@@ -303,44 +303,46 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
               const SizedBox(height: 16),
             ],
             // Source Selector
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedSourceId,
-                    decoration: const InputDecoration(
-                      labelText: 'Target Physical Data Source',
-                      prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedDatabase, size: 18),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _selectedSourceId,
+                      decoration: const InputDecoration(
+                        labelText: 'Target Physical Data Source',
+                      ),
+                      items: widget.sources.map((s) {
+                        return DropdownMenuItem(
+                          value: s.id,
+                          child: Text('${s.name} (${s.type})', style: const TextStyle(fontSize: 13)),
+                        );
+                      }).toList(),
+                      onChanged: _isEditMode
+                          ? null // Source cannot be changed when editing an existing source mapping
+                          : (val) {
+                              if (val != null) {
+                                setState(() => _selectedSourceId = val);
+                                _loadSourceSchema(val);
+                              }
+                            },
                     ),
-                    items: widget.sources.map((s) {
-                      return DropdownMenuItem(
-                        value: s.id,
-                        child: Text('${s.name} (${s.type})', style: const TextStyle(fontSize: 13)),
-                      );
-                    }).toList(),
-                    onChanged: _isEditMode
-                        ? null // Source cannot be changed when editing an existing source mapping
-                        : (val) {
-                            if (val != null) {
-                              setState(() => _selectedSourceId = val);
-                              _loadSourceSchema(val);
-                            }
-                          },
                   ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: _sourceSchema != null
-                      ? () {
-                          setState(() {
-                            _autoMatchEntities();
-                          });
-                        }
-                      : null,
-                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedMagicWand01, size: 16),
-                  label: const Text('Auto-Match All'),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: _sourceSchema != null
+                        ? () {
+                            setState(() {
+                              _autoMatchEntities();
+                            });
+                          }
+                        : null,
+                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedMagicWand01, size: 16),
+                    label: const Text('Auto-Match All'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             if (_isLoadingSchema)
@@ -361,6 +363,37 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                 padding: const EdgeInsets.all(24),
                 child: const Center(
                   child: Text('Select a connected data source to inspect its tables and columns.'),
+                ),
+              )
+            else if (_entityDrafts.isEmpty)
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, size: 36, color: colorScheme.onSurfaceVariant),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No logical entities in "${widget.logicalModel.name}"',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Please define at least one logical entity in this model before adding a source mapping.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               )
             else
@@ -559,7 +592,7 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
-                  onPressed: _isSubmitting || _isLoadingSchema || _sourceSchema == null ? null : _submit,
+                  onPressed: _isSubmitting || _isLoadingSchema || _sourceSchema == null || _entityDrafts.isEmpty ? null : _submit,
                   icon: _isSubmitting
                       ? const SizedBox(
                           width: 14,

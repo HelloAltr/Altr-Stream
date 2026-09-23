@@ -95,9 +95,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         // Settings Cards
         LayoutBuilder(
           builder: (context, constraints) {
@@ -366,7 +370,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 80),
       ],
-    );
+    ),
+  );
   }
 
   Widget _buildRow(BuildContext context, String label, String value, {bool isMonospace = false, Widget? customWidget}) {

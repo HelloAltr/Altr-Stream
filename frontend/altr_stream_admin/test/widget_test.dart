@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -26,6 +27,8 @@ import 'package:altr_stream_admin/features/settings/screens/settings_screen.dart
 import 'package:altr_stream_admin/features/sources/widgets/add_source_wizard_dialog.dart';
 import 'package:altr_stream_admin/features/registry/widgets/add_mapping_dialog.dart';
 import 'package:altr_stream_admin/shared/widgets/app_shell.dart';
+import 'package:altr_stream_admin/shared/widgets/status_badge.dart';
+import 'package:altr_stream_admin/shared/widgets/trail_extended_fab.dart';
 
 class MockTestApiClient extends ApiClient {
   final SourceSchemaModel? schemaToReturn;
@@ -562,7 +565,7 @@ void main() {
     expect(find.text('PostgreSQL'), findsOneWidget);
   });
 
-  testWidgets('SourceDetailScreen renders in both Light and Dark themes with 5 tabs including Playground', (WidgetTester tester) async {
+  testWidgets('SourceDetailScreen renders in both Light and Dark themes with Bento Grid Overview tab and Playground', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -601,13 +604,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Overview'), findsOneWidget);
-    expect(find.text('Connection Parameters'), findsOneWidget);
     expect(find.text('Discovered Schemas'), findsOneWidget);
-    expect(find.text('Playground'), findsOneWidget);
-    expect(find.text('Health & Diagnostics'), findsOneWidget);
+    expect(find.textContaining('Query Playground'), findsOneWidget);
 
     // Switch to Playground tab
-    await tester.tap(find.text('Playground'));
+    await tester.tap(find.textContaining('Query Playground'));
     await tester.pumpAndSettle();
     expect(find.byType(SourcePlaygroundView), findsOneWidget);
     expect(find.text('POSTGRESQL QUERY'), findsOneWidget);
@@ -676,19 +677,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Source Summary'), findsOneWidget);
-    expect(find.text('Host / IP Address'), findsNothing);
+    expect(find.text('Source & Connection Details'), findsOneWidget);
 
-    await tester.drag(find.text('Source Summary'), const Offset(-400, 0));
+    await tester.drag(find.text('Source & Connection Details'), const Offset(-400, 0));
     await tester.pumpAndSettle();
 
-    expect(find.text('Source Summary'), findsOneWidget);
-    expect(find.text('Host / IP Address'), findsNothing);
+    expect(find.text('Source & Connection Details'), findsOneWidget);
 
-    await tester.tap(find.text('Connection Parameters'));
+    await tester.tap(find.textContaining('Query Playground'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Host / IP Address'), findsOneWidget);
+    expect(find.byType(SourcePlaygroundView), findsOneWidget);
   });
 
   testWidgets('AltrQL Console FAB is visible and opens AltrQL Playground screen', (WidgetTester tester) async {
@@ -700,6 +699,7 @@ void main() {
     await tester.pumpWidget(const AltrStreamAdminApp());
     await tester.pump();
 
+    // AltrQL Console is now a sidebar nav item, not an app bar button
     final fabFinder = find.text('AltrQL Console');
     expect(fabFinder, findsOneWidget);
 
@@ -708,14 +708,13 @@ void main() {
 
     expect(find.byType(AltrQLPlaygroundScreen), findsOneWidget);
     expect(find.text('AltrQL Console'), findsWidgets);
-    expect(find.text('AltrQL Editor'), findsOneWidget);
-    expect(find.text('Parse Query'), findsOneWidget);
+    expect(find.byType(M3ESplitButton<String>), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Back'));
+    // Navigate back to Overview via sidebar
+    await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
 
     expect(find.byType(OverviewScreen), findsOneWidget);
-    expect(find.text('AltrQL Console'), findsOneWidget);
   });
 
   testWidgets('SchemaExplorer widget renders tables, columns, and inserts query template', (WidgetTester tester) async {
@@ -796,8 +795,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Schema Explorer'), findsOneWidget);
-    expect(find.text('1 table • 2 columns'), findsOneWidget);
+    expect(find.text('SCHEMAS & TABLES'), findsOneWidget);
     expect(find.text('users'), findsOneWidget);
 
     // Click "Query Table" template icon button
@@ -908,7 +906,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('POSTGRESQL QUERY'), findsOneWidget);
-    expect(find.text('Schema Explorer'), findsOneWidget);
+    expect(find.text('SCHEMAS & TABLES'), findsOneWidget);
     expect(find.text('users'), findsOneWidget);
 
     // Verify hint text is present for PostgreSQL
@@ -1328,16 +1326,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Verify initial AST placeholder
-    expect(find.text('Interactive AST / IR Inspector'), findsOneWidget);
-    expect(find.text('Parse Query'), findsOneWidget);
-
     // Enter query text
     final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
     await tester.enterText(queryField, 'GET users (id, name AS username) WHERE { status = "ACTIVE" };');
     await tester.pump();
 
-    // Tap Parse Query
+    // Tap Parse Query via M3ESplitButton menu
+    final splitButton = find.byType(M3ESplitButton<String>);
+    await tester.tapAt(tester.getRect(splitButton).centerRight - const Offset(10, 0));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Parse Query'));
     await tester.pumpAndSettle();
 
@@ -1394,7 +1391,10 @@ void main() {
     await tester.enterText(queryField, 'get users (id);');
     await tester.pump();
 
-    // Tap Parse Query
+    // Tap Parse Query via M3ESplitButton menu
+    final splitButton = find.byType(M3ESplitButton<String>);
+    await tester.tapAt(tester.getRect(splitButton).centerRight - const Offset(10, 0));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Parse Query'));
     await tester.pumpAndSettle();
 
@@ -1448,7 +1448,10 @@ void main() {
     await tester.enterText(queryField, 'GET users (col AS col, col AS col);');
     await tester.pump();
 
-    // Tap Parse Query
+    // Tap Parse Query via M3ESplitButton menu
+    final splitButton = find.byType(M3ESplitButton<String>);
+    await tester.tapAt(tester.getRect(splitButton).centerRight - const Offset(10, 0));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Parse Query'));
     await tester.pumpAndSettle();
 
@@ -1565,18 +1568,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Select source 'Warehouse DB' from M3EMenu
+    await tester.tap(find.byType(M3EMenu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Warehouse DB').last);
+    await tester.pumpAndSettle();
+
     // Enter query text
     final queryField = find.descendant(of: find.byType(AltrQLPlaygroundScreen), matching: find.byType(TextField));
     await tester.enterText(queryField, 'GET users (id, username);');
     await tester.pump();
 
-    // Tap 'Bind Against Source' button
+    // Tap 'Bind Against Source' button via M3ESplitButton menu
+    final splitButton = find.byType(M3ESplitButton<String>);
+    await tester.tapAt(tester.getRect(splitButton).centerRight - const Offset(10, 0));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bind Against Source'));
     await tester.pumpAndSettle();
 
     // Verify Bound Success Banner
     expect(find.text('Query Bound & Type Validated'), findsOneWidget);
-    expect(find.text('Warehouse DB'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('Warehouse DB'), findsAtLeastNWidgets(1));
     expect(find.text('Bound IR'), findsOneWidget);
     expect(find.text('Canonical IR'), findsOneWidget);
   });
@@ -1635,7 +1647,10 @@ void main() {
     await tester.enterText(queryField, 'GET non_existent_table (id);');
     await tester.pump();
 
-    // Tap 'Bind Against Source'
+    // Tap 'Bind Against Source' via M3ESplitButton menu
+    final splitButton = find.byType(M3ESplitButton<String>);
+    await tester.tapAt(tester.getRect(splitButton).centerRight - const Offset(10, 0));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bind Against Source'));
     await tester.pumpAndSettle();
 
@@ -1720,7 +1735,10 @@ void main() {
     await tester.enterText(queryField, 'GET users WHERE { created_at >= @2026-01-01 };');
     await tester.pump();
 
-    // Tap 'Bind Against Source' button
+    // Tap 'Bind Against Source' button via M3ESplitButton menu
+    final splitButton = find.byType(M3ESplitButton<String>);
+    await tester.tapAt(tester.getRect(splitButton).centerRight - const Offset(10, 0));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bind Against Source'));
     await tester.pumpAndSettle();
 
@@ -2427,19 +2445,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Header checks
-    expect(find.text('Manual SQLite Test'), findsOneWidget);
+    // Header & Summary checks
+    expect(find.text('Manual SQLite Test'), findsWidgets);
     expect(find.text('File: /app/data/manual_test.db'), findsOneWidget);
 
-    // Overview Tab checks
-    expect(find.text('SQLite (File Database)'), findsOneWidget);
-    expect(find.text('/app/data/manual_test.db'), findsOneWidget);
+    // Overview Bento Tab checks
+    expect(find.text('SQLite (File Database)'), findsWidgets);
+    expect(find.text('/app/data/manual_test.db'), findsWidgets);
 
-    // Switch to Connection Parameters tab
-    await tester.tap(find.text('Connection Parameters'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Database File Path'), findsOneWidget);
+    expect(find.text('Database File Path'), findsWidgets);
     expect(find.text('Storage Mode'), findsOneWidget);
     expect(find.text('Local / Embedded File'), findsOneWidget);
     expect(find.text('Host / IP Address'), findsNothing);
@@ -2494,9 +2508,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Postgre Test'), findsOneWidget);
-    expect(find.text('altr-postgres-test:5432 • altr_test_db'), findsOneWidget);
+    expect(find.text('POSTGRESQL • altr-postgres-test:5432/altr_test_db'), findsOneWidget);
     expect(find.text('Manual SQLite Test'), findsOneWidget);
-    expect(find.text('/app/data/manual_test.db'), findsOneWidget);
+    expect(find.text('SQLITE • /app/data/manual_test.db'), findsOneWidget);
 
     // 2. Test OverviewScreen
     await tester.pumpWidget(
@@ -2584,7 +2598,7 @@ void main() {
     expect(mockClient.lastCreateSourceParams?['file_path'], isNull);
   });
 
-  testWidgets('RegistryScreen displays summary metrics and models list', (WidgetTester tester) async {
+  testWidgets('RegistryScreen displays search bar and models list', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -2608,7 +2622,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(RegistryScreen), findsOneWidget);
-    expect(find.text('Logical Models'), findsWidgets);
+    expect(find.byType(M3ESearchBar), findsOneWidget);
     expect(find.text('CoreCommerce'), findsOneWidget);
     expect(find.text('v1.0.0'), findsOneWidget);
   });
@@ -2647,7 +2661,7 @@ void main() {
     expect(find.text('Map New Data Source'), findsOneWidget);
 
     // 2. Switch to Logical Schema Tab
-    await tester.tap(find.widgetWithText(Tab, 'Logical Schema (1 entities, 2 fields)'));
+    await tester.tap(find.widgetWithText(Tab, 'Logical Schemas (1 entities, 2 fields)'));
     await tester.pumpAndSettle();
 
     expect(find.text('Customer'), findsOneWidget);
@@ -2903,8 +2917,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 1. Open Edit Model Dialog
-    expect(find.byTooltip('Edit Model Details'), findsOneWidget);
-    await tester.tap(find.byTooltip('Edit Model Details'));
+    expect(find.text('Edit Model Details'), findsOneWidget);
+    await tester.tap(find.text('Edit Model Details'));
     await tester.pumpAndSettle();
 
     expect(find.text('Edit Logical Data Model'), findsOneWidget);
@@ -2913,7 +2927,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Switch to Logical Schema Tab to test Entity & Field edit dialogs
-    await tester.tap(find.widgetWithText(Tab, 'Logical Schema (1 entities, 2 fields)'));
+    await tester.tap(find.widgetWithText(Tab, 'Logical Schemas (1 entities, 2 fields)'));
     await tester.pumpAndSettle();
 
     // 2. Open Edit Entity Dialog
@@ -3931,12 +3945,6 @@ void main() {
     expect(find.text('Discovered Tables'), findsOneWidget);
     expect(find.text('1 table (1 fields)'), findsOneWidget);
 
-    // Click Discover Schema to verify snackbar terminology
-    await tester.tap(find.text('Discover Schema').first);
-    await tester.pump();
-    expect(find.text('Schema discovered: 1 table found!'), findsOneWidget);
-    await tester.pumpAndSettle();
-
     // Switch to Discovered Schemas tab
     await tester.tap(find.text('Discovered Schemas'));
     await tester.pumpAndSettle();
@@ -4002,12 +4010,6 @@ void main() {
     // Overview Tab should display "Discovered Collections" and "1 collection (1 fields)"
     expect(find.text('Discovered Collections'), findsOneWidget);
     expect(find.text('1 collection (1 fields)'), findsOneWidget);
-
-    // Click Discover Schema to verify snackbar terminology
-    await tester.tap(find.text('Discover Schema').first);
-    await tester.pump();
-    expect(find.text('Schema discovered: 1 collection found!'), findsOneWidget);
-    await tester.pumpAndSettle();
 
     // Switch to Discovered Schemas tab
     await tester.tap(find.text('Discovered Schemas'));
@@ -4458,4 +4460,375 @@ void main() {
       ),
     );
   });
+
+  testWidgets('App Bar has persistent AltrQL Console button and pages use M3EExtendedFab', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const AltrStreamAdminApp());
+    await tester.pumpAndSettle();
+
+    // 1. Overview page App Bar has persistent AltrQL Console button
+    expect(find.text('AltrQL Console'), findsOneWidget);
+    expect(find.byTooltip('Refresh'), findsOneWidget);
+
+    // 2. Navigate to Data Sources page
+    await tester.tap(find.text('Data Sources'));
+    await tester.pumpAndSettle();
+
+    // App Bar still has AltrQL Console button and Refresh
+    expect(find.text('AltrQL Console'), findsOneWidget);
+    expect(find.byTooltip('Refresh'), findsOneWidget);
+    // Sources page has M3ETrailExtendedFab with 'Add Data Source'
+    expect(find.byType(M3ETrailExtendedFab), findsOneWidget);
+    expect(find.descendant(of: find.byType(M3ETrailExtendedFab), matching: find.text('Add Data Source')), findsOneWidget);
+
+    // 3. Navigate to Logical Models page
+    await tester.tap(find.text('Logical Models').first);
+    await tester.pumpAndSettle();
+
+    // Registry page has M3ETrailExtendedFab with 'New Logical Model'
+    expect(find.byType(M3ETrailExtendedFab), findsOneWidget);
+    expect(find.descendant(of: find.byType(M3ETrailExtendedFab), matching: find.text('New Logical Model')), findsOneWidget);
+
+    // 4. Navigate to Activity page
+    await tester.tap(find.text('Activity'));
+    await tester.pumpAndSettle();
+
+    // Activity page has M3ETrailExtendedFab with 'Clear Timeline'
+    expect(find.byType(M3ETrailExtendedFab), findsOneWidget);
+    expect(find.descendant(of: find.byType(M3ETrailExtendedFab), matching: find.text('Clear Timeline')), findsOneWidget);
+  });
+
+  testWidgets('AppShell renders badges for Data Sources and Logical Models across Desktop, Tablet and Mobile', (WidgetTester tester) async {
+    // Desktop Viewport
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          activeRoute: '/',
+          sourcesCount: 5,
+          modelsCount: 3,
+          onNavigate: (_) {},
+          child: const Text('Content'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('5'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+
+    // Tablet Viewport
+    tester.view.physicalSize = const Size(768, 1024);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(Badge), findsWidgets);
+
+    // Mobile Viewport
+    tester.view.physicalSize = const Size(375, 812);
+    await tester.pumpAndSettle();
+
+    // Open drawer
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Drawer), findsOneWidget);
+    expect(find.text('5'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+  });
+
+  testWidgets('SourcesScreen renders clean list tile with DB info, status badge, and navigation', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'pg_1',
+        name: 'PostgreSQL DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'altr_db',
+        username: 'postgres',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    bool selected = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SourcesScreen(
+            sources: mockSources,
+            isLoading: false,
+            onRefresh: () {},
+            onAddSource: () {},
+            onSelectSource: (_) {
+              selected = true;
+            },
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('PostgreSQL DB'), findsOneWidget);
+    expect(find.byType(StatusBadge), findsWidgets);
+    expect(find.byIcon(M3EIcons.edit), findsNothing);
+    expect(find.byIcon(M3EIcons.delete), findsNothing);
+
+    await tester.tap(find.text('PostgreSQL DB'));
+    expect(selected, isTrue);
+  });
+
+  testWidgets('M3ETrailExtendedFab renders properly with HugeIcon on the right side of the label', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    bool pressed = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          floatingActionButton: M3ETrailExtendedFab(
+            icon: HugeIcons.strokeRoundedPlusSign,
+            label: 'Add Data Source',
+            color: M3EFabColor.primary,
+            onPressed: () {
+              pressed = true;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(M3ETrailExtendedFab), findsOneWidget);
+    expect(find.text('Add Data Source'), findsOneWidget);
+    expect(find.byType(HugeIcon), findsOneWidget);
+
+    // Verify icon is positioned to the right of the label
+    final labelCenter = tester.getCenter(find.text('Add Data Source'));
+    final iconCenter = tester.getCenter(find.byType(HugeIcon));
+    expect(iconCenter.dx, greaterThan(labelCenter.dx));
+
+    await tester.tap(find.byType(M3ETrailExtendedFab));
+    expect(pressed, isTrue);
+  });
+
+  testWidgets('SourcesScreen right-click opens context menu with Edit Source and Delete Source', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockSources = [
+      SourceModel(
+        id: 'pg_1',
+        name: 'PostgreSQL DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'altr_db',
+        username: 'postgres',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    bool edited = false;
+    bool deleted = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SourcesScreen(
+            sources: mockSources,
+            isLoading: false,
+            onRefresh: () {},
+            onAddSource: () {},
+            onSelectSource: (_) {
+              edited = true;
+            },
+            onDeleteSource: (_) {
+              deleted = true;
+            },
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Right click on source item
+    final itemFinder = find.text('PostgreSQL DB');
+    await tester.tap(itemFinder, buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Source'), findsOneWidget);
+    expect(find.text('Delete Source'), findsOneWidget);
+
+    // Tap Edit Source
+    await tester.tap(find.text('Edit Source'));
+    await tester.pumpAndSettle();
+    expect(edited, isTrue);
+
+    // Right click again and tap Delete Source
+    await tester.tap(itemFinder, buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete Source'));
+    await tester.pumpAndSettle();
+    expect(deleted, isTrue);
+  });
+
+  testWidgets('RegistryScreen has search bar, stylized list with arrow only, and right-click context menu', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockTestApiClient();
+    bool selected = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: RegistryScreen(
+            apiClient: mockClient,
+            sources: [],
+            onSelectModel: (_) {
+              selected = true;
+            },
+            onNodeStatusTap: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify Search Bar is present
+    expect(find.byType(M3ESearchBar), findsOneWidget);
+    expect(find.text('Search logical models by name, entity, or description...'), findsOneWidget);
+
+    // Verify Model item rendered with arrow only (no Inspect or Edit buttons on the item itself)
+    expect(find.text('CoreCommerce'), findsOneWidget);
+    expect(find.text('v1.0.0'), findsOneWidget);
+    expect(find.text('Inspect'), findsNothing);
+    expect(find.byIcon(M3EIcons.edit), findsNothing);
+
+    // Test Search Filter
+    await tester.enterText(find.byType(M3ESearchBar), 'NonExistentModel');
+    await tester.pumpAndSettle();
+
+    expect(find.text('CoreCommerce'), findsNothing);
+    expect(find.text('No matching logical models'), findsOneWidget);
+
+    // Reset search
+    await tester.tap(find.text('Reset Search'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('CoreCommerce'), findsOneWidget);
+
+    // Left click selects model
+    await tester.tap(find.text('CoreCommerce'));
+    await tester.pumpAndSettle();
+    expect(selected, isTrue);
+
+    // Right click opens context menu with Edit Model and Delete Model
+    await tester.tap(find.text('CoreCommerce'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Model'), findsOneWidget);
+    expect(find.text('Delete Model'), findsOneWidget);
+  });
+
+  testWidgets('UsageMetricsModel parses correctly and OverviewScreen renders real-time actual read/write metrics', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final jsonMap = {
+      'total_reads': 150,
+      'total_writes': 50,
+      'ops_per_minute': 1200.0,
+      'read_percentage': 75.0,
+      'write_percentage': 25.0,
+      'read_history': [0.1, 0.3, 0.5, 0.7, 0.9],
+      'write_history': [0.05, 0.1, 0.15, 0.2, 0.25],
+    };
+
+    final usageModel = UsageMetricsModel.fromJson(jsonMap);
+    expect(usageModel.totalReads, equals(150));
+    expect(usageModel.totalWrites, equals(50));
+    expect(usageModel.opsPerMinute, equals(1200.0));
+    expect(usageModel.formattedOpsPerMinute, equals('1.2k ops/m'));
+    expect(usageModel.readPercentage, equals(75.0));
+    expect(usageModel.writePercentage, equals(25.0));
+    expect(usageModel.readHistory.length, equals(5));
+
+    final mockSources = [
+      SourceModel(
+        id: 'src_1',
+        name: 'PostgreSQL DB',
+        type: 'POSTGRESQL',
+        host: 'localhost',
+        port: 5432,
+        databaseName: 'db',
+        username: 'postgres',
+        status: 'ACTIVE',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: OverviewScreen(
+              sources: mockSources,
+              activities: const [],
+              isLoading: false,
+              usageMetrics: usageModel,
+              onRefresh: () {},
+              onAddSource: () {},
+              onSelectSource: (_) {},
+              onViewAllSources: () {},
+              onNodeStatusTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Altr Stream Usage'), findsOneWidget);
+    expect(find.text('1.2k ops/m'), findsOneWidget);
+    expect(find.text('Reads (150)'), findsOneWidget);
+    expect(find.text('Writes (50)'), findsOneWidget);
+  });
 }
+
+

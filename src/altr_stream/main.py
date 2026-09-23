@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from altr_stream.application.usage_tracker import usage_tracker
 from altr_stream.config import settings
 from altr_stream.infrastructure.database.session import init_db
 from altr_stream.presentation.api.router import api_v1_router
@@ -16,8 +17,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan context manager for startup and shutdown hooks."""
     # Initialize metadata database
     await init_db()
+    # Load persisted cumulative read/write telemetry
+    await usage_tracker.load_from_db()
     yield
-    # Shutdown logic (if any)
+    # Save final cumulative read/write telemetry on shutdown
+    await usage_tracker.save_to_db()
 
 
 def create_app() -> FastAPI:

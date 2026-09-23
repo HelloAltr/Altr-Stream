@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:material_3_expressive/material_3_expressive.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import 'core/api/api_client.dart';
 import 'core/api/models.dart';
 import 'core/theme/app_theme.dart';
@@ -17,10 +18,16 @@ import 'features/sources/screens/sources_screen.dart';
 import 'features/sources/widgets/add_source_wizard_dialog.dart';
 import 'shared/widgets/app_shell.dart';
 import 'shared/widgets/node_status_dialog.dart';
+import 'shared/widgets/trail_extended_fab.dart';
 
+import 'package:flutter/services.dart';
 import 'core/theme/material_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    BrowserContextMenu.disableContextMenu();
+  } catch (_) {}
   runApp(const AltrStreamAdminApp());
 }
 
@@ -94,6 +101,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final ApiClient _apiClient = ApiClient();
 
   List<SourceModel> _sources = [];
+  int _modelsCount = 0;
   final List<ActivityLogModel> _activities = [];
   bool _isLoadingSources = true;
   String _activeRoute = '/';
@@ -102,7 +110,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   LogicalModelModel? _selectedLogicalModel;
   String _nodeStatus = 'ACTIVE';
   UserProfile? _currentUser;
+  final GlobalKey<OverviewScreenState> _overviewKey = GlobalKey<OverviewScreenState>();
   final GlobalKey<RegistryScreenState> _registryKey = GlobalKey<RegistryScreenState>();
+  final GlobalKey<SourcesScreenState> _sourcesKey = GlobalKey<SourcesScreenState>();
+  final GlobalKey<SourceDetailScreenState> _sourceDetailKey = GlobalKey<SourceDetailScreenState>();
+  final GlobalKey<LogicalModelDetailScreenState> _logicalModelDetailKey = GlobalKey<LogicalModelDetailScreenState>();
+
+  UsageMetricsModel? _usageMetrics;
+  Timer? _usageTimer;
+  String _usageTimeWindow = '30m';
 
   @override
   void initState() {
@@ -113,8 +129,33 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       description: 'Connected to local runtime metadata and PostgreSQL connector ready.',
     );
     _probeNodeHealth();
-    _fetchSources();
+    _fetchSources(probe: true);
+    _fetchModels();
+    _fetchUsageMetrics();
+    _usageTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) {
+        _fetchUsageMetrics();
+      }
+    });
   }
+
+  @override
+  void dispose() {
+    _usageTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchUsageMetrics() async {
+    try {
+      final metrics = await _apiClient.getUsageMetrics(timeWindow: _usageTimeWindow);
+      if (mounted) {
+        setState(() {
+          _usageMetrics = metrics;
+        });
+      }
+    } catch (_) {}
+  }
+
 
   void _logActivity({
     required ActivityType type,
@@ -154,10 +195,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
-  Future<void> _fetchSources() async {
+  Future<void> _fetchSources({bool probe = false}) async {
     setState(() => _isLoadingSources = true);
     try {
-      final list = await _apiClient.listSources();
+      final list = await _apiClient.listSources(probe: probe);
       setState(() {
         _sources = list;
         if (_selectedSource != null) {
@@ -184,10 +225,22 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
+  Future<void> _fetchModels() async {
+    try {
+      final list = await _apiClient.listLogicalModels();
+      if (mounted) {
+        setState(() {
+          _modelsCount = list.length;
+        });
+      }
+    } catch (_) {}
+  }
+
   void _showAddSourceWizard() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AddSourceWizardDialog(
+    M3EDialog.show<void>(
+      context,
+      barrierDismissible: true,
+      dialog: AddSourceWizardDialog(
         apiClient: _apiClient,
         onSourceCreated: (newSource) {
           final endpointDesc = newSource.type == 'SQLITE'
@@ -222,6 +275,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       builder: (ctx) => CreateLogicalModelDialog(
         apiClient: _apiClient,
         onModelCreated: (newModel) {
+          _fetchModels();
           _registryKey.currentState?.fetchRegistry();
           setState(() {
             _selectedLogicalModel = newModel;
@@ -241,7 +295,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (_activeRoute == '/registry/detail') {
       return _selectedLogicalModel?.name ?? 'Logical Model Details';
     }
-    if (_activeRoute == '/registry') return 'Mapping Registry';
+    if (_activeRoute == '/registry') return 'Logical Models';
     if (_activeRoute == '/activity') return 'Activity';
     if (_activeRoute == '/settings') return 'Settings';
     if (_activeRoute == '/altrql' || _activeRoute == '/playground') return 'AltrQL Console';
@@ -275,121 +329,71 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (_activeRoute == '/registry/detail') {
       return () => setState(() => _activeRoute = '/registry');
     }
-    if (_activeRoute == '/altrql' || _activeRoute == '/playground') {
-      return () => setState(() => _activeRoute = _previousRoute ?? '/');
-    }
     return null;
   }
 
   List<Widget>? _getPageActions() {
-    if (_activeRoute == '/') {
-      return [
-        Focus(
-          canRequestFocus: false,
-          skipTraversal: true,
-          child: M3EIconButton(
-            icon: HugeIcon(
-              icon: HugeIcons.strokeRoundedRefresh,
-              color: Theme.of(context).colorScheme.onSurface,
-              size: 18,
-            ),
-            onPressed: () {
-              FocusManager.instance.primaryFocus?.unfocus();
-              _probeNodeHealth();
-              _fetchSources();
-            },
-            variant: M3EIconButtonVariant.standard,
-            size: M3EIconButtonSize.xs,
-            tooltip: 'Refresh',
-          ),
-        ),
-      ];
-    }
-    if (_activeRoute == '/sources') {
-      return [
-        M3EButton.icon(
-          onPressed: _showAddSourceWizard,
+    final colorScheme = Theme.of(context).colorScheme;
+    return [
+      Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        child: M3EIconButton(
           icon: HugeIcon(
-            icon: HugeIcons.strokeRoundedPlusSign,
-            color: Theme.of(context).colorScheme.onPrimary,
-            size: 16,
+            icon: HugeIcons.strokeRoundedRefresh,
+            color: colorScheme.onSurface,
+            size: 18,
           ),
-          label: const Text('Add Data Source'),
-          style: M3EButtonStyle.filled,
-          size: M3EButtonSize.xs,
+          onPressed: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            _probeNodeHealth();
+            _fetchSources(probe: true);
+            _fetchModels();
+
+            if (_activeRoute == '/') {
+              _overviewKey.currentState?.triggerRefresh();
+            } else if (_activeRoute == '/sources') {
+              _sourcesKey.currentState?.triggerRefresh();
+            } else if (_activeRoute == '/sources/detail') {
+              _sourceDetailKey.currentState?.triggerRefresh();
+            } else if (_activeRoute == '/registry') {
+              _registryKey.currentState?.triggerRefresh();
+            } else if (_activeRoute == '/registry/detail') {
+              _logicalModelDetailKey.currentState?.triggerRefresh();
+            }
+          },
+          variant: M3EIconButtonVariant.standard,
+          size: M3EIconButtonSize.xs,
+          tooltip: 'Refresh',
         ),
-        const SizedBox(width: 8),
-        Focus(
-          canRequestFocus: false,
-          skipTraversal: true,
-          child: M3EIconButton(
-            icon: HugeIcon(
-              icon: HugeIcons.strokeRoundedRefresh,
-              color: Theme.of(context).colorScheme.onSurface,
-              size: 18,
-            ),
-            onPressed: () {
-              FocusManager.instance.primaryFocus?.unfocus();
-              _probeNodeHealth();
-              _fetchSources();
-            },
-            variant: M3EIconButtonVariant.standard,
-            size: M3EIconButtonSize.xs,
-            tooltip: 'Refresh',
-          ),
-        ),
-      ];
+      ),
+    ];
+  }
+
+  Widget? _getFloatingActionButton() {
+    if (_activeRoute == '/sources') {
+      return M3ETrailExtendedFab(
+        icon: HugeIcons.strokeRoundedPlusSign,
+        label: 'Add Data Source',
+        color: M3EFabColor.primary,
+        onPressed: _showAddSourceWizard,
+      );
     }
     if (_activeRoute == '/registry') {
-      return [
-        M3EButton.icon(
-          onPressed: _showCreateLogicalModelDialog,
-          icon: HugeIcon(
-            icon: HugeIcons.strokeRoundedPlusSign,
-            color: Theme.of(context).colorScheme.onPrimary,
-            size: 16,
-          ),
-          label: const Text('New Logical Model'),
-          style: M3EButtonStyle.filled,
-          size: M3EButtonSize.xs,
-        ),
-        const SizedBox(width: 8),
-        Focus(
-          canRequestFocus: false,
-          skipTraversal: true,
-          child: M3EIconButton(
-            icon: HugeIcon(
-              icon: HugeIcons.strokeRoundedRefresh,
-              color: Theme.of(context).colorScheme.onSurface,
-              size: 18,
-            ),
-            onPressed: () {
-              FocusManager.instance.primaryFocus?.unfocus();
-              _registryKey.currentState?.fetchRegistry();
-            },
-            variant: M3EIconButtonVariant.standard,
-            size: M3EIconButtonSize.xs,
-            tooltip: 'Refresh',
-          ),
-        ),
-      ];
+      return M3ETrailExtendedFab(
+        icon: HugeIcons.strokeRoundedPlusSign,
+        label: 'New Logical Model',
+        color: M3EFabColor.primary,
+        onPressed: _showCreateLogicalModelDialog,
+      );
     }
     if (_activeRoute == '/activity') {
-      if (_activities.isNotEmpty) {
-        return [
-          M3EButton.icon(
-            onPressed: () => setState(() => _activities.clear()),
-            icon: HugeIcon(
-              icon: HugeIcons.strokeRoundedClean,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              size: 16,
-            ),
-            label: const Text('Clear Timeline'),
-            style: M3EButtonStyle.outlined,
-            size: M3EButtonSize.xs,
-          ),
-        ];
-      }
+      return M3ETrailExtendedFab(
+        icon: HugeIcons.strokeRoundedTimelineList,
+        label: 'Clear Timeline',
+        color: M3EFabColor.primary,
+        onPressed: () => setState(() => _activities.clear()),
+      );
     }
     return null;
   }
@@ -514,23 +518,29 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   Future<void> _deleteSource(SourceModel source) async {
     final colorScheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainerHigh,
-        title: const Text('Delete Data Source?'),
+    final confirmed = await M3EDialog.show<bool>(
+      context,
+      barrierDismissible: true,
+      dialog: M3EDialog(
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedDelete02,
+          color: colorScheme.error,
+          size: 28,
+        ),
+        title: 'Delete Data Source?',
         content: Text(
           'Are you sure you want to delete "${source.name}" and all associated physical schema snapshots? This action cannot be undone.',
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+          M3EButton(
+            style: M3EButtonStyle.text,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error, foregroundColor: colorScheme.onError),
-            onPressed: () => Navigator.of(ctx).pop(true),
+          M3EButton(
+            style: M3EButtonStyle.filled,
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete Source'),
           ),
         ],
@@ -576,10 +586,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   Widget _buildCurrentScreen() {
     if (_activeRoute == '/sources/detail' && _selectedSource != null) {
       return SourceDetailScreen(
+        key: _sourceDetailKey,
         source: _selectedSource!,
         apiClient: _apiClient,
         nodeStatus: _nodeStatus,
         onNodeStatusTap: _showNodeStatusDialog,
+        onSourceUpdated: (updated) {
+          setState(() {
+            _selectedSource = updated;
+            final idx = _sources.indexWhere((s) => s.id == updated.id);
+            if (idx != -1) {
+              _sources[idx] = updated;
+            }
+          });
+        },
         onBack: () => setState(() => _activeRoute = '/sources'),
         onDelete: () => _deleteSource(_selectedSource!),
       );
@@ -587,13 +607,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
     if (_activeRoute == '/sources' || (_activeRoute == '/sources/detail' && _selectedSource == null)) {
       return SourcesScreen(
+        key: _sourcesKey,
         sources: _sources,
         isLoading: _isLoadingSources,
         nodeStatus: _nodeStatus,
         onNodeStatusTap: _showNodeStatusDialog,
         onRefresh: () {
           _probeNodeHealth();
-          _fetchSources();
+          _fetchSources(probe: true);
         },
         onAddSource: _showAddSourceWizard,
         onSelectSource: (s) {
@@ -602,6 +623,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             _activeRoute = '/sources/detail';
           });
         },
+        onDeleteSource: _deleteSource,
       );
     }
 
@@ -638,16 +660,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
     if (_activeRoute == '/registry/detail' && _selectedLogicalModel != null) {
       return LogicalModelDetailScreen(
+        key: _logicalModelDetailKey,
         model: _selectedLogicalModel!,
         sources: _sources,
         apiClient: _apiClient,
         nodeStatus: _nodeStatus,
         onNodeStatusTap: _showNodeStatusDialog,
         onBack: () => setState(() => _activeRoute = '/registry'),
-        onModelDeleted: () => setState(() {
-          _selectedLogicalModel = null;
-          _activeRoute = '/registry';
-        }),
+        onModelDeleted: () {
+          _fetchModels();
+          setState(() {
+            _selectedLogicalModel = null;
+            _activeRoute = '/registry';
+          });
+        },
       );
     }
 
@@ -685,14 +711,49 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
     // Default Overview Screen
     return OverviewScreen(
+      key: _overviewKey,
       sources: _sources,
       activities: _activities,
       isLoading: _isLoadingSources,
+      usageMetrics: _usageMetrics,
       nodeStatus: _nodeStatus,
+      selectedTimeWindow: _usageTimeWindow,
       onNodeStatusTap: _showNodeStatusDialog,
       onRefresh: () {
         _probeNodeHealth();
-        _fetchSources();
+        _fetchSources(probe: true);
+        _fetchUsageMetrics();
+      },
+      onTimeWindowChanged: (window) {
+        setState(() {
+          _usageTimeWindow = window;
+        });
+        _fetchUsageMetrics();
+      },
+      onClearUsageData: () async {
+        try {
+          await _apiClient.clearUsageMetrics();
+          await _fetchUsageMetrics();
+          if (mounted) {
+            final colorScheme = Theme.of(context).colorScheme;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('All monitored usage data successfully cleared.'),
+                backgroundColor: colorScheme.primary,
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            final colorScheme = Theme.of(context).colorScheme;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to clear usage metrics: $e'),
+                backgroundColor: colorScheme.error,
+              ),
+            );
+          }
+        }
       },
       onAddSource: _showAddSourceWizard,
       onSelectSource: (s) {
@@ -705,6 +766,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       onNavigateToRegistry: () => setState(() => _activeRoute = '/registry'),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -730,6 +792,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       pageSubtitle: _getPageSubtitle(),
       onBack: _getOnBack(),
       pageActions: _getPageActions(),
+      floatingActionButton: _getFloatingActionButton(),
       nodeStatus: _nodeStatus,
       currentUser: _currentUser,
       onSignIn: _showSignInDialog,
@@ -737,6 +800,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       onNodeStatusTap: _showNodeStatusDialog,
       themeMode: widget.themeMode,
       onThemeModeChanged: widget.onThemeModeChanged,
+      sourcesCount: _sources.length,
+      modelsCount: _modelsCount,
       onNavigate: (route) {
         setState(() {
           if (route != _activeRoute) {

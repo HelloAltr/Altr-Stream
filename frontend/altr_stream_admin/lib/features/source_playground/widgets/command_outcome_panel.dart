@@ -26,8 +26,7 @@ class CommandOutcomePanel extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,7 +94,7 @@ class CommandOutcomePanel extends StatelessWidget {
                   context,
                   label: 'Affected Rows',
                   value: affectedRows.toString(),
-                  icon: HugeIcons.strokeRoundedTable01,
+                  icon: HugeIcons.strokeRoundedSheet,
                 ),
                 const SizedBox(width: 16),
               ],
@@ -127,8 +126,7 @@ class CommandOutcomePanel extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [

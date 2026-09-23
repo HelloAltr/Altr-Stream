@@ -237,3 +237,39 @@ class FieldMappingDB(Base):
     )
 
     entity_mapping: Mapped["EntityMappingDB"] = relationship("EntityMappingDB", back_populates="field_mappings")
+
+
+class NodeUsageModelDB(Base):
+    """Persisted cumulative read/write telemetry record for the Altr Stream node and individual data sources."""
+
+    __tablename__ = "node_usage"
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True, default="global_usage")
+    total_reads: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_writes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class NodeUsageLogModelDB(Base):
+    """Persisted 1-minute bucket usage log (sparse logging: only non-zero entries stored)."""
+
+    __tablename__ = "node_usage_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str] = mapped_column(String(100), default="_global", index=True)
+    minute_timestamp: Mapped[str] = mapped_column(String(20), index=True)  # YYYY-MM-DD HH:MM:00
+    reads: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    writes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
 import '../widgets/create_logical_model_dialog.dart';
@@ -13,6 +14,8 @@ class RegistryScreen extends StatefulWidget {
   final String nodeStatus;
   final VoidCallback onNodeStatusTap;
 
+  final bool isDeleteMode;
+
   const RegistryScreen({
     super.key,
     required this.apiClient,
@@ -20,6 +23,7 @@ class RegistryScreen extends StatefulWidget {
     required this.onSelectModel,
     this.nodeStatus = 'ACTIVE',
     required this.onNodeStatusTap,
+    this.isDeleteMode = false,
   });
 
   @override
@@ -27,15 +31,40 @@ class RegistryScreen extends StatefulWidget {
 }
 
 class RegistryScreenState extends State<RegistryScreen> {
+  late final M3ESearchController _searchController;
+  late final M3ERefreshIndicatorController _refreshController;
   List<LogicalModelModel> _models = [];
-  RegistrySummaryModel? _summary;
+  String _searchQuery = '';
   bool _isLoading = true;
   String? _error;
+
+  Future<void> triggerRefresh() async {
+    await fetchRegistry();
+  }
 
   @override
   void initState() {
     super.initState();
+    _searchController = M3ESearchController();
+    _searchController.addListener(_onSearchChanged);
+    _refreshController = M3ERefreshIndicatorController();
     fetchRegistry();
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _refreshController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    if (_searchQuery != _searchController.text) {
+      setState(() {
+        _searchQuery = _searchController.text;
+      });
+    }
   }
 
   Future<void> fetchRegistry() async {
@@ -45,18 +74,20 @@ class RegistryScreenState extends State<RegistryScreen> {
     });
 
     try {
-      final summary = await widget.apiClient.getRegistrySummary();
       final models = await widget.apiClient.listLogicalModels();
-      setState(() {
-        _summary = summary;
-        _models = models;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _models = models;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -91,19 +122,29 @@ class RegistryScreenState extends State<RegistryScreen> {
 
   Future<void> _deleteModel(LogicalModelModel model) async {
     final colorScheme = Theme.of(context).colorScheme;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colorScheme.surfaceContainerHigh,
-        title: const Text('Delete Logical Model?'),
+    final confirmed = await M3EDialog.show<bool>(
+      context,
+      barrierDismissible: true,
+      dialog: M3EDialog(
+        icon: HugeIcon(
+          icon: HugeIcons.strokeRoundedDelete02,
+          color: colorScheme.error,
+          size: 28,
+        ),
+        title: 'Delete Logical Model?',
         content: Text(
           'Are you sure you want to delete "${model.name}" and all its entities and source mappings? This action cannot be undone.',
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error, foregroundColor: colorScheme.onError),
-            onPressed: () => Navigator.of(ctx).pop(true),
+          M3EButton(
+            style: M3EButtonStyle.text,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          M3EButton(
+            style: M3EButtonStyle.filled,
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete Model'),
           ),
         ],
@@ -129,285 +170,220 @@ class RegistryScreenState extends State<RegistryScreen> {
     }
   }
 
+  void _showContextMenu(BuildContext context, Offset position, LogicalModelModel model) async {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        position & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: colorScheme.surfaceContainerHigh,
+      elevation: 4,
+      items: [
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Row(
+            children: [
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedEdit02,
+                color: colorScheme.onSurface,
+                size: 18,
+              ),
+              const SizedBox(width: 12),
+              const Text('Edit Model'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Row(
+            children: [
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedDelete02,
+                color: colorScheme.error,
+                size: 18,
+              ),
+              const SizedBox(width: 12),
+              Text('Delete Model', style: TextStyle(color: colorScheme.error)),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (selected == 'edit') {
+      _showEditModelDialog(model);
+    } else if (selected == 'delete') {
+      _deleteModel(model);
+    }
+  }
+
+  List<LogicalModelModel> get models => _models;
+
+  void promptDeleteModelPicker() {
+    if (_models.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No logical models available to delete.')),
+      );
+      return;
+    }
+    final colorScheme = Theme.of(context).colorScheme;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colorScheme.surfaceContainerHigh,
+        title: const Text('Select Logical Model to Delete'),
+        content: SizedBox(
+          width: 400,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: _models.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final model = _models[index];
+              return ListTile(
+                leading: HugeIcon(
+                  icon: HugeIcons.strokeRoundedHierarchySquare01,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+                title: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text('v${model.version} • ${model.entityCount} entities'),
+                trailing: HugeIcon(
+                  icon: HugeIcons.strokeRoundedDelete02,
+                  color: colorScheme.error,
+                  size: 18,
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _deleteModel(model);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_isLoading)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(60),
-              child: CircularProgressIndicator(color: colorScheme.primary),
-            ),
-          )
-        else if (_error != null)
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: colorScheme.errorContainer.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
-            ),
-            child: Row(
-              children: [
-                HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 24),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Error loading registry', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.error)),
-                      const SizedBox(height: 2),
-                      Text(_error!, style: TextStyle(fontSize: 12, color: colorScheme.error)),
-                    ],
-                  ),
-                ),
-                ElevatedButton(onPressed: fetchRegistry, child: const Text('Retry')),
-              ],
-            ),
-          )
-        else ...[
-          // Metrics Summary Cards
-          if (_summary != null) ...[
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 768;
-                return GridView.count(
-                  crossAxisCount: isWide ? 4 : 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: isWide ? 2.2 : 1.8,
-                  children: [
-                    _buildMetricCard(
-                      context,
-                      title: 'Logical Models',
-                      value: '${_summary!.totalModels}',
-                      subtitle: 'Domain schemas',
-                      icon: HugeIcons.strokeRoundedStructure01,
-                    ),
-                    _buildMetricCard(
-                      context,
-                      title: 'Logical Entities',
-                      value: '${_summary!.totalEntities}',
-                      subtitle: '${_summary!.totalLogicalFields} standard fields',
-                      icon: HugeIcons.strokeRoundedTable01,
-                    ),
-                    _buildMetricCard(
-                      context,
-                      title: 'Source Mappings',
-                      value: '${_summary!.totalSourceMappings}',
-                      subtitle: '${_summary!.activeSourceMappings} active',
-                      icon: HugeIcons.strokeRoundedLink01,
-                    ),
-                    _buildMetricCard(
-                      context,
-                      title: 'Mapping Status',
-                      value: '${_summary!.draftSourceMappings + _summary!.validatedSourceMappings}',
-                      subtitle: '${_summary!.errorSourceMappings} with errors',
-                      icon: HugeIcons.strokeRoundedCheckmarkBadge01,
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-          ],
+    final filteredModels = _models.where((m) {
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      final nameMatches = m.name.toLowerCase().contains(q);
+      final descMatches = m.description?.toLowerCase().contains(q) ?? false;
+      final versionMatches = m.version.toLowerCase().contains(q);
+      final entityMatches = m.entities.any((e) => e.name.toLowerCase().contains(q));
+      return nameMatches || descMatches || versionMatches || entityMatches;
+    }).toList();
 
-          // Models List Header
+    final scrollContent = SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Search Toolbar with M3E Search Bar
           Row(
             children: [
-              Text(
-                'Logical Models',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${_models.length}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
+              Expanded(
+                child: M3ESearchBar(
+                  controller: _searchController,
+                  hintText: 'Search logical models by name, entity, or description...',
+                  enabled: true,
+                  leading: HugeIcon(
+                    icon: HugeIcons.strokeRoundedSearch01,
+                    size: 18,
+                    color: colorScheme.onSurfaceVariant,
                   ),
+                  trailing: _searchQuery.isNotEmpty
+                      ? [
+                          IconButton(
+                            icon: HugeIcon(
+                              icon: HugeIcons.strokeRoundedCancel01,
+                              size: 16,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          ),
+                        ]
+                      : null,
+                  onChanged: (val) {
+                    setState(() => _searchQuery = val);
+                  },
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
 
-          // Models List / Empty State
-          if (_models.isEmpty)
-            _buildEmptyState(context)
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _models.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final model = _models[index];
-                return Card(
-                  elevation: 0,
-                  color: colorScheme.surfaceContainer,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                  ),
-                  child: InkWell(
-                    onTap: () => widget.onSelectModel(model),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: HugeIcon(icon: HugeIcons.strokeRoundedStructure01, color: colorScheme.primary, size: 22),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      model.name,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.onSurface,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.surfaceContainerHighest,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        'v${model.version}',
-                                        style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  model.description ?? '${model.entityCount} entities, ${model.totalFieldCount} fields defined',
-                                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Updated ${DateFormat.yMMMd().format(model.updatedAt)}',
-                                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8)),
-                                ),
-                              ],
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => widget.onSelectModel(model),
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
-                            label: const Text('Inspect'),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            onPressed: () => _showEditModelDialog(model),
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 18),
-                            tooltip: 'Edit Model',
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            onPressed: () => _deleteModel(model),
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
-                            color: colorScheme.error,
-                            tooltip: 'Delete Model',
-                          ),
-                        ],
-                      ),
+          if (_isLoading)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(60),
+                child: CircularProgressIndicator(color: colorScheme.primary),
+              ),
+            )
+          else if (_error != null)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 24),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Error loading registry', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.error)),
+                        const SizedBox(height: 2),
+                        Text(_error!, style: TextStyle(fontSize: 12, color: colorScheme.error)),
+                      ],
                     ),
                   ),
-                );
-              },
-            ),
+                  ElevatedButton(onPressed: fetchRegistry, child: const Text('Retry')),
+                ],
+              ),
+            )
+          else if (_models.isEmpty)
+            _buildEmptyState(context)
+          else if (filteredModels.isEmpty)
+            _buildNoSearchResults(context)
+          else
+            _buildModelsList(filteredModels),
         ],
-      ],
+      ),
     );
-  }
 
-  Widget _buildMetricCard(
-    BuildContext context, {
-    required String title,
-    required String value,
-    required String subtitle,
-    required icon,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: HugeIcon(icon: icon, color: colorScheme.primary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                Text(
-                  title,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return M3ERefreshIndicator.contained(
+      controller: _refreshController,
+      onRefresh: () async {
+        await fetchRegistry();
+      },
+      triggerMode: M3ERefreshTriggerMode.onEdge,
+      child: scrollContent,
     );
   }
 
@@ -416,41 +392,232 @@ class RegistryScreenState extends State<RegistryScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(48),
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
+        color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
       ),
-      child: Center(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 36, color: colorScheme.primary),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Logical Models Defined',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Create a logical model to define your source-agnostic domain entities\nand map them to your PostgreSQL or SQLite data sources.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, height: 1.5),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: _showCreateModelDialog,
+            icon: HugeIcon(icon: HugeIcons.strokeRoundedPlusSign, size: 16, color: colorScheme.onPrimary),
+            label: const Text('Create Logical Model'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoSearchResults(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        children: [
+          HugeIcon(icon: HugeIcons.strokeRoundedSearchRemove, size: 32, color: colorScheme.onSurfaceVariant),
+          const SizedBox(height: 12),
+          Text(
+            'No matching logical models',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Try adjusting your search terms or keywords.',
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: () => setState(() {
+              _searchQuery = '';
+              _searchController.clear();
+            }),
+            child: const Text('Reset Search'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModelsList(List<LogicalModelModel> models) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: models.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
+      itemBuilder: (context, index) {
+        final model = models[index];
+        return _buildM3EModelListItem(
+          context: context,
+          model: model,
+          index: index,
+          totalCount: models.length,
+        );
+      },
+    );
+  }
+
+  Widget _buildM3EModelListItem({
+    required BuildContext context,
+    required LogicalModelModel model,
+    required int index,
+    required int totalCount,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    final BorderRadius borderRadius;
+    if (totalCount <= 1) {
+      borderRadius = BorderRadius.circular(16);
+    } else if (index == 0) {
+      borderRadius = const BorderRadius.vertical(
+        top: Radius.circular(16),
+        bottom: Radius.circular(6),
+      );
+    } else if (index == totalCount - 1) {
+      borderRadius = const BorderRadius.vertical(
+        top: Radius.circular(6),
+        bottom: Radius.circular(16),
+      );
+    } else {
+      borderRadius = BorderRadius.circular(6);
+    }
+
+    final subtext = model.description != null && model.description!.trim().isNotEmpty
+        ? '${model.entityCount} Entities • ${model.totalFieldCount} Fields • ${model.description}'
+        : '${model.entityCount} Entities • ${model.totalFieldCount} Fields • Updated ${DateFormat.yMMMd().format(model.updatedAt)}';
+
+    return Material(
+      color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.6),
+      borderRadius: borderRadius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: borderRadius,
+        hoverColor: colorScheme.primary.withValues(alpha: 0.06),
+        onTap: () {
+          if (widget.isDeleteMode) {
+            _deleteModel(model);
+          } else {
+            widget.onSelectModel(model);
+          }
+        },
+        onSecondaryTapDown: (details) {
+          _showContextMenu(context, details.globalPosition, model);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          child: Row(
+            children: [
+              // Icon Badge
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedStructure01,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
               ),
-              child: HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 36, color: colorScheme.primary),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No Logical Models Defined',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Create a logical model to define your source-agnostic domain entities\nand map them to your PostgreSQL or SQLite data sources.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, height: 1.5),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _showCreateModelDialog,
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 16),
-              label: const Text('Create Your First Logical Model'),
-            ),
-          ],
+              const SizedBox(width: 14),
+
+              // Main Info (Model Name, Version, Entities/Fields/Description)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            model.name,
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                              letterSpacing: -0.1,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'v${model.version}',
+                            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtext,
+                      style: textTheme.bodySmall?.copyWith(
+                        fontSize: 12.5,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Right side action (Delete button in delete mode or arrow only)
+              if (widget.isDeleteMode) ...[
+                IconButton.filledTonal(
+                  style: IconButton.styleFrom(
+                    backgroundColor: colorScheme.errorContainer,
+                    foregroundColor: colorScheme.onErrorContainer,
+                  ),
+                  icon: const Icon(M3EIcons.delete, size: 20),
+                  tooltip: 'Delete "${model.name}"',
+                  onPressed: () => _deleteModel(model),
+                ),
+              ] else ...[
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowRight01,
+                  size: 18,
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
