@@ -4,7 +4,7 @@ class AppConfig {
   static const String appName = 'Altr Stream Admin';
 
   /// Canonical fallback application/node version when `--dart-define=ALTR_APP_VERSION` is omitted.
-  static const String defaultAppVersion = '0.13.0-alpha';
+  static const String defaultAppVersion = '0.13.1-alpha';
 
   /// Build-time injected version override via `--dart-define=ALTR_APP_VERSION=...`.
   /// This serves as a compile-time transport mechanism, not an independent version authority.
@@ -34,7 +34,7 @@ class AppConfig {
   /// Priority:
   /// 1. Build-time override if provided via `--dart-define=ALTR_APP_VERSION=...` (explicit dev/test injection).
   /// 2. Runtime backend version from connected node `/health` endpoint.
-  /// 3. Canonical default fallback [defaultAppVersion] (`0.13.0-alpha`).
+  /// 3. Canonical default fallback [defaultAppVersion] (`0.13.1-alpha`).
   static String get appVersion {
     if (_buildTimeVersion.isNotEmpty) {
       return _buildTimeVersion;
@@ -45,7 +45,7 @@ class AppConfig {
     return defaultAppVersion;
   }
 
-  /// Returns the formatted version string prefixed with 'v' if needed (e.g. `v0.13.0-alpha`).
+  /// Returns the formatted version string prefixed with 'v' if needed (e.g. `v0.13.1-alpha`).
   static String get formattedAppVersion {
     final v = appVersion;
     return v.startsWith('v') ? v : 'v$v';

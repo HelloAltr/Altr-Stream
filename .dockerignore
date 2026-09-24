@@ -1,0 +1,30 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov
+dist
+build
+*.egg-info
+.altr
+.agents
+graphify-out
+
+# Local frontend artifacts
+frontend/altr_stream_admin/.dart_tool
+frontend/altr_stream_admin/build
+frontend/altr_stream_admin/.fvm
+frontend/altr_stream_admin/.flutter-plugins
+frontend/altr_stream_admin/.flutter-plugins-dependencies
+
+# Persistent data and logs
+data
+*.db
+*.sqlite
+*.log

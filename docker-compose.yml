@@ -3,108 +3,32 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: altr-stream-app
+      args:
+        - ALTR_APP_VERSION=0.13.1-alpha
+    image: ghcr.io/helloaltr/altr-stream:0.13.1-alpha
+    container_name: altr-stream
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      - ALTR_STREAM_DEBUG=true
       - ALTR_STREAM_HOST=0.0.0.0
       - ALTR_STREAM_PORT=8000
       - ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:////app/data/altr_stream.db
+      - ALTR_STREAM_STATIC_DIR=/app/static
+      - ALTR_STREAM_DEBUG=false
     volumes:
       - altr_stream_data:/app/data
-    depends_on:
-      postgres-test:
-        condition: service_healthy
-      mysql-test:
-        condition: service_healthy
-    networks:
-      - altr-network
-
-  altr-stream-admin:
-    image: altr-stream-admin:latest
-    build:
-      context: ./frontend/altr_stream_admin
-      dockerfile: Dockerfile
-    container_name: altr-stream-admin
-    ports:
-      - "3000:80"
-    depends_on:
-      - altr-stream
-    networks:
-      - altr-network
-
-  postgres-test:
-    image: postgres:16-alpine
-    container_name: altr-postgres-test
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_DB=altr_test_db
-      - POSTGRES_USER=altr_test_user
-      - POSTGRES_PASSWORD=altr_test_pass
-    volumes:
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U altr_test_user -d altr_test_db"]
-      interval: 3s
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
+      interval: 15s
       timeout: 5s
-      retries: 5
-    networks:
-      - altr-network
-
-  mysql-test:
-    image: mysql:8.0
-    container_name: altr-mysql-test
-    ports:
-      - "3306:3306"
-    environment:
-      - MYSQL_DATABASE=altr_test_db
-      - MYSQL_USER=altr_test_user
-      - MYSQL_PASSWORD=altr_test_pass
-      - MYSQL_ROOT_PASSWORD=altr_root_pass
-    volumes:
-      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "altr_test_user", "--password=altr_test_pass"]
-      interval: 3s
-      timeout: 5s
-      retries: 10
+      retries: 3
       start_period: 10s
-    networks:
-      - altr-network
-
-  mongodb-test:
-    image: mongo:7.0
-    container_name: altr-mongodb-test
-    ports:
-      - "27017:27017"
-    environment:
-      - MONGO_INITDB_DATABASE=altr_test_db
-      - MONGO_INITDB_ROOT_USERNAME=altr_root_user
-      - MONGO_INITDB_ROOT_PASSWORD=altr_root_pass
-    volumes:
-      - ./docker/mongodb/init.js:/docker-entrypoint-initdb.d/init.js:ro
-      - mongodb_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "-u", "altr_test_user", "-p", "altr_test_pass", "--authenticationDatabase", "admin"]
-      interval: 3s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
     networks:
       - altr-network
 
 volumes:
   altr_stream_data:
-    driver: local
-  postgres_data:
-    driver: local
-  mysql_data:
-    driver: local
-  mongodb_data:
     driver: local
 
 networks:

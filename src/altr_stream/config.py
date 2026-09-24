@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     database_url: str = "sqlite+aiosqlite:///data/altr_stream.db"
 
+    # Static assets directory for Flutter Web SPA
+    static_dir: Path | None = Path("/app/static")
+
     # Connection timeouts
     default_connection_timeout_sec: float = 5.0
 
