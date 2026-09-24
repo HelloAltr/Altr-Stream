@@ -4,6 +4,7 @@ import 'package:hugeicons/hugeicons.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
 import 'core/api/api_client.dart';
 import 'core/api/models.dart';
+import 'core/config/app_config.dart';
 import 'core/theme/app_theme.dart';
 import 'features/activity/screens/activity_screen.dart';
 import 'features/altrql_playground/screens/altrql_playground_screen.dart';
@@ -185,6 +186,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   Future<void> _probeNodeHealth() async {
     try {
       final health = await _apiClient.getHealth();
+      if (health['version'] != null) {
+        AppConfig.setRuntimeNodeVersion(health['version'].toString());
+      }
       setState(() {
         _nodeStatus = health['status'] == 'healthy' ? 'ACTIVE' : 'DEGRADED';
       });

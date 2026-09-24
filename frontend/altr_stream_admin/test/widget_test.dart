@@ -4350,7 +4350,7 @@ void main() {
 
     // Verify brand menu options are shown
     expect(find.text('Node Telemetry'), findsOneWidget);
-    expect(find.text('Version: v1.0.0'), findsOneWidget);
+    expect(find.text('Version: ${AppConfig.formattedAppVersion}'), findsOneWidget);
     expect(find.text('Check for updates'), findsOneWidget);
 
     // Tap Node Telemetry in menu

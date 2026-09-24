@@ -41,6 +41,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final res = await widget.apiClient.getHealth();
       sw.stop();
+      if (res['version'] != null) {
+        AppConfig.setRuntimeNodeVersion(res['version'].toString());
+      }
       if (mounted) {
         setState(() {
           _healthInfo = res;
@@ -126,7 +129,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildDivider(context),
                       _buildRow(context, 'Service Role', 'Physical Source Abstraction & CDC Node'),
                       _buildDivider(context),
-                      _buildRow(context, 'Service Version', _healthInfo?['version'] ?? '0.1.0', isMonospace: true),
+                      _buildRow(context, 'Node Version', AppConfig.appVersion, isMonospace: true),
                       _buildDivider(context),
                       _buildRow(context, 'Ecosystem', 'HelloAltr / Altr Mesh Federated Architecture'),
                       _buildDivider(context),

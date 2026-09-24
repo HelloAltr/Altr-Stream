@@ -44,6 +44,9 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
     try {
       final health = await widget.apiClient.getHealth();
       stopwatch.stop();
+      if (health['version'] != null) {
+        AppConfig.setRuntimeNodeVersion(health['version'].toString());
+      }
       if (mounted) {
         setState(() {
           _healthInfo = health;
@@ -115,7 +118,7 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
                   _buildDivider(context),
                   _buildRow(context, 'Service Name', _healthInfo?['service'] ?? 'Altr Stream Service'),
                   _buildDivider(context),
-                  _buildRow(context, 'Version', _healthInfo?['version'] ?? '0.1.0', isMonospace: true),
+                  _buildRow(context, 'Node Version', AppConfig.appVersion, isMonospace: true),
                   _buildDivider(context),
                   _buildRow(context, 'API Base URL', AppConfig.apiBaseUrl, isMonospace: true),
                   _buildDivider(context),

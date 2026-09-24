@@ -3,12 +3,14 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from altr_stream.__version__ import __version__
+
 
 class Settings(BaseSettings):
     """Altr Stream configuration settings."""
 
     app_name: str = "Altr Stream"
-    app_version: str = "0.1.0"
+    app_version: str = __version__
     debug: bool = False
     host: str = "0.0.0.0"
     port: int = 8000

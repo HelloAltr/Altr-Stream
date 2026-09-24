@@ -1146,7 +1146,7 @@ class AppShell extends StatelessWidget {
               children: [
                 M3EMenuEntry(
                   enabled: false,
-                  label: 'Version: v1.0.0',
+                  label: 'Version: ${AppConfig.formattedAppVersion}',
                   value: 'version_info',
                   leading: HugeIcon(
                     icon: HugeIcons.strokeRoundedInformationCircle,
@@ -1699,7 +1699,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           Text(
             _updateComplete
                 ? 'Current Version: v1.1.0 (Latest)'
-                : 'Current Version: v1.0.0',
+                : 'Current Version: ${AppConfig.formattedAppVersion}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -1710,7 +1710,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           Text(
             _updateComplete
                 ? 'AltrQL Federation Engine: v1.1.0'
-                : 'AltrQL Federation Engine: v1.0.0',
+                : 'AltrQL Federation Engine: ${AppConfig.formattedAppVersion}',
             style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
           ),
           Text(
