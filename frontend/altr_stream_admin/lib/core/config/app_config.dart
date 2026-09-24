@@ -4,7 +4,7 @@ class AppConfig {
   static const String appName = 'Altr Stream Admin';
 
   /// Canonical fallback application/node version when `--dart-define=ALTR_APP_VERSION` is omitted.
-  static const String defaultAppVersion = '0.13.1-alpha';
+  static const String defaultAppVersion = '0.13.2-alpha';
 
   /// Build-time injected version override via `--dart-define=ALTR_APP_VERSION=...`.
   /// This serves as a compile-time transport mechanism, not an independent version authority.

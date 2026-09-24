@@ -1185,4 +1185,93 @@ class UsageMetricsModel {
   }
 }
 
+class UpdateCheckResponse {
+  final String currentVersion;
+  final String? latestVersion;
+  final bool updateAvailable;
+  final String channel;
+  final String? releaseTag;
+  final String? releaseName;
+  final String? releaseNotes;
+  final String? publishedAt;
+  final String? htmlUrl;
+
+  const UpdateCheckResponse({
+    required this.currentVersion,
+    this.latestVersion,
+    required this.updateAvailable,
+    required this.channel,
+    this.releaseTag,
+    this.releaseName,
+    this.releaseNotes,
+    this.publishedAt,
+    this.htmlUrl,
+  });
+
+  factory UpdateCheckResponse.fromJson(Map<String, dynamic> json) {
+    final rel = json['release'] as Map<String, dynamic>?;
+    return UpdateCheckResponse(
+      currentVersion: json['current_version']?.toString() ?? '',
+      latestVersion: json['latest_version']?.toString(),
+      updateAvailable: json['update_available'] == true,
+      channel: json['channel']?.toString() ?? 'alpha',
+      releaseTag: rel?['tag_name']?.toString(),
+      releaseName: rel?['name']?.toString(),
+      releaseNotes: rel?['body']?.toString(),
+      publishedAt: rel?['published_at']?.toString(),
+      htmlUrl: rel?['html_url']?.toString(),
+    );
+  }
+}
+
+class UpdateStatusResponse {
+  final String? requestId;
+  final String state;
+  final String currentVersion;
+  final String? targetVersion;
+  final int progressPercent;
+  final String message;
+  final String? error;
+  final String updatedAt;
+  final bool rollbackPerformed;
+
+  const UpdateStatusResponse({
+    this.requestId,
+    required this.state,
+    required this.currentVersion,
+    this.targetVersion,
+    required this.progressPercent,
+    required this.message,
+    this.error,
+    required this.updatedAt,
+    this.rollbackPerformed = false,
+  });
+
+  factory UpdateStatusResponse.fromJson(Map<String, dynamic> json) {
+    return UpdateStatusResponse(
+      requestId: json['request_id']?.toString(),
+      state: json['state']?.toString() ?? 'idle',
+      currentVersion: json['current_version']?.toString() ?? '',
+      targetVersion: json['target_version']?.toString(),
+      progressPercent: (json['progress_percent'] as num?)?.toInt() ?? 0,
+      message: json['message']?.toString() ?? '',
+      error: json['error']?.toString(),
+      updatedAt: json['updated_at']?.toString() ?? '',
+      rollbackPerformed: json['rollback_performed'] == true,
+    );
+  }
+
+  bool get isIdle => state == 'idle';
+  bool get isRequested => state == 'requested';
+  bool get isStaging => state == 'staging';
+  bool get isApplying => state == 'applying';
+  bool get isHealthCheck => state == 'health_check';
+  bool get isCompleted => state == 'completed';
+  bool get isFailed => state == 'failed';
+  bool get isRollingBack => state == 'rolling_back';
+  bool get isRolledBack => state == 'rolled_back';
+
+  bool get isActive => isRequested || isStaging || isApplying || isHealthCheck || isRollingBack;
+}
+
 

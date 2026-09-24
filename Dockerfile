@@ -3,7 +3,7 @@ FROM plugfox/flutter:3.47.2-web AS frontend-build
 
 WORKDIR /app/frontend
 
-ARG ALTR_APP_VERSION=0.13.1-alpha
+ARG ALTR_APP_VERSION=0.13.2-alpha
 
 # Copy pubspec first for layer caching
 COPY frontend/altr_stream_admin/pubspec.yaml frontend/altr_stream_admin/pubspec.lock* ./

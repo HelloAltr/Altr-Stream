@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Static assets directory for Flutter Web SPA
     static_dir: Path | None = Path("/app/static")
 
+    # Security & Encryption
+    encryption_key: str | None = None
+
+    # Update IPC directory
+    updates_dir: Path = Path("data/updates")
+
     # Connection timeouts
     default_connection_timeout_sec: float = 5.0
 

@@ -5,6 +5,7 @@ import 'package:material_3_expressive/material_3_expressive.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/api/models.dart';
+import '../../core/api/api_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/material_theme.dart';
@@ -29,6 +30,7 @@ class AppShell extends StatelessWidget {
   final Widget? floatingActionButton;
   final int sourcesCount;
   final int modelsCount;
+  final ApiClient? apiClient;
 
   const AppShell({
     super.key,
@@ -51,6 +53,7 @@ class AppShell extends StatelessWidget {
     this.floatingActionButton,
     this.sourcesCount = 0,
     this.modelsCount = 0,
+    this.apiClient,
   });
 
   Future<void> _launchDocs(BuildContext context) async {
@@ -543,7 +546,7 @@ class AppShell extends StatelessWidget {
                   color: colorScheme.primary,
                   size: 20,
                 ),
-                label: const Text('Overview', style: TextStyle(fontSize: 11)),
+                 label: const Text('Overview', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
                 icon: HugeIcon(
@@ -1356,7 +1359,7 @@ class AppShell extends StatelessWidget {
     M3EDialog.show<void>(
       context,
       barrierDismissible: true,
-      dialog: const _VersionInfoDialog(),
+      dialog: _VersionInfoDialog(apiClient: apiClient),
     );
   }
 
@@ -1468,7 +1471,9 @@ class AppShell extends StatelessWidget {
 
 
 class _VersionInfoDialog extends StatefulWidget {
-  const _VersionInfoDialog();
+  final ApiClient? apiClient;
+
+  const _VersionInfoDialog({this.apiClient});
 
   @override
   State<_VersionInfoDialog> createState() => _VersionInfoDialogState();
@@ -1479,12 +1484,25 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
   bool _updateAvailable = false;
   bool _isUpdating = false;
   bool _updateComplete = false;
+  bool _updateFailed = false;
+  String? _errorMessage;
+  String? _targetVersion;
+  String? _releaseNotes;
   double _updateProgress = 0.0;
-  Timer? _updateTimer;
+  String _statusMessage = '';
+  Timer? _pollTimer;
+
+  late final ApiClient _apiClient;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiClient = widget.apiClient ?? ApiClient();
+  }
 
   @override
   void dispose() {
-    _updateTimer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
@@ -1493,48 +1511,133 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
       _isChecking = true;
       _updateAvailable = false;
       _updateComplete = false;
+      _updateFailed = false;
+      _errorMessage = null;
     });
-    await Future.delayed(const Duration(milliseconds: 3500));
-    if (mounted) {
+
+    try {
+      final res = await _apiClient.checkForUpdates();
+      if (!mounted) return;
+
       setState(() {
         _isChecking = false;
-        _updateAvailable = true;
+        _updateAvailable = res.updateAvailable;
+        _targetVersion = res.latestVersion;
+        _releaseNotes = (res.releaseName != null && res.releaseName!.isNotEmpty) ? res.releaseName : null;
       });
-      M3ESnackbar.show(
-        context,
-        message: 'New update available: v1.1.0',
-        actionLabel: 'Update Now',
-        onAction: _startUpdate,
-      );
+
+      if (res.updateAvailable) {
+        M3ESnackbar.show(
+          context,
+          message: 'New update available: v${res.latestVersion}',
+          actionLabel: 'Update Now',
+          onAction: _startUpdate,
+        );
+      } else {
+        M3ESnackbar.show(
+          context,
+          message: 'Your local node is on the latest version (v${AppConfig.appVersion}).',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isChecking = false;
+        _errorMessage = 'Failed to check for updates: $e';
+      });
     }
   }
 
-  void _startUpdate() {
+  Future<void> _startUpdate() async {
+    if (_targetVersion == null || _targetVersion!.isEmpty) return;
+
     setState(() {
       _isUpdating = true;
-      _updateProgress = 0.0;
+      _updateProgress = 0.05;
+      _statusMessage = 'Requesting update to v$_targetVersion...';
+      _updateFailed = false;
+      _errorMessage = null;
     });
 
-    _updateTimer?.cancel();
-    _updateTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
+    try {
+      final applyRes = await _apiClient.applyUpdate(targetVersion: _targetVersion!);
+      if (!mounted) return;
+
       setState(() {
-        _updateProgress += 0.035;
-        if (_updateProgress >= 1.0) {
-          _updateProgress = 1.0;
-          _isUpdating = false;
-          _updateAvailable = false;
-          _updateComplete = true;
-          timer.cancel();
-          M3ESnackbar.show(
-            context,
-            message: 'Altr Stream successfully updated to v1.1.0!',
-          );
-        }
+        _statusMessage = applyRes.message;
+        _updateProgress = 0.15;
       });
+
+      _startStatusPolling();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isUpdating = false;
+        _updateFailed = true;
+        _errorMessage = 'Failed to apply update: $e';
+      });
+    }
+  }
+
+  void _startStatusPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      try {
+        final statusRes = await _apiClient.getUpdateStatus();
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        setState(() {
+          final state = statusRes.state.toLowerCase();
+          switch (state) {
+            case 'requested':
+              _updateProgress = 0.15;
+              _statusMessage = 'Update requested...';
+              break;
+            case 'staging':
+              _updateProgress = 0.35;
+              _statusMessage = 'Staging image v${statusRes.targetVersion}...';
+              break;
+            case 'applying':
+              _updateProgress = 0.65;
+              _statusMessage = 'Recreating container with v${statusRes.targetVersion}...';
+              break;
+            case 'health_check':
+              _updateProgress = 0.85;
+              _statusMessage = 'Verifying container health...';
+              break;
+            case 'completed':
+              _updateProgress = 1.0;
+              _isUpdating = false;
+              _updateAvailable = false;
+              _updateComplete = true;
+              _statusMessage = 'Update successfully applied!';
+              timer.cancel();
+              M3ESnackbar.show(
+                context,
+                message: 'Altr Stream successfully updated to v${statusRes.targetVersion}!',
+              );
+              break;
+            case 'rolling_back':
+              _updateProgress = 0.50;
+              _statusMessage = 'Health check failed. Rolling back...';
+              break;
+            case 'rolled_back':
+            case 'failed':
+              _isUpdating = false;
+              _updateFailed = true;
+              _errorMessage = statusRes.error ?? 'Update failed and container was rolled back.';
+              timer.cancel();
+              break;
+            default:
+              _statusMessage = 'State: ${statusRes.state}';
+          }
+        });
+      } catch (e) {
+        // Network polling hiccup during container recreation is expected; continue polling
+      }
     });
   }
 
@@ -1565,7 +1668,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Installing Update v1.1.0 (${(_updateProgress * 100).clamp(0, 100).toInt()}%)',
+                    'Installing Update v${_targetVersion ?? ""} (${(_updateProgress * 100).clamp(0, 100).toInt()}%)',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1574,7 +1677,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Applying AltrQL binaries and schemas...',
+                    _statusMessage.isNotEmpty ? _statusMessage : 'Applying updates...',
                     style: TextStyle(
                       fontSize: 11,
                       color: colorScheme.onSurfaceVariant,
@@ -1601,8 +1704,53 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Your local node has been updated to v1.1.0.',
+                'Your local node has been updated to v${_targetVersion ?? ""}.',
                 style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_updateFailed) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.errorContainer.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          children: [
+            HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _errorMessage ?? 'Update failed.',
+                style: TextStyle(fontSize: 12, color: colorScheme.onErrorContainer),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.errorContainer.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _errorMessage!,
+                style: TextStyle(fontSize: 12, color: colorScheme.onErrorContainer),
               ),
             ),
           ],
@@ -1632,7 +1780,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Update Available (v1.1.0)',
+                    'Update Available (v${_targetVersion ?? ""})',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -1640,7 +1788,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                     ),
                   ),
                   Text(
-                    'Includes engine improvements',
+                    _releaseNotes ?? 'Includes engine improvements and fixes',
                     style: TextStyle(
                       fontSize: 11,
                       color: colorScheme.onSurfaceVariant,
@@ -1697,8 +1845,8 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _updateComplete
-                ? 'Current Version: v1.1.0 (Latest)'
+            _updateComplete && _targetVersion != null
+                ? 'Current Version: v$_targetVersion (Latest)'
                 : 'Current Version: ${AppConfig.formattedAppVersion}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -1708,8 +1856,8 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           ),
           const SizedBox(height: 6),
           Text(
-            _updateComplete
-                ? 'AltrQL Federation Engine: v1.1.0'
+            _updateComplete && _targetVersion != null
+                ? 'AltrQL Federation Engine: v$_targetVersion'
                 : 'AltrQL Federation Engine: ${AppConfig.formattedAppVersion}',
             style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
           ),

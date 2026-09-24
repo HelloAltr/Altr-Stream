@@ -9,13 +9,19 @@ from altr_stream.domain.errors import SourceNotFoundError
 from altr_stream.domain.schema import SourceSchema
 from altr_stream.domain.source import Source, SourceStatus, SourceType
 from altr_stream.infrastructure.database.models import SchemaSnapshotModel, SourceModel
+from altr_stream.infrastructure.security.encryption import CredentialEncryptionService, get_encryption_service
 
 
 class SqliteSourceRepository:
     """Repository handling persistence of Source records and Schema Snapshots."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(
+        self,
+        session: AsyncSession,
+        encryption: CredentialEncryptionService | None = None,
+    ):
         self.session = session
+        self.encryption = encryption or get_encryption_service()
 
     def _to_domain(self, model: SourceModel) -> Source:
         """Convert SQLAlchemy model to domain entity."""
@@ -27,7 +33,7 @@ class SqliteSourceRepository:
             port=model.port,
             database_name=model.database_name,
             username=model.username,
-            password=model.password,
+            password=self.encryption.decrypt(model.password),
             file_path=model.file_path,
             status=SourceStatus(model.status),
             created_at=model.created_at,
@@ -44,7 +50,7 @@ class SqliteSourceRepository:
             port=source.port,
             database_name=source.database_name,
             username=source.username,
-            password=source.password,
+            password=self.encryption.encrypt(source.password),
             file_path=source.file_path,
             status=source.status.value,
             created_at=source.created_at,
@@ -90,7 +96,7 @@ class SqliteSourceRepository:
         model.database_name = source.database_name
         model.username = source.username
         if source.password:
-            model.password = source.password
+            model.password = self.encryption.encrypt(source.password)
         model.file_path = source.file_path
         model.status = source.status.value
         model.updated_at = datetime.now(timezone.utc)

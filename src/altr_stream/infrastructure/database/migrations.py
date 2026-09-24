@@ -96,3 +96,27 @@ def run_migrations(connection: Connection) -> None:
     connection.execute(text("CREATE INDEX IF NOT EXISTS ix_entity_mappings_logical_entity_id ON entity_mappings (logical_entity_id);"))
     connection.execute(text("CREATE INDEX IF NOT EXISTS ix_field_mappings_entity_mapping_id ON field_mappings (entity_mapping_id);"))
     connection.execute(text("CREATE INDEX IF NOT EXISTS ix_field_mappings_logical_field_id ON field_mappings (logical_field_id);"))
+
+    # v0.13.2-alpha Migration: Transparent credential encryption at rest
+    if "sources" in tables:
+        from altr_stream.infrastructure.security.encryption import get_encryption_service
+
+        encryption = get_encryption_service()
+        rows = connection.execute(
+            text("SELECT id, password FROM sources WHERE password IS NOT NULL AND password != '';")
+        ).fetchall()
+
+        migrated_count = 0
+        for row in rows:
+            source_id, raw_pw = row[0], row[1]
+            if raw_pw and not encryption.is_encrypted(raw_pw):
+                encrypted_pw = encryption.encrypt(raw_pw)
+                connection.execute(
+                    text("UPDATE sources SET password = :pw WHERE id = :id"),
+                    {"pw": encrypted_pw, "id": source_id},
+                )
+                migrated_count += 1
+
+        if migrated_count > 0:
+            logger.info("Migrated %d plaintext source credential(s) to encrypted ciphertext at rest.", migrated_count)
+

@@ -826,6 +826,39 @@ class ApiClient {
         return '$code';
     }
   }
+
+  Future<UpdateCheckResponse> checkForUpdates({String? channel, bool forceRefresh = false}) async {
+    final queryParams = <String, String>{};
+    if (channel != null && channel.isNotEmpty) {
+      queryParams['channel'] = channel;
+    }
+    if (forceRefresh) {
+      queryParams['force_refresh'] = 'true';
+    }
+    final queryString = queryParams.isNotEmpty ? '?${Uri(queryParameters: queryParams).query}' : '';
+    final url = _uri('/updates/check$queryString');
+    final response = await _client.get(url, headers: _headers);
+    final data = _processResponse(response);
+    return UpdateCheckResponse.fromJson(Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<UpdateStatusResponse> applyUpdate({required String targetVersion, String? channel}) async {
+    final url = _uri('/updates/apply');
+    final body = jsonEncode({
+      'target_version': targetVersion,
+      ...?channel != null ? {'channel': channel} : null,
+    });
+    final response = await _client.post(url, headers: _headers, body: body);
+    final data = _processResponse(response);
+    return UpdateStatusResponse.fromJson(Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<UpdateStatusResponse> getUpdateStatus() async {
+    final url = _uri('/updates/status');
+    final response = await _client.get(url, headers: _headers);
+    final data = _processResponse(response);
+    return UpdateStatusResponse.fromJson(Map<String, dynamic>.from(data as Map));
+  }
 }
 
 

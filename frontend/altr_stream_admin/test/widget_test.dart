@@ -437,6 +437,57 @@ class MockTestApiClient extends ApiClient {
         supportedOperations: const ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
       );
 
+  UpdateCheckResponse? updateCheckResponseToReturn;
+  UpdateStatusResponse? updateApplyResponseToReturn;
+  List<UpdateStatusResponse>? updateStatusResponsesToReturn;
+  int _updateStatusCallCount = 0;
+  String? lastAppliedVersion;
+
+  @override
+  Future<UpdateCheckResponse> checkForUpdates({String? channel, bool forceRefresh = false}) async {
+    await Future.delayed(const Duration(milliseconds: 50));
+    return updateCheckResponseToReturn ??
+        const UpdateCheckResponse(
+          currentVersion: '0.13.2-alpha',
+          latestVersion: '0.13.3-alpha',
+          updateAvailable: true,
+          channel: 'alpha',
+          releaseName: 'v0.13.3-alpha Release',
+        );
+  }
+
+  @override
+  Future<UpdateStatusResponse> applyUpdate({required String targetVersion, String? channel}) async {
+    lastAppliedVersion = targetVersion;
+    return updateApplyResponseToReturn ??
+        UpdateStatusResponse(
+          requestId: 'test-req-1',
+          targetVersion: targetVersion,
+          currentVersion: '0.13.2-alpha',
+          state: 'requested',
+          progressPercent: 15,
+          message: 'Update request submitted',
+          updatedAt: DateTime.now().toIso8601String(),
+        );
+  }
+
+  @override
+  Future<UpdateStatusResponse> getUpdateStatus() async {
+    if (updateStatusResponsesToReturn != null && updateStatusResponsesToReturn!.isNotEmpty) {
+      final idx = (_updateStatusCallCount++).clamp(0, updateStatusResponsesToReturn!.length - 1);
+      return updateStatusResponsesToReturn![idx];
+    }
+    return UpdateStatusResponse(
+      requestId: 'test-req-1',
+      targetVersion: '0.13.3-alpha',
+      currentVersion: '0.13.2-alpha',
+      state: 'completed',
+      progressPercent: 100,
+      message: 'Update completed successfully',
+      updatedAt: DateTime.now().toIso8601String(),
+    );
+  }
+
   @override
   Future<QueryExecuteResponseModel> executeQuery({
     required String sourceId,
@@ -4366,10 +4417,13 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    final mockApiClient = MockTestApiClient();
+
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightTheme,
         home: AppShell(
+          apiClient: mockApiClient,
           activeRoute: '/',
           onNavigate: (_) {},
           child: const SizedBox(),
@@ -4398,30 +4452,26 @@ void main() {
     // Dialog stays open and shows 'Checking...'
     expect(find.text('Checking...'), findsOneWidget);
 
-    // Advance 3.5 seconds for simulated network check
-    await tester.pump(const Duration(milliseconds: 3500));
+    // Complete async check call
     await tester.pumpAndSettle();
 
-    // Container has now switched to 'Update Available (v1.1.0)' and M3ESnackbar is displayed
-    expect(find.text('Update Available (v1.1.0)'), findsOneWidget);
+    // Container has now switched to 'Update Available (v0.13.3-alpha)' and M3ESnackbar is displayed
+    expect(find.text('Update Available (v0.13.3-alpha)'), findsOneWidget);
     expect(find.text('Update Now'), findsNWidgets(2)); // Dialog button + M3ESnackbar action
-    expect(find.text('New update available: v1.1.0'), findsOneWidget);
+    expect(find.text('New update available: v0.13.3-alpha'), findsOneWidget);
 
     // 4. Click 'Update Now' in the dialog
     await tester.tap(find.text('Update Now').first);
     await tester.pump(); // Start update progress
 
-    // Verify progress indicator is rendered
-    expect(find.byType(M3EProgressIndicator), findsOneWidget);
-
-    // Advance time through progress increments
-    await tester.pump(const Duration(seconds: 4));
+    // Advance 2 seconds to trigger status polling timer
+    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
 
     // Verify update completed state
-    expect(find.text('Your local node has been updated to v1.1.0.'), findsOneWidget);
-    expect(find.text('Current Version: v1.1.0 (Latest)'), findsOneWidget);
-    expect(find.text('Altr Stream successfully updated to v1.1.0!'), findsOneWidget);
+    expect(find.text('Your local node has been updated to v0.13.3-alpha.'), findsOneWidget);
+    expect(find.text('Current Version: v0.13.3-alpha (Latest)'), findsOneWidget);
+    expect(find.text('Altr Stream successfully updated to v0.13.3-alpha!'), findsOneWidget);
 
     // 5. Tap Close to close dialog
     await tester.tap(find.text('Close'));
@@ -4429,6 +4479,57 @@ void main() {
 
     // Dialog is closed
     expect(find.text('Altr Stream Version Info'), findsNothing);
+  });
+
+  testWidgets('AppShell Version Info dialog displays up-to-date message when no update is available', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateCheckResponseToReturn = const UpdateCheckResponse(
+      currentVersion: '0.13.2-alpha',
+      latestVersion: null,
+      updateAvailable: false,
+      channel: 'alpha',
+      releaseName: null,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Open brand menu
+    await tester.tap(find.text('Altr Stream'));
+    await tester.pumpAndSettle();
+
+    // 2. Tap Check for updates in menu
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+
+    // 3. Tap Check for Updates inside dialog
+    await tester.tap(find.text('Check for Updates'));
+    await tester.pump(); // Advance 1 frame to start spinner
+    expect(find.text('Checking...'), findsOneWidget);
+
+    // Complete async check call
+    await tester.pumpAndSettle();
+
+    // Verify friendly up-to-date state
+    expect(find.text('Your local node is running the latest version.'), findsOneWidget);
+    expect(find.text('Your local node is on the latest version (v0.13.2-alpha).'), findsOneWidget);
+    expect(find.text('Update Now'), findsNothing);
+    expect(find.text('Failed to check for updates: Not Found'), findsNothing);
   });
 
   testWidgets('AppTheme returns distinct stroke-rounded HugeIcons and semantic colors for each DB type', (WidgetTester tester) async {
