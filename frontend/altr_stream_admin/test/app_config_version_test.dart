@@ -11,8 +11,8 @@ void main() {
       AppConfig.resetRuntimeNodeVersion();
     });
 
-    test('defaultAppVersion is canonical 0.13.2-alpha', () {
-      expect(AppConfig.defaultAppVersion, '0.13.2-alpha');
+    test('defaultAppVersion is canonical 0.13.3-alpha', () {
+      expect(AppConfig.defaultAppVersion, '0.13.3-alpha');
     });
 
     test('appVersion returns default or injected environment variable', () {
@@ -22,14 +22,14 @@ void main() {
         expect(AppConfig.appVersion, injected);
       } else {
         expect(AppConfig.hasBuildTimeOverride, isFalse);
-        expect(AppConfig.appVersion, '0.13.2-alpha');
+        expect(AppConfig.appVersion, '0.13.3-alpha');
       }
     });
 
     test('formattedAppVersion properly prefixes v to version strings', () {
       expect(AppConfig.formattedAppVersion.startsWith('v'), isTrue);
       if (!AppConfig.hasBuildTimeOverride) {
-        expect(AppConfig.formattedAppVersion, 'v0.13.2-alpha');
+        expect(AppConfig.formattedAppVersion, 'v0.13.3-alpha');
       }
     });
 
@@ -41,8 +41,8 @@ void main() {
 
         // Reset restores defaultAppVersion
         AppConfig.resetRuntimeNodeVersion();
-        expect(AppConfig.appVersion, '0.13.2-alpha');
-        expect(AppConfig.formattedAppVersion, 'v0.13.2-alpha');
+        expect(AppConfig.appVersion, '0.13.3-alpha');
+        expect(AppConfig.formattedAppVersion, 'v0.13.3-alpha');
       } else {
         // If an explicit build-time override is present, it takes precedence
         AppConfig.setRuntimeNodeVersion('1.2.0');
@@ -53,10 +53,10 @@ void main() {
     test('setRuntimeNodeVersion ignores null and empty strings', () {
       if (!AppConfig.hasBuildTimeOverride) {
         AppConfig.setRuntimeNodeVersion(null);
-        expect(AppConfig.appVersion, '0.13.2-alpha');
+        expect(AppConfig.appVersion, '0.13.3-alpha');
 
         AppConfig.setRuntimeNodeVersion('   ');
-        expect(AppConfig.appVersion, '0.13.2-alpha');
+        expect(AppConfig.appVersion, '0.13.3-alpha');
       }
     });
   });

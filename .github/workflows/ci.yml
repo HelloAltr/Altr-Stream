@@ -71,6 +71,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Extract Canonical Version
+        id: canonical_version
+        run: |
+          VERSION=$(python3 -c 'import re; print(re.search(r"__version__\s*=\s*\"([^\"]+)\"", open("src/altr_stream/__version__.py").read()).group(1))')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
       - name: Build Unified Production Image
         uses: docker/build-push-action@v5
         with:
@@ -79,4 +85,4 @@ jobs:
           push: false
           tags: altr-stream:ci-test
           build-args: |
-            ALTR_APP_VERSION=0.13.1-alpha
+            ALTR_APP_VERSION=${{ steps.canonical_version.outputs.version }}

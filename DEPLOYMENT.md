@@ -48,7 +48,7 @@ Ensure your deployment directory contains the production `docker-compose.yml`:
 ```yaml
 services:
   altr-stream:
-    image: ghcr.io/helloaltr/altr-stream:0.13.1-alpha
+    image: ghcr.io/helloaltr/altr-stream:0.13.3-alpha
     container_name: altr-stream
     restart: unless-stopped
     ports:
@@ -92,7 +92,7 @@ docker compose ps
 Expected output:
 ```text
 NAME          IMAGE                                       COMMAND                  SERVICE       CREATED         STATUS                   PORTS
-altr-stream   ghcr.io/helloaltr/altr-stream:0.13.1-alpha  "uvicorn altr_stream…"   altr-stream   5 seconds ago   Up 4 seconds (healthy)   0.0.0.0:8000->8000/tcp
+altr-stream   ghcr.io/helloaltr/altr-stream:0.13.3-alpha  "uvicorn altr_stream…"   altr-stream   5 seconds ago   Up 4 seconds (healthy)   0.0.0.0:8000->8000/tcp
 ```
 
 ---
@@ -115,7 +115,7 @@ docker run -d \
   -e ALTR_STREAM_PORT=8000 \
   -e ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:////app/data/altr_stream.db \
   -e ALTR_STREAM_DEBUG=false \
-  ghcr.io/helloaltr/altr-stream:0.13.1-alpha
+  ghcr.io/helloaltr/altr-stream:0.13.3-alpha
 ```
 
 ---
@@ -193,7 +193,7 @@ The health check validates that the FastAPI ASGI loop and the internal SQLite da
 ```json
 {
   "service": "Altr Stream",
-  "version": "0.13.1-alpha",
+  "version": "0.13.3-alpha",
   "status": "healthy",
   "timestamp": "2026-09-24T12:45:00.000000"
 }

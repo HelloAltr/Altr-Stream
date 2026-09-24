@@ -4489,7 +4489,7 @@ void main() {
 
     final mockApiClient = MockTestApiClient();
     mockApiClient.updateCheckResponseToReturn = const UpdateCheckResponse(
-      currentVersion: '0.13.2-alpha',
+      currentVersion: '0.13.3-alpha',
       latestVersion: null,
       updateAvailable: false,
       channel: 'alpha',
@@ -4527,7 +4527,7 @@ void main() {
 
     // Verify friendly up-to-date state
     expect(find.text('Your local node is running the latest version.'), findsOneWidget);
-    expect(find.text('Your local node is on the latest version (v0.13.2-alpha).'), findsOneWidget);
+    expect(find.text('Your local node is on the latest version (v0.13.3-alpha).'), findsOneWidget);
     expect(find.text('Update Now'), findsNothing);
     expect(find.text('Failed to check for updates: Not Found'), findsNothing);
   });

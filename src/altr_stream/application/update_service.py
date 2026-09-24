@@ -39,11 +39,13 @@ class UpdateService:
         updates_dir: Path | None = None,
         cache_ttl_sec: float = DEFAULT_CACHE_TTL_SECONDS,
         http_client: httpx.AsyncClient | None = None,
+        current_version: str | None = None,
     ) -> None:
         self.github_repo = github_repo
         self.updates_dir = updates_dir or settings.updates_dir
         self.cache_ttl_sec = cache_ttl_sec
         self._http_client = http_client
+        self._current_version = current_version
 
         self._cached_releases: list[ReleaseInfo] | None = None
         self._cache_timestamp: float = 0.0
@@ -53,6 +55,8 @@ class UpdateService:
 
     @property
     def current_semver(self) -> SemVer:
+        if self._current_version:
+            return SemVer.parse(self._current_version)
         return SemVer.parse(settings.app_version)
 
     @property

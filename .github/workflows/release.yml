@@ -1,4 +1,4 @@
-name: Release Container
+name: Release & Distribution
 
 on:
   push:
@@ -7,21 +7,21 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v0.13.1-alpha)"
+        description: "Release tag (e.g. v0.13.3-alpha)"
         required: true
-        default: "v0.13.1-alpha"
+        default: "v0.13.3-alpha"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
   publish-container:
-    name: Build & Publish Container
+    name: Build, Publish & Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -46,8 +46,9 @@ jobs:
         with:
           images: ghcr.io/helloaltr/altr-stream
           tags: |
+            type=raw,value=${{ steps.version_info.outputs.version }}
             type=raw,value=${{ steps.version_info.outputs.tag }}
-            type=raw,value=latest,enable=${{ !contains(steps.version_info.outputs.tag, 'alpha') && !contains(steps.version_info.outputs.tag, 'beta') }}
+            type=raw,value=latest,enable=${{ !contains(steps.version_info.outputs.tag, 'alpha') && !contains(steps.version_info.outputs.tag, 'beta') && !contains(steps.version_info.outputs.tag, 'rc') }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -73,3 +74,13 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             ALTR_APP_VERSION=${{ steps.version_info.outputs.version }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version_info.outputs.tag }}
+          name: Altr Stream ${{ steps.version_info.outputs.tag }}
+          prerelease: ${{ contains(steps.version_info.outputs.tag, 'alpha') || contains(steps.version_info.outputs.tag, 'beta') || contains(steps.version_info.outputs.tag, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

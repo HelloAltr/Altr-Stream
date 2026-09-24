@@ -68,14 +68,15 @@ class TestSemVerComparison:
 
     def test_roadmap_progression(self):
         # Specific project roadmap order:
-        # 0.13.1-alpha < 0.13.2-alpha < 1.0.0-beta < 1.0.0
+        # 0.13.1-alpha < 0.13.2-alpha < 0.13.3-alpha < 1.0.0-beta < 1.0.0
         v1 = SemVer.parse("0.13.1-alpha")
         v2 = SemVer.parse("0.13.2-alpha")
-        v3 = SemVer.parse("1.0.0-beta")
-        v4 = SemVer.parse("1.0.0")
+        v3 = SemVer.parse("0.13.3-alpha")
+        v4 = SemVer.parse("1.0.0-beta")
+        v5 = SemVer.parse("1.0.0")
 
-        assert v1 < v2 < v3 < v4
-        assert v4 > v3 > v2 > v1
+        assert v1 < v2 < v3 < v4 < v5
+        assert v5 > v4 > v3 > v2 > v1
 
     def test_prerelease_lexical_and_numeric_sort(self):
         # Spec 11.4:
@@ -160,7 +161,23 @@ class TestDirectUpgradeResolver:
         # In alpha channel, highest available is 1.0.0
         plan = DirectUpgradeResolver.resolve_direct_upgrade(current, releases, channel=ReleaseChannel.ALPHA)
         assert plan.update_available is True
-        assert plan.target_version == SemVer.parse("1.0.0")
+    def test_direct_upgrade_0_13_2_to_0_13_3_alpha(self):
+        # Explicit milestone requirement: 0.13.2-alpha -> 0.13.3-alpha is a valid direct upgrade
+        current = SemVer.parse("0.13.2-alpha")
+        releases = [
+            self._create_release("v0.13.1-alpha"),
+            self._create_release("v0.13.2-alpha"),
+            self._create_release("v0.13.3-alpha"),
+        ]
+        plan = DirectUpgradeResolver.resolve_direct_upgrade(
+            current_version=current,
+            available_releases=releases,
+            channel=ReleaseChannel.ALPHA,
+        )
+        assert plan.update_available is True
+        assert plan.target_version == SemVer.parse("0.13.3-alpha")
+        assert plan.target_release is not None
+        assert plan.target_release.tag_name == "v0.13.3-alpha"
 
     def test_channel_restriction_stable_ignores_prerelease(self):
         current = SemVer.parse("1.0.0")

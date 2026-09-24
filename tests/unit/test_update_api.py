@@ -38,6 +38,14 @@ def mock_github_releases():
             "html_url": "https://github.com/helloaltr/altr-stream/releases/tag/v0.13.2-alpha",
         },
         {
+            "tag_name": "v0.13.3-alpha",
+            "name": "Altr Stream 0.13.3-alpha",
+            "published_at": "2026-09-24T12:00:00Z",
+            "body": "Distribution validation release",
+            "prerelease": True,
+            "html_url": "https://github.com/helloaltr/altr-stream/releases/tag/v0.13.3-alpha",
+        },
+        {
             "tag_name": "v1.0.0-beta",
             "name": "Altr Stream 1.0.0-beta",
             "published_at": "2026-09-25T00:00:00Z",
@@ -143,7 +151,7 @@ async def test_update_check_with_channel_filter(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncClient, mock_updates_dir: Path):
     payload = {
-        "target_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
         "channel": "alpha",
     }
     response = await client.post("/api/v1/updates/apply", json=payload)
@@ -151,7 +159,7 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     data = response.json()
 
     assert data["state"] == "requested"
-    assert data["target_version"] == "0.13.3-alpha"
+    assert data["target_version"] == "0.13.4-alpha"
     assert data["request_id"] is not None
 
     # Verify atomic update-request.json file exists on disk
@@ -167,7 +175,27 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     assert status_res.status_code == 200
     status_data = status_res.json()
     assert status_data["state"] == "requested"
-    assert status_data["target_version"] == "0.13.3-alpha"
+    assert status_data["target_version"] == "0.13.4-alpha"
+
+
+@pytest.mark.asyncio
+async def test_update_service_direct_upgrade_0_13_2_to_0_13_3_alpha(mock_updates_dir: Path):
+    import json
+    from altr_stream.domain.updates import UpdateRequest
+    # Node running 0.13.2-alpha updating to 0.13.3-alpha
+    svc = UpdateService(updates_dir=mock_updates_dir, current_version="0.13.2-alpha")
+    status = await svc.request_update("0.13.3-alpha")
+
+    assert status.state == UpdateStatusState.REQUESTED
+    assert status.target_version == "0.13.3-alpha"
+    assert status.current_version == "0.13.2-alpha"
+
+    # Verify written IPC request payload
+    req_data = json.loads((mock_updates_dir / "update-request.json").read_text(encoding="utf-8"))
+    req = UpdateRequest.from_dict(req_data)
+    assert req.target_version == "0.13.3-alpha"
+    assert req.current_version == "0.13.2-alpha"
+    assert req.target_image == "ghcr.io/helloaltr/altr-stream:0.13.3-alpha"
 
 
 @pytest.mark.asyncio
