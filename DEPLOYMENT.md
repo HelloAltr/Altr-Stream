@@ -48,7 +48,7 @@ Ensure your deployment directory contains the production `docker-compose.yml`:
 ```yaml
 services:
   altr-stream:
-    image: ghcr.io/helloaltr/altr-stream:0.13.3-alpha
+    image: ghcr.io/helloaltr/altr-stream:0.13.4-alpha
     container_name: altr-stream
     restart: unless-stopped
     ports:
@@ -61,6 +61,7 @@ services:
       - ALTR_STREAM_DEBUG=false
     volumes:
       - altr_stream_data:/app/data
+      - ./data/updates:/app/data/updates
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
       interval: 15s
@@ -92,7 +93,35 @@ docker compose ps
 Expected output:
 ```text
 NAME          IMAGE                                       COMMAND                  SERVICE       CREATED         STATUS                   PORTS
-altr-stream   ghcr.io/helloaltr/altr-stream:0.13.3-alpha  "uvicorn altr_stream…"   altr-stream   5 seconds ago   Up 4 seconds (healthy)   0.0.0.0:8000->8000/tcp
+altr-stream   ghcr.io/helloaltr/altr-stream:0.13.4-alpha  "uvicorn altr_stream…"   altr-stream   5 seconds ago   Up 4 seconds (healthy)   0.0.0.0:8000->8000/tcp
+```
+
+### Step 3: Enable the Host Update Supervisor (Automatic Zero-Terminal Updates)
+
+Altr Stream uses a secure host-isolated supervisor architecture: the application container runs unprivileged with **no Docker socket access**, while an external host supervisor executes atomic image pulls, container recreation, health checks, and rollback.
+
+To enable fully automatic updates without requiring manual terminal commands:
+
+```bash
+# Install and enable the host supervisor as a persistent system daemon
+./scripts/install_supervisor.sh
+```
+
+- **On macOS**: Installs a `launchd` LaunchAgent (`~/Library/LaunchAgents/com.helloaltr.altr-supervisor.plist`) that automatically runs in the background.
+- **On Linux**: Installs and enables a `systemd` service (`altr-supervisor.service`).
+
+Once installed, verify that the supervisor is running:
+```bash
+python3 scripts/altr_supervisor.py status
+# Output: AltrSupervisor is running (PID 84605).
+```
+
+When users click **"Update Now"** in the web interface, the update will execute and complete automatically.
+
+Alternatively, for local development sessions without installing a system service:
+```bash
+./start.sh   # Starts Docker Compose and background supervisor daemon
+./stop.sh    # Stops Docker Compose and host supervisor daemon
 ```
 
 ---
@@ -115,7 +144,7 @@ docker run -d \
   -e ALTR_STREAM_PORT=8000 \
   -e ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:////app/data/altr_stream.db \
   -e ALTR_STREAM_DEBUG=false \
-  ghcr.io/helloaltr/altr-stream:0.13.3-alpha
+  ghcr.io/helloaltr/altr-stream:0.13.4-alpha
 ```
 
 ---
@@ -193,7 +222,7 @@ The health check validates that the FastAPI ASGI loop and the internal SQLite da
 ```json
 {
   "service": "Altr Stream",
-  "version": "0.13.3-alpha",
+  "version": "0.13.4-alpha",
   "status": "healthy",
   "timestamp": "2026-09-24T12:45:00.000000"
 }

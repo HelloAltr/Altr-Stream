@@ -134,3 +134,72 @@ class UpdateStatus:
             updated_at=data.get("updated_at", datetime.now(timezone.utc).isoformat()),
             rollback_performed=bool(data.get("rollback_performed", False)),
         )
+
+    def is_stale(self, running_version: str | SemVer) -> bool:
+        """Return True if this status represents an obsolete version transition for the running node."""
+        return is_stale_update_status(self, running_version)
+
+
+def is_stale_update_status(status: UpdateStatus, running_version: str | SemVer) -> bool:
+    """Determine whether a persisted UpdateStatus is obsolete for the currently running node.
+
+    Authoritative SemVer Invariants:
+    1. IDLE state is never stale.
+    2. If target_version exists and running_version > target_version:
+       The running node has already progressed strictly beyond this workflow's target.
+       The status is obsolete.
+    3. Terminal FAILED / ROLLED_BACK:
+       Relevant ONLY if the node is still on the version that failed to upgrade AND has not
+       reached or surpassed the target version. If running_version != from_version or
+       running_version >= target_version, the failure is obsolete.
+    4. Terminal COMPLETED:
+       Relevant if running_version == target_version (immediate post-update confirmation).
+       If running_version != target_version (especially > target_version), it is obsolete.
+    5. Active workflows (REQUESTED, STAGING, APPLYING, HEALTH_CHECK, ROLLING_BACK):
+       Preserved across restarts and dialog cycles unless running_version > target_version.
+    """
+    if status.state == UpdateStatusState.IDLE:
+        return False
+
+    try:
+        from altr_stream.domain.semver import SemVer
+
+        running_semver = (
+            running_version
+            if isinstance(running_version, SemVer)
+            else SemVer.parse(running_version)
+        )
+    except Exception:
+        return False
+
+    target_semver: SemVer | None = None
+    if status.target_version:
+        try:
+            target_semver = SemVer.parse(status.target_version)
+        except Exception:
+            pass
+
+    # If running version has strictly surpassed target version, any status for it is obsolete
+    if target_semver and running_semver > target_semver:
+        return True
+
+    from_semver: SemVer | None = None
+    if status.current_version and status.current_version != "unknown":
+        try:
+            from_semver = SemVer.parse(status.current_version)
+        except Exception:
+            pass
+
+    # Terminal FAILED or ROLLED_BACK
+    if status.state in (UpdateStatusState.FAILED, UpdateStatusState.ROLLED_BACK):
+        if target_semver and running_semver >= target_semver:
+            return True
+        if from_semver and running_semver != from_semver:
+            return True
+
+    # Terminal COMPLETED
+    if status.state == UpdateStatusState.COMPLETED:
+        if target_semver and running_semver != target_semver:
+            return True
+
+    return False

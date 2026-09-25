@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - ALTR_APP_VERSION=0.13.3-alpha
-    image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:0.13.3-alpha}
+        - ALTR_APP_VERSION=0.13.4-alpha
+    image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:0.13.4-alpha}
     container_name: altr-stream
     restart: unless-stopped
     ports:
@@ -18,6 +18,7 @@ services:
       - ALTR_STREAM_DEBUG=false
     volumes:
       - altr_stream_data:/app/data
+      - ./data/updates:/app/data/updates
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
       interval: 15s

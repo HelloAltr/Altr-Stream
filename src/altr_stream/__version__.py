@@ -1,4 +1,4 @@
 """Altr Stream canonical application version."""
 
-__version__ = "0.13.3-alpha"
+__version__ = "0.13.4-alpha"
 VERSION = __version__

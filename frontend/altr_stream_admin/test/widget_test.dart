@@ -29,6 +29,7 @@ import 'package:altr_stream_admin/features/registry/widgets/add_mapping_dialog.d
 import 'package:altr_stream_admin/shared/widgets/app_shell.dart';
 import 'package:altr_stream_admin/shared/widgets/status_badge.dart';
 import 'package:altr_stream_admin/shared/widgets/trail_extended_fab.dart';
+import 'package:altr_stream_admin/core/updates/update_controller.dart';
 
 class MockTestApiClient extends ApiClient {
   final SourceSchemaModel? schemaToReturn;
@@ -439,7 +440,9 @@ class MockTestApiClient extends ApiClient {
 
   UpdateCheckResponse? updateCheckResponseToReturn;
   UpdateStatusResponse? updateApplyResponseToReturn;
+  UpdateStatusResponse? updateStatusResponseToReturn;
   List<UpdateStatusResponse>? updateStatusResponsesToReturn;
+  List<dynamic>? updateStatusSequenceToReturn;
   int _updateStatusCallCount = 0;
   String? lastAppliedVersion;
 
@@ -473,19 +476,31 @@ class MockTestApiClient extends ApiClient {
 
   @override
   Future<UpdateStatusResponse> getUpdateStatus() async {
+    if (updateStatusSequenceToReturn != null && updateStatusSequenceToReturn!.isNotEmpty) {
+      final idx = (_updateStatusCallCount++).clamp(0, updateStatusSequenceToReturn!.length - 1);
+      final item = updateStatusSequenceToReturn![idx];
+      if (item is Exception) {
+        throw item;
+      }
+      if (item is Error) {
+        throw item;
+      }
+      return item as UpdateStatusResponse;
+    }
     if (updateStatusResponsesToReturn != null && updateStatusResponsesToReturn!.isNotEmpty) {
       final idx = (_updateStatusCallCount++).clamp(0, updateStatusResponsesToReturn!.length - 1);
       return updateStatusResponsesToReturn![idx];
     }
-    return UpdateStatusResponse(
-      requestId: 'test-req-1',
-      targetVersion: '0.13.3-alpha',
-      currentVersion: '0.13.2-alpha',
-      state: 'completed',
-      progressPercent: 100,
-      message: 'Update completed successfully',
-      updatedAt: DateTime.now().toIso8601String(),
-    );
+    return updateStatusResponseToReturn ??
+        const UpdateStatusResponse(
+          requestId: null,
+          targetVersion: null,
+          currentVersion: '0.13.4-alpha',
+          state: 'idle',
+          progressPercent: 0,
+          message: 'System is up to date.',
+          updatedAt: '2026-09-24T12:00:00Z',
+        );
   }
 
   @override
@@ -4416,6 +4431,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
 
     final mockApiClient = MockTestApiClient();
 
@@ -4438,29 +4455,36 @@ void main() {
 
     // 2. Tap Check for updates in menu
     await tester.tap(find.text('Check for updates'));
-    await tester.pumpAndSettle();
-
-    // Verify initial Version Info dialog state
+    await tester.pump();
     expect(find.text('Altr Stream Version Info'), findsOneWidget);
-    expect(find.text('Your local node is running the latest version.'), findsOneWidget);
-    expect(find.text('Check for Updates'), findsOneWidget);
 
-    // 3. Tap Check for Updates inside dialog
-    await tester.tap(find.text('Check for Updates'));
-    await tester.pump(); // Advance 1 frame to start spinner
-
-    // Dialog stays open and shows 'Checking...'
-    expect(find.text('Checking...'), findsOneWidget);
-
-    // Complete async check call
+    // Auto-check completes on dialog open
     await tester.pumpAndSettle();
 
-    // Container has now switched to 'Update Available (v0.13.3-alpha)' and M3ESnackbar is displayed
+    // Container has automatically updated to 'Update Available (v0.13.3-alpha)' and M3ESnackbar is displayed
     expect(find.text('Update Available (v0.13.3-alpha)'), findsOneWidget);
     expect(find.text('Update Now'), findsNWidgets(2)); // Dialog button + M3ESnackbar action
     expect(find.text('New update available: v0.13.3-alpha'), findsOneWidget);
 
+    // 3. User can also manually tap Check for Updates inside dialog to perform a fresh check
+    await tester.tap(find.text('Check for Updates'));
+    await tester.pump(); // Advance 1 frame to start spinner
+    expect(find.text('Checking...'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Update Available (v0.13.3-alpha)'), findsOneWidget);
+
     // 4. Click 'Update Now' in the dialog
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'test-req-1',
+        targetVersion: '0.13.3-alpha',
+        currentVersion: '0.13.2-alpha',
+        state: 'completed',
+        progressPercent: 100,
+        message: 'Update completed successfully',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
     await tester.tap(find.text('Update Now').first);
     await tester.pump(); // Start update progress
 
@@ -4468,10 +4492,18 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
 
-    // Verify update completed state
+    // Verify update completed state and reload prompt
     expect(find.text('Your local node has been updated to v0.13.3-alpha.'), findsOneWidget);
     expect(find.text('Current Version: v0.13.3-alpha (Latest)'), findsOneWidget);
     expect(find.text('Altr Stream successfully updated to v0.13.3-alpha!'), findsOneWidget);
+    expect(find.text('Reload Now'), findsOneWidget);
+    expect(find.text('Stay on page'), findsOneWidget);
+
+    // Tap Stay on page to pause countdown
+    await tester.tap(find.text('Stay on page'));
+    await tester.pumpAndSettle();
+    expect(find.text('Stay on page'), findsNothing);
+    expect(find.text('Reload Now'), findsOneWidget);
 
     // 5. Tap Close to close dialog
     await tester.tap(find.text('Close'));
@@ -4489,7 +4521,7 @@ void main() {
 
     final mockApiClient = MockTestApiClient();
     mockApiClient.updateCheckResponseToReturn = const UpdateCheckResponse(
-      currentVersion: '0.13.3-alpha',
+      currentVersion: '0.13.4-alpha',
       latestVersion: null,
       updateAvailable: false,
       channel: 'alpha',
@@ -4527,9 +4559,651 @@ void main() {
 
     // Verify friendly up-to-date state
     expect(find.text('Your local node is running the latest version.'), findsOneWidget);
-    expect(find.text('Your local node is on the latest version (v0.13.3-alpha).'), findsOneWidget);
+    expect(find.text('Your local node is on the latest version (v0.13.4-alpha).'), findsOneWidget);
     expect(find.text('Update Now'), findsNothing);
     expect(find.text('Failed to check for updates: Not Found'), findsNothing);
+  });
+
+  testWidgets('AppShell Version Info dialog restores active update when opened and survives closing/reopening', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    // Simulate active update currently running in background (staging state, 40%)
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-active-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'staging',
+        progressPercent: 40,
+        message: 'Pulling update image...',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      UpdateStatusResponse(
+        requestId: 'req-active-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'applying',
+        progressPercent: 60,
+        message: 'Recreating container...',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      UpdateStatusResponse(
+        requestId: 'req-active-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'completed',
+        progressPercent: 100,
+        message: 'Update completed successfully',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Open brand menu & open Version Info dialog
+    await tester.tap(find.text('Altr Stream'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check for updates'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Dialog immediately queries backend status and restores active state
+    expect(find.text('Installing Update v0.13.4-alpha (40%)'), findsOneWidget);
+    expect(find.text('Pulling update image...'), findsOneWidget);
+
+    // 2. Close the dialog while update is running
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    // Verify dialog is closed
+    expect(find.text('Altr Stream Version Info'), findsNothing);
+
+    // 3. Reopen the dialog
+    await tester.tap(find.text('Altr Stream'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check for updates'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Verify dialog reconstructed state from backend (now applying at 60%)
+    expect(find.text('Installing Update v0.13.4-alpha (60%)'), findsOneWidget);
+    expect(find.text('Recreating container...'), findsOneWidget);
+
+    // Advance 2 seconds to let polling tick
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    // Verify completed state is rendered
+    expect(find.text('Your local node has been updated to v0.13.4-alpha.'), findsOneWidget);
+    expect(find.text('Current Version: v0.13.4-alpha (Latest)'), findsOneWidget);
+
+    // Tap Stay on page to pause countdown
+    await tester.tap(find.text('Stay on page'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('AppShell Version Info dialog displays terminal rolled_back state when opened', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-rollback-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'rolled_back',
+        progressPercent: 100,
+        message: 'Rolled back to previous version 0.13.3-alpha.',
+        error: 'Health check verification failed.',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Altr Stream'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+
+    // Verify terminal failure/rollback message is displayed
+    expect(find.text('Update rolled back: Health check verification failed.'), findsOneWidget);
+    expect(find.text('Close'), findsOneWidget);
+  });
+
+  testWidgets('AppShell Version Info dialog recovers gracefully when apply reports already active', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateCheckResponseToReturn = const UpdateCheckResponse(
+      currentVersion: '0.13.3-alpha',
+      latestVersion: '0.13.4-alpha',
+      updateAvailable: true,
+      channel: 'alpha',
+      releaseName: 'v0.13.4-alpha Release',
+    );
+    mockApiClient.updateStatusResponsesToReturn = [
+      // Initial status check before check for updates
+      UpdateStatusResponse(
+        requestId: null,
+        targetVersion: null,
+        currentVersion: '0.13.3-alpha',
+        state: 'idle',
+        progressPercent: 0,
+        message: 'System is up to date.',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      // Status returned after applyUpdate reports already active
+      UpdateStatusResponse(
+        requestId: 'req-existing',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'requested',
+        progressPercent: 15,
+        message: 'Update request submitted',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      // Subsequent poll completes
+      UpdateStatusResponse(
+        requestId: 'req-existing',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'completed',
+        progressPercent: 100,
+        message: 'Update completed successfully',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Altr Stream'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+
+    // Now tap Update Now
+    expect(find.text('Update Now'), findsWidgets);
+    await tester.tap(find.text('Update Now').first);
+    await tester.pump();
+
+    // Advance 2s to complete polling
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your local node has been updated to v0.13.4-alpha.'), findsOneWidget);
+
+    // Tap Stay on page to pause countdown
+    await tester.tap(find.text('Stay on page'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('AppShell global app-bar chip renders Starting update... during requested state', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-start-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'requested',
+        progressPercent: 10,
+        message: 'Update request submitted',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Verify app-bar chip is visible with starting text
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Starting update...'), findsOneWidget);
+
+    // Clicking the chip opens Version Info dialog
+    await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Altr Stream Version Info'), findsOneWidget);
+    expect(find.text('Installing Update v0.13.4-alpha (10%)'), findsOneWidget);
+
+    UpdateController.reset();
+  });
+
+  testWidgets('AppShell global app-bar chip renders determinate Updating 65% during applying stage', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-apply-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'applying',
+        progressPercent: 65,
+        message: 'Recreating container with v0.13.4-alpha...',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Verify app-bar chip displays percentage
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Updating 65%'), findsOneWidget);
+
+    // Clicking chip opens dialog
+    await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Installing Update v0.13.4-alpha (65%)'), findsOneWidget);
+
+    UpdateController.reset();
+  });
+
+  testWidgets('AppShell global app-bar chip renders Reload required and Update failed states', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-comp-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'completed',
+        progressPercent: 100,
+        message: 'Update completed successfully',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Verify app-bar chip displays Reload required
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Reload required'), findsOneWidget);
+
+    // Clicking chip opens dialog with reload controls
+    await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Your local node has been updated to v0.13.4-alpha.'), findsOneWidget);
+    expect(find.text('Reload Now'), findsOneWidget);
+    expect(find.text('Stay on page'), findsOneWidget);
+    await tester.tap(find.text('Stay on page'));
+    await tester.pump();
+
+    UpdateController.reset();
+  });
+
+  testWidgets('AppShell global app-bar chip renders Update failed with error dialog on click', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-err-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'failed',
+        progressPercent: 50,
+        message: 'Container health check timed out.',
+        error: 'Container health check timed out.',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Verify error chip is shown
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Update failed'), findsOneWidget);
+
+    // Clicking error chip opens dialog with full error details
+    await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Container health check timed out.'), findsOneWidget);
+
+    UpdateController.reset();
+  });
+
+  testWidgets('Temporary network/backend failure during container restart does NOT reset update state or dismiss app-bar chip', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusSequenceToReturn = [
+      // 1. Initial status query when AppShell loads: active staging
+      UpdateStatusResponse(
+        requestId: 'req-restart-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'staging',
+        progressPercent: 35,
+        message: 'Pulling target container image...',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      // 2. Container recreation starts: backend is down, connection refused
+      ApiException(message: 'Failed to connect to host: connection refused', statusCode: 503),
+      // 3. Second poll while restarting: still down
+      ApiException(message: 'Request timed out waiting for container restart', statusCode: 504),
+      // 4. Container returns: state is applying
+      UpdateStatusResponse(
+        requestId: 'req-restart-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'applying',
+        progressPercent: 70,
+        message: 'Recreating container with v0.13.4-alpha...',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      // 5. Container completed
+      UpdateStatusResponse(
+        requestId: 'req-restart-1',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'completed',
+        progressPercent: 100,
+        message: 'Update completed successfully',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Verify active chip is shown (35%)
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Updating 35%'), findsOneWidget);
+
+    // Advance 2s: 1st network error occurs during container recreate
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+
+    // MUST NOT reset to idle or update-available; chip remains Updating 35%
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Updating 35%'), findsOneWidget);
+    expect(find.text('Update Available'), findsNothing);
+
+    // Advance another 2s: 2nd network error occurs
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+
+    // Still retains active state
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Updating 35%'), findsOneWidget);
+
+    // Advance another 2s: container returns with applying 70%
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Updating 70%'), findsOneWidget);
+
+    // Advance another 2s: completes
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Reload required'), findsOneWidget);
+
+    UpdateController.reset();
+  });
+
+  testWidgets('AppShell global app-bar chip and dialog handle rolling_back state', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-rollback-active',
+        targetVersion: '0.13.4-alpha',
+        currentVersion: '0.13.3-alpha',
+        state: 'rolling_back',
+        progressPercent: 85,
+        message: 'Reverting to previous container snapshot...',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Verify app-bar chip renders rolling back state
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Rolling back... (85%)'), findsOneWidget);
+
+    // Open dialog via chip
+    await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Rolling Back Update (85%)'), findsOneWidget);
+    expect(find.text('Reverting to previous container snapshot...'), findsOneWidget);
+
+    UpdateController.reset();
+  });
+
+  testWidgets('Failed update workflow is NOT masked by Update Available and provides Dismiss button', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    // Simulate that update check had found an update earlier
+    mockApiClient.updateCheckResponseToReturn = const UpdateCheckResponse(
+      currentVersion: '0.13.2-alpha',
+      latestVersion: '0.13.3-alpha',
+      updateAvailable: true,
+      channel: 'alpha',
+      releaseName: 'v0.13.3-alpha Release',
+    );
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-fail-superseded',
+        targetVersion: '0.13.3-alpha',
+        currentVersion: '0.13.2-alpha',
+        state: 'failed',
+        progressPercent: 0,
+        message: 'Target version v0.13.3-alpha is already surpassed or superseded.',
+        error: 'Target version v0.13.3-alpha is already surpassed or superseded.',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Even though updateAvailable was true on latest check, failure MUST PREVAIL!
+    // App-bar chip MUST show "Update failed", NOT "Update Available"!
+    expect(find.byKey(const ValueKey('app_bar_update_chip')), findsOneWidget);
+    expect(find.text('Update failed'), findsOneWidget);
+    expect(find.text('Update Available'), findsNothing);
+
+    // Open dialog via chip
+    await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Update Failed'), findsOneWidget);
+    expect(find.text('Target version v0.13.3-alpha is already surpassed or superseded.'), findsOneWidget);
+    expect(find.text('Dismiss'), findsOneWidget);
+
+    // Dismiss the error
+    await tester.tap(find.text('Dismiss'));
+    await tester.pump();
+
+    // Now error is cleared, update available can show
+    expect(find.text('Update Available (v0.13.3-alpha)'), findsOneWidget);
+
+    UpdateController.reset();
   });
 
   testWidgets('AppTheme returns distinct stroke-rounded HugeIcons and semantic colors for each DB type', (WidgetTester tester) async {

@@ -1,5 +1,7 @@
 """Domain layer exceptions."""
 
+from __future__ import annotations
+
 
 class AltrStreamError(Exception):
     """Base domain exception for Altr Stream."""

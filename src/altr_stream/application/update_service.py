@@ -223,16 +223,34 @@ class UpdateService:
             data = json.loads(content)
             status = UpdateStatus.from_dict(data)
 
-            # If supervisor marked completed and current running version matches target, normalize
-            if (
-                status.state == UpdateStatusState.COMPLETED
-                and status.target_version == str(self.current_semver)
-            ):
-                return UpdateStatus(
+            # If persisted status is stale relative to the running node, normalize to IDLE
+            if status.is_stale(self.current_semver):
+                logger.info(
+                    "Normalizing stale update status (state=%s, current=%s, target=%s) for running node %s",
+                    status.state.value,
+                    status.current_version,
+                    status.target_version,
+                    self.current_semver,
+                )
+                normalized = UpdateStatus(
                     state=UpdateStatusState.IDLE,
                     current_version=str(self.current_semver),
-                    message=f"Successfully running updated version {self.current_semver}.",
+                    message="System is up to date.",
                 )
+                try:
+                    self._write_atomic_json(self.status_file, normalized.to_dict())
+                except Exception as exc:
+                    logger.warning("Failed to normalize stale update status on disk: %s", exc)
+
+                # Clean up obsolete update-request.json if present
+                if self.request_file.exists():
+                    try:
+                        self.request_file.unlink()
+                    except OSError:
+                        pass
+
+                return normalized
+
             return status
         except Exception as exc:
             logger.warning("Failed to parse update-status.json: %s", exc)

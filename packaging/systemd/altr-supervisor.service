@@ -1,0 +1,17 @@
+[Unit]
+Description=Altr Stream Host Update Supervisor Daemon
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/altr-stream
+ExecStart=/usr/bin/python3 scripts/altr_supervisor.py run
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/altr-stream/data/updates/supervisor.log
+StandardError=append:/opt/altr-stream/data/updates/supervisor.log
+
+[Install]
+WantedBy=multi-user.target

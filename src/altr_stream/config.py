@@ -1,6 +1,8 @@
 """Application settings and configuration."""
 
+from typing import Any
 from pathlib import Path
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from altr_stream.__version__ import __version__
@@ -11,6 +13,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Altr Stream"
     app_version: str = __version__
+    simulated_version: str | None = None
     debug: bool = False
     host: str = "0.0.0.0"
     port: int = 8000
@@ -36,6 +39,20 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore",
     )
+
+    @field_validator("app_version", mode="before")
+    @classmethod
+    def _validate_app_version(cls, v: Any) -> str:
+        """Ensure empty or blank version strings safely default to canonical version."""
+        if v is None or not str(v).strip():
+            return __version__
+        return str(v).strip()
+
+    def model_post_init(self, __context: Any) -> None:
+        """Apply test simulation override if specified."""
+        super().model_post_init(__context)
+        if self.simulated_version and self.simulated_version.strip():
+            self.app_version = self.simulated_version.strip()
 
 
 settings = Settings()

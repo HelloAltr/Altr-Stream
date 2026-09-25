@@ -151,7 +151,7 @@ async def test_update_check_with_channel_filter(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncClient, mock_updates_dir: Path):
     payload = {
-        "target_version": "0.13.4-alpha",
+        "target_version": "0.13.5-alpha",
         "channel": "alpha",
     }
     response = await client.post("/api/v1/updates/apply", json=payload)
@@ -159,7 +159,7 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     data = response.json()
 
     assert data["state"] == "requested"
-    assert data["target_version"] == "0.13.4-alpha"
+    assert data["target_version"] == "0.13.5-alpha"
     assert data["request_id"] is not None
 
     # Verify atomic update-request.json file exists on disk
@@ -175,7 +175,7 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     assert status_res.status_code == 200
     status_data = status_res.json()
     assert status_data["state"] == "requested"
-    assert status_data["target_version"] == "0.13.4-alpha"
+    assert status_data["target_version"] == "0.13.5-alpha"
 
 
 @pytest.mark.asyncio
@@ -199,6 +199,26 @@ async def test_update_service_direct_upgrade_0_13_2_to_0_13_3_alpha(mock_updates
 
 
 @pytest.mark.asyncio
+async def test_update_service_direct_upgrade_0_13_3_to_0_13_4_alpha(mock_updates_dir: Path):
+    import json
+    from altr_stream.domain.updates import UpdateRequest
+    # Node running 0.13.3-alpha updating to 0.13.4-alpha
+    svc = UpdateService(updates_dir=mock_updates_dir, current_version="0.13.3-alpha")
+    status = await svc.request_update("0.13.4-alpha")
+
+    assert status.state == UpdateStatusState.REQUESTED
+    assert status.target_version == "0.13.4-alpha"
+    assert status.current_version == "0.13.3-alpha"
+
+    # Verify written IPC request payload
+    req_data = json.loads((mock_updates_dir / "update-request.json").read_text(encoding="utf-8"))
+    req = UpdateRequest.from_dict(req_data)
+    assert req.target_version == "0.13.4-alpha"
+    assert req.current_version == "0.13.3-alpha"
+    assert req.target_image == "ghcr.io/helloaltr/altr-stream:0.13.4-alpha"
+
+
+@pytest.mark.asyncio
 async def test_update_apply_rejects_downgrades_and_duplicates(client: AsyncClient):
     # Downgrade attempt
     payload_downgrade = {"target_version": "0.12.0"}
@@ -214,3 +234,122 @@ async def test_update_apply_rejects_downgrades_and_duplicates(client: AsyncClien
     res_dup = await client.post("/api/v1/updates/apply", json={"target_version": "1.0.1"})
     assert res_dup.status_code == 400
     assert "already active" in res_dup.json()["detail"]
+
+
+def test_is_stale_update_status_semantics():
+    from altr_stream.domain.updates import UpdateStatus, UpdateStatusState, is_stale_update_status
+
+    # 1. IDLE is never stale
+    idle_status = UpdateStatus(
+        state=UpdateStatusState.IDLE,
+        current_version="0.13.2-alpha",
+        target_version=None,
+    )
+    assert not is_stale_update_status(idle_status, "0.13.4-alpha")
+
+    # 2. Obsolete failed transition (e.g., 0.13.2-alpha -> 0.13.3-alpha failed)
+    failed_status = UpdateStatus(
+        state=UpdateStatusState.FAILED,
+        current_version="0.13.2-alpha",
+        target_version="0.13.3-alpha",
+        message="Failed to pull image.",
+        error="docker pull failed: unauthorized",
+    )
+    # Stale when running 0.13.4-alpha (running > target and running != from)
+    assert is_stale_update_status(failed_status, "0.13.4-alpha")
+    assert failed_status.is_stale("0.13.4-alpha")
+
+    # Stale when running 0.13.3-alpha (running == target)
+    assert is_stale_update_status(failed_status, "0.13.3-alpha")
+
+    # NOT stale when running 0.13.2-alpha (still on the failing version before target)
+    assert not is_stale_update_status(failed_status, "0.13.2-alpha")
+
+    # 3. Completed transition (0.13.2-alpha -> 0.13.3-alpha completed)
+    completed_status = UpdateStatus(
+        state=UpdateStatusState.COMPLETED,
+        current_version="0.13.2-alpha",
+        target_version="0.13.3-alpha",
+        message="Update successful.",
+    )
+    # NOT stale on 0.13.3-alpha (just completed, running == target)
+    assert not is_stale_update_status(completed_status, "0.13.3-alpha")
+    # Stale on 0.13.4-alpha (running != target)
+    assert is_stale_update_status(completed_status, "0.13.4-alpha")
+
+    # 4. Active transition (0.13.2-alpha -> 0.13.3-alpha requested/applying)
+    active_status = UpdateStatus(
+        state=UpdateStatusState.APPLYING,
+        current_version="0.13.2-alpha",
+        target_version="0.13.3-alpha",
+        progress_percent=50,
+    )
+    # Preserved/not stale when still running 0.13.2-alpha
+    assert not is_stale_update_status(active_status, "0.13.2-alpha")
+    # Stale if running node has already progressed beyond target (0.13.4-alpha)
+    assert is_stale_update_status(active_status, "0.13.4-alpha")
+
+
+@pytest.mark.asyncio
+async def test_update_service_normalizes_stale_persisted_status(mock_updates_dir: Path):
+    import json
+    from altr_stream.domain.updates import UpdateStatus, UpdateStatusState
+
+    # Simulate persisted stale failed status from 0.13.2-alpha -> 0.13.3-alpha
+    stale_payload = {
+        "state": "failed",
+        "current_version": "0.13.2-alpha",
+        "target_version": "0.13.3-alpha",
+        "progress_percent": 0,
+        "message": "Failed to pull image.",
+        "error": "docker pull failed: unauthorized",
+        "rollback_performed": False,
+    }
+    status_file = mock_updates_dir / "update-status.json"
+    status_file.write_text(json.dumps(stale_payload), encoding="utf-8")
+
+    # Running node is 0.13.4-alpha
+    svc = UpdateService(updates_dir=mock_updates_dir, current_version="0.13.4-alpha")
+    status = await svc.get_status()
+
+    # Should be normalized to IDLE for the running node
+    assert status.state == UpdateStatusState.IDLE
+    assert status.current_version == "0.13.4-alpha"
+    assert status.target_version is None
+    assert status.error is None
+    assert "System is up to date" in status.message
+
+    # Disk status should also be normalized
+    disk_data = json.loads(status_file.read_text(encoding="utf-8"))
+    assert disk_data["state"] == "idle"
+    assert disk_data["current_version"] == "0.13.4-alpha"
+
+
+@pytest.mark.asyncio
+async def test_api_status_normalizes_stale_failure_to_idle(
+    client: AsyncClient, mock_updates_dir: Path
+):
+    import json
+
+    # Write obsolete failure from 0.13.2-alpha -> 0.13.3-alpha
+    stale_payload = {
+        "state": "failed",
+        "current_version": "0.13.2-alpha",
+        "target_version": "0.13.3-alpha",
+        "progress_percent": 0,
+        "message": "Failed to pull image.",
+        "error": "docker pull failed (1): unauthorized",
+        "rollback_performed": False,
+    }
+    status_file = mock_updates_dir / "update-status.json"
+    status_file.write_text(json.dumps(stale_payload), encoding="utf-8")
+
+    # Query API (test app runs 0.13.4-alpha)
+    res = await client.get("/api/v1/updates/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["state"] == "idle"
+    assert data["current_version"] == "0.13.4-alpha"
+    assert data["target_version"] is None
+    assert data["error"] is None
+

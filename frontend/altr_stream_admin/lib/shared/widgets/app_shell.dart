@@ -9,6 +9,7 @@ import '../../core/api/api_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/material_theme.dart';
+import '../../core/updates/update_controller.dart';
 
 class AppShell extends StatelessWidget {
   final Widget child;
@@ -31,6 +32,7 @@ class AppShell extends StatelessWidget {
   final int sourcesCount;
   final int modelsCount;
   final ApiClient? apiClient;
+  final UpdateController? updateController;
 
   const AppShell({
     super.key,
@@ -54,7 +56,11 @@ class AppShell extends StatelessWidget {
     this.sourcesCount = 0,
     this.modelsCount = 0,
     this.apiClient,
+    this.updateController,
   });
+
+  UpdateController get _effectiveUpdateController =>
+      updateController ?? UpdateController.instanceFor(apiClient);
 
   Future<void> _launchDocs(BuildContext context) async {
     final uri = Uri.parse(AppConfig.apiDocsUrl);
@@ -678,7 +684,11 @@ class AppShell extends StatelessWidget {
             ),
           ],
         ),
-        actions: [_buildThemeToggleButton(context), const SizedBox(width: 8)],
+        actions: [
+          _buildUpdateChip(context),
+          _buildThemeToggleButton(context),
+          const SizedBox(width: 8),
+        ],
       ),
       drawer: Drawer(
         backgroundColor: colorScheme.surfaceContainer,
@@ -1054,6 +1064,7 @@ class AppShell extends StatelessWidget {
       safeArea: true,
       actions: [
         ...?pageActions,
+        _buildUpdateChip(context),
         const SizedBox(width: 16),
       ],
     );
@@ -1356,10 +1367,18 @@ class AppShell extends StatelessWidget {
 
 
   void _showUpdateDialog(BuildContext context) {
+    _effectiveUpdateController.init();
     M3EDialog.show<void>(
       context,
       barrierDismissible: true,
-      dialog: _VersionInfoDialog(apiClient: apiClient),
+      dialog: _VersionInfoDialog(controller: _effectiveUpdateController),
+    );
+  }
+
+  Widget _buildUpdateChip(BuildContext context) {
+    return _UpdateChipWidget(
+      controller: _effectiveUpdateController,
+      onOpenDialog: () => _showUpdateDialog(context),
     );
   }
 
@@ -1469,185 +1488,282 @@ class AppShell extends StatelessWidget {
 
 }
 
+class _UpdateChipWidget extends StatefulWidget {
+  final UpdateController controller;
+  final VoidCallback onOpenDialog;
+
+  const _UpdateChipWidget({
+    required this.controller,
+    required this.onOpenDialog,
+  });
+
+  @override
+  State<_UpdateChipWidget> createState() => _UpdateChipWidgetState();
+}
+
+class _UpdateChipWidgetState extends State<_UpdateChipWidget> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.controller.init();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (context, _) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final chipState = widget.controller.chipState;
+
+        if (chipState == UpdateChipState.idle) {
+          return const SizedBox.shrink();
+        }
+
+        Widget iconWidget;
+        String labelText;
+        Color backgroundColor;
+        Color foregroundColor;
+        Color borderColor;
+        String tooltip;
+
+        switch (chipState) {
+          case UpdateChipState.updateAvailable:
+            iconWidget = HugeIcon(
+              icon: HugeIcons.strokeRoundedDownload04,
+              color: colorScheme.onPrimaryContainer,
+              size: 14,
+            );
+            labelText = 'Update Available';
+            backgroundColor = colorScheme.primaryContainer;
+            foregroundColor = colorScheme.onPrimaryContainer;
+            borderColor = colorScheme.primary.withValues(alpha: 0.3);
+            tooltip = 'Update v${widget.controller.targetVersion ?? ""} is available. Click to review.';
+            break;
+
+          case UpdateChipState.starting:
+            iconWidget = SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colorScheme.primary,
+              ),
+            );
+            labelText = 'Starting update...';
+            backgroundColor = colorScheme.surfaceContainerHigh;
+            foregroundColor = colorScheme.onSurface;
+            borderColor = colorScheme.outlineVariant.withValues(alpha: 0.5);
+            tooltip = 'Preparing update workflow...';
+            break;
+
+          case UpdateChipState.updating:
+            final pct = widget.controller.progressPercent;
+            iconWidget = SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null,
+                color: colorScheme.primary,
+              ),
+            );
+            labelText = 'Updating $pct%';
+            backgroundColor = colorScheme.surfaceContainerHigh;
+            foregroundColor = colorScheme.onSurface;
+            borderColor = colorScheme.primary.withValues(alpha: 0.4);
+            tooltip = widget.controller.statusMessage.isNotEmpty
+                ? widget.controller.statusMessage
+                : 'Applying update ($pct%)...';
+            break;
+
+          case UpdateChipState.rollingBack:
+            final pct = widget.controller.progressPercent;
+            iconWidget = SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null,
+                color: colorScheme.error,
+              ),
+            );
+            labelText = pct > 0 ? 'Rolling back... ($pct%)' : 'Rolling back...';
+            backgroundColor = colorScheme.errorContainer.withValues(alpha: 0.5);
+            foregroundColor = colorScheme.onErrorContainer;
+            borderColor = colorScheme.error.withValues(alpha: 0.4);
+            tooltip = widget.controller.statusMessage.isNotEmpty
+                ? widget.controller.statusMessage
+                : 'Rolling back update to previous version...';
+            break;
+
+          case UpdateChipState.reloadRequired:
+            iconWidget = HugeIcon(
+              icon: HugeIcons.strokeRoundedRefresh,
+              color: colorScheme.onTertiaryContainer,
+              size: 14,
+            );
+            labelText = 'Reload required';
+            backgroundColor = colorScheme.tertiaryContainer;
+            foregroundColor = colorScheme.onTertiaryContainer;
+            borderColor = colorScheme.tertiary.withValues(alpha: 0.4);
+            tooltip = 'Update applied successfully. Click to reload application.';
+            break;
+
+          case UpdateChipState.error:
+            iconWidget = HugeIcon(
+              icon: HugeIcons.strokeRoundedAlertCircle,
+              color: colorScheme.error,
+              size: 14,
+            );
+            labelText = 'Update failed';
+            backgroundColor = colorScheme.errorContainer;
+            foregroundColor = colorScheme.onErrorContainer;
+            borderColor = colorScheme.error.withValues(alpha: 0.4);
+            tooltip = widget.controller.errorMessage ?? 'Update encountered an error. Click for details.';
+            break;
+
+          case UpdateChipState.idle:
+            return const SizedBox.shrink();
+        }
+
+        return Tooltip(
+          message: tooltip,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Material(
+              key: const ValueKey('app_bar_update_chip'),
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: widget.onOpenDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      iconWidget,
+                      const SizedBox(width: 6),
+                      Text(
+                        labelText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: foregroundColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _VersionInfoDialog extends StatefulWidget {
-  final ApiClient? apiClient;
+  final UpdateController controller;
 
-  const _VersionInfoDialog({this.apiClient});
+  const _VersionInfoDialog({required this.controller});
 
   @override
   State<_VersionInfoDialog> createState() => _VersionInfoDialogState();
 }
 
 class _VersionInfoDialogState extends State<_VersionInfoDialog> {
-  bool _isChecking = false;
-  bool _updateAvailable = false;
-  bool _isUpdating = false;
-  bool _updateComplete = false;
-  bool _updateFailed = false;
-  String? _errorMessage;
-  String? _targetVersion;
-  String? _releaseNotes;
-  double _updateProgress = 0.0;
-  String _statusMessage = '';
-  Timer? _pollTimer;
-
-  late final ApiClient _apiClient;
+  bool _updateAvailableSnackbarShown = false;
+  bool _upToDateSnackbarShown = false;
+  bool _completionSnackbarShown = false;
 
   @override
   void initState() {
     super.initState();
-    _apiClient = widget.apiClient ?? ApiClient();
+    widget.controller.addListener(_onControllerChanged);
+    // Automatically check for updates and refresh status on dialog open
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.controller.checkForUpdates();
+      }
+    });
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    widget.controller.removeListener(_onControllerChanged);
     super.dispose();
   }
 
-  Future<void> _checkUpdates() async {
-    setState(() {
-      _isChecking = true;
-      _updateAvailable = false;
-      _updateComplete = false;
-      _updateFailed = false;
-      _errorMessage = null;
-    });
-
-    try {
-      final res = await _apiClient.checkForUpdates();
-      if (!mounted) return;
-
-      setState(() {
-        _isChecking = false;
-        _updateAvailable = res.updateAvailable;
-        _targetVersion = res.latestVersion;
-        _releaseNotes = (res.releaseName != null && res.releaseName!.isNotEmpty) ? res.releaseName : null;
-      });
-
-      if (res.updateAvailable) {
-        M3ESnackbar.show(
-          context,
-          message: 'New update available: v${res.latestVersion}',
-          actionLabel: 'Update Now',
-          onAction: _startUpdate,
-        );
-      } else {
-        M3ESnackbar.show(
-          context,
-          message: 'Your local node is on the latest version (v${AppConfig.appVersion}).',
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isChecking = false;
-        _errorMessage = 'Failed to check for updates: $e';
-      });
-    }
-  }
-
-  Future<void> _startUpdate() async {
-    if (_targetVersion == null || _targetVersion!.isEmpty) return;
-
-    setState(() {
-      _isUpdating = true;
-      _updateProgress = 0.05;
-      _statusMessage = 'Requesting update to v$_targetVersion...';
-      _updateFailed = false;
-      _errorMessage = null;
-    });
-
-    try {
-      final applyRes = await _apiClient.applyUpdate(targetVersion: _targetVersion!);
-      if (!mounted) return;
-
-      setState(() {
-        _statusMessage = applyRes.message;
-        _updateProgress = 0.15;
-      });
-
-      _startStatusPolling();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isUpdating = false;
-        _updateFailed = true;
-        _errorMessage = 'Failed to apply update: $e';
-      });
-    }
-  }
-
-  void _startStatusPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
-      try {
-        final statusRes = await _apiClient.getUpdateStatus();
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-
-        setState(() {
-          final state = statusRes.state.toLowerCase();
-          switch (state) {
-            case 'requested':
-              _updateProgress = 0.15;
-              _statusMessage = 'Update requested...';
-              break;
-            case 'staging':
-              _updateProgress = 0.35;
-              _statusMessage = 'Staging image v${statusRes.targetVersion}...';
-              break;
-            case 'applying':
-              _updateProgress = 0.65;
-              _statusMessage = 'Recreating container with v${statusRes.targetVersion}...';
-              break;
-            case 'health_check':
-              _updateProgress = 0.85;
-              _statusMessage = 'Verifying container health...';
-              break;
-            case 'completed':
-              _updateProgress = 1.0;
-              _isUpdating = false;
-              _updateAvailable = false;
-              _updateComplete = true;
-              _statusMessage = 'Update successfully applied!';
-              timer.cancel();
-              M3ESnackbar.show(
-                context,
-                message: 'Altr Stream successfully updated to v${statusRes.targetVersion}!',
-              );
-              break;
-            case 'rolling_back':
-              _updateProgress = 0.50;
-              _statusMessage = 'Health check failed. Rolling back...';
-              break;
-            case 'rolled_back':
-            case 'failed':
-              _isUpdating = false;
-              _updateFailed = true;
-              _errorMessage = statusRes.error ?? 'Update failed and container was rolled back.';
-              timer.cancel();
-              break;
-            default:
-              _statusMessage = 'State: ${statusRes.state}';
+  void _onControllerChanged() {
+    if (mounted) {
+      final c = widget.controller;
+      if (c.latestCheck != null &&
+          c.latestCheck!.updateAvailable &&
+          !_updateAvailableSnackbarShown &&
+          c.isUpdateAvailable) {
+        _updateAvailableSnackbarShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            M3ESnackbar.show(
+              context,
+              message: 'New update available: v${c.targetVersion}',
+              actionLabel: 'Update Now',
+              onAction: () => c.startUpdate(),
+            );
           }
         });
-      } catch (e) {
-        // Network polling hiccup during container recreation is expected; continue polling
+      } else if (c.latestCheck != null &&
+          !c.latestCheck!.updateAvailable &&
+          !_upToDateSnackbarShown &&
+          !c.isChecking &&
+          c.isIdle) {
+        _upToDateSnackbarShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            M3ESnackbar.show(
+              context,
+              message: 'Your local node is on the latest version (v${AppConfig.appVersion}).',
+            );
+          }
+        });
+      } else if (c.isCompleted && !_completionSnackbarShown) {
+        _completionSnackbarShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            M3ESnackbar.show(
+              context,
+              message: 'Altr Stream successfully updated to v${c.targetVersion}!',
+            );
+          }
+        });
       }
-    });
+      setState(() {});
+    }
   }
 
   Widget _buildStatusCard(ColorScheme colorScheme) {
-    if (_isUpdating) {
+    final c = widget.controller;
+
+    if (c.isRollingBack) {
+      final pct = c.progressPercent;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
         ),
         child: Row(
           children: [
@@ -1655,7 +1771,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
               width: 28,
               height: 28,
               child: M3EProgressIndicator.circularWavy(
-                value: _updateProgress,
+                value: pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null,
                 strokeWidth: 3,
                 trackStrokeWidth: 2,
                 wavelength: 12,
@@ -1668,16 +1784,18 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Installing Update v${_targetVersion ?? ""} (${(_updateProgress * 100).clamp(0, 100).toInt()}%)',
+                    'Rolling Back Update ($pct%)',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
+                      color: Colors.orange.shade700,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _statusMessage.isNotEmpty ? _statusMessage : 'Applying updates...',
+                    c.statusMessage.isNotEmpty
+                        ? c.statusMessage
+                        : 'Health check failed. Restoring previous version...',
                     style: TextStyle(
                       fontSize: 11,
                       color: colorScheme.onSurfaceVariant,
@@ -1691,21 +1809,54 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
       );
     }
 
-    if (_updateComplete) {
+    if (c.isActive) {
+      final pct = c.progressPercent;
+      final isIndeterminate = (c.isRequested && pct == 0) || c.isStartingUpdate;
+      final double? progressVal = isIndeterminate ? null : (pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null);
+      final title = isIndeterminate
+          ? 'Starting Update v${c.targetVersion ?? ""}...'
+          : 'Installing Update v${c.targetVersion ?? ""} ($pct%)';
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, color: colorScheme.primary, size: 18),
-            const SizedBox(width: 8),
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: M3EProgressIndicator.circularWavy(
+                value: progressVal,
+                strokeWidth: 3,
+                trackStrokeWidth: 2,
+                wavelength: 12,
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                'Your local node has been updated to v${_targetVersion ?? ""}.',
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    c.statusMessage.isNotEmpty ? c.statusMessage : 'Applying updates...',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1713,7 +1864,64 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
       );
     }
 
-    if (_updateFailed) {
+    if (c.isCompleted) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, color: colorScheme.primary, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Your local node has been updated to v${c.targetVersion ?? ""}.',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              c.reloadCountdown != null
+                  ? 'Reloading application in ${c.reloadCountdown}s to activate the new version...'
+                  : 'Reload the application to activate new version features and assets.',
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (c.reloadCountdown != null)
+                  M3EButton(
+                    style: M3EButtonStyle.text,
+                    size: M3EButtonSize.sm,
+                    onPressed: () => c.cancelReloadCountdown(),
+                    child: const Text('Stay on page'),
+                  ),
+                const SizedBox(width: 8),
+                M3EButton(
+                  onPressed: () => c.reloadNow(),
+                  size: M3EButtonSize.sm,
+                  style: M3EButtonStyle.filled,
+                  shape: M3EButtonShape.round,
+                  child: const Text('Reload Now'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (c.isFailed) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -1726,17 +1934,39 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
             HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                _errorMessage ?? 'Update failed.',
-                style: TextStyle(fontSize: 12, color: colorScheme.onErrorContainer),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Update Failed',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onErrorContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    c.errorMessage ?? 'Update workflow failed or was rejected.',
+                    style: TextStyle(fontSize: 11, color: colorScheme.onErrorContainer),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(width: 8),
+            M3EButton(
+              style: M3EButtonStyle.text,
+              size: M3EButtonSize.sm,
+              onPressed: () => c.clearError(),
+              child: const Text('Dismiss'),
             ),
           ],
         ),
       );
     }
 
-    if (_errorMessage != null) {
+    if (c.errorMessage != null) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -1749,16 +1979,26 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                _errorMessage!,
+                c.errorMessage!,
                 style: TextStyle(fontSize: 12, color: colorScheme.onErrorContainer),
               ),
+            ),
+            const SizedBox(width: 8),
+            M3EButton(
+              style: M3EButtonStyle.text,
+              size: M3EButtonSize.sm,
+              onPressed: () => c.clearError(),
+              child: const Text('Dismiss'),
             ),
           ],
         ),
       );
     }
 
-    if (_updateAvailable) {
+    if (c.isUpdateAvailable) {
+      final releaseNotes = (c.latestCheck?.releaseName != null && c.latestCheck!.releaseName!.isNotEmpty)
+          ? c.latestCheck!.releaseName
+          : 'Includes engine improvements and fixes';
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -1780,7 +2020,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Update Available (v${_targetVersion ?? ""})',
+                    'Update Available (v${c.targetVersion ?? ""})',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -1788,7 +2028,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                     ),
                   ),
                   Text(
-                    _releaseNotes ?? 'Includes engine improvements and fixes',
+                    releaseNotes ?? '',
                     style: TextStyle(
                       fontSize: 11,
                       color: colorScheme.onSurfaceVariant,
@@ -1799,7 +2039,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
             ),
             const SizedBox(width: 10),
             M3EButton(
-              onPressed: _startUpdate,
+              onPressed: () => c.startUpdate(),
               size: M3EButtonSize.sm,
               style: M3EButtonStyle.filled,
               shape: M3EButtonShape.round,
@@ -1834,6 +2074,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final c = widget.controller;
 
     return M3EDialog(
       title: 'Altr Stream Version Info',
@@ -1845,8 +2086,8 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _updateComplete && _targetVersion != null
-                ? 'Current Version: v$_targetVersion (Latest)'
+            c.isCompleted && c.targetVersion != null
+                ? 'Current Version: v${c.targetVersion} (Latest)'
                 : 'Current Version: ${AppConfig.formattedAppVersion}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -1856,8 +2097,8 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           ),
           const SizedBox(height: 6),
           Text(
-            _updateComplete && _targetVersion != null
-                ? 'AltrQL Federation Engine: v$_targetVersion'
+            c.isCompleted && c.targetVersion != null
+                ? 'AltrQL Federation Engine: v${c.targetVersion}'
                 : 'AltrQL Federation Engine: ${AppConfig.formattedAppVersion}',
             style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
           ),
@@ -1876,8 +2117,10 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           child: const Text('Close'),
         ),
         M3EButton.icon(
-          onPressed: (_isChecking || _isUpdating) ? null : _checkUpdates,
-          icon: _isChecking
+          onPressed: (c.isChecking || c.isActive)
+              ? null
+              : () => c.checkForUpdates(forceRefresh: true),
+          icon: c.isChecking
               ? SizedBox(
                   width: 14,
                   height: 14,
@@ -1887,7 +2130,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                   ),
                 )
               : HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: colorScheme.onPrimary, size: 16),
-          label: Text(_isChecking ? 'Checking...' : 'Check for Updates'),
+          label: Text(c.isChecking ? 'Checking...' : 'Check for Updates'),
         ),
       ],
     );
