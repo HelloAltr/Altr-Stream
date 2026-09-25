@@ -128,3 +128,18 @@ async def get_update_status(
     """Retrieve current update execution progress and state."""
     update_status = await update_service.get_status()
     return UpdateStatusResponseDTO(**update_status.to_dict())
+
+
+@router.post("/clear", response_model=UpdateStatusResponseDTO)
+async def clear_update_status(
+    update_service: UpdateService = Depends(get_update_service),
+) -> UpdateStatusResponseDTO:
+    """Clear terminal update status (completed, failed, rolled_back) back to idle."""
+    try:
+        update_status = await update_service.clear_terminal_status()
+        return UpdateStatusResponseDTO(**update_status.to_dict())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )

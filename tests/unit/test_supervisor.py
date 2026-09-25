@@ -495,6 +495,33 @@ def test_recreate_service_clears_simulation_environment(compose_file: Path, monk
     assert "ALTR_STREAM_SIMULATED_VERSION" not in env
 
 
+def test_recreate_service_retries_transient_container_removal(compose_file: Path, monkeypatch):
+    """recreate_service should retry when Docker daemon reports container removal in progress."""
+    from altr_stream.supervisor.supervisor import HostDockerClient
+    import subprocess
+
+    client = HostDockerClient()
+    attempts = 0
+
+    def mock_run(cmd, *args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return subprocess.CompletedProcess(
+                cmd,
+                1,
+                stdout="",
+                stderr="Error response from daemon: removal of container abc is already in progress",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", mock_run)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    client.recreate_service(compose_file, "altr-stream", "ghcr.io/helloaltr/altr-stream:0.13.4-alpha")
+    assert attempts == 2
+
+
 def test_supervisor_rollback_success_when_live_version_restored(updates_dir: Path, compose_file: Path):
     """When rollback successfully restores the expected previous version, state is rolled_back."""
     docker_client = MockDockerClient(current_image="ghcr.io/helloaltr/altr-stream:0.13.2-alpha")
@@ -883,6 +910,113 @@ def test_supervisor_reconcile_startup_interrupted_staging_allows_retry(updates_d
     assert result["state"] == "completed"
     assert result["request_id"] == "retry-req-1000"
     assert result["current_version"] == "0.13.4-alpha"
+
+
+def test_supervisor_pull_failure_preserves_current_version_and_allows_retry(updates_dir: Path, compose_file: Path):
+    """When pull fails, current version is preserved, request is cleaned, and a retry is allowed."""
+    docker_client = MockDockerClient(
+        current_image="ghcr.io/helloaltr/altr-stream:0.13.3-alpha",
+    )
+    docker_client.fail_pull = True
+    health_checker = MockHealthChecker(healthy=True, live_version="0.13.3-alpha")
+
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=docker_client,
+        health_checker=health_checker,
+    )
+
+    req_file = updates_dir / "update-request.json"
+    req_file.write_text(json.dumps({
+        "request_id": "req-pull-fail-1",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    # 1. Processing fails at staging
+    status = supervisor.process_pending_request()
+    assert status is not None
+    assert status["state"] == "failed"
+    assert status["current_version"] == "0.13.3-alpha"
+    assert "Failed to pull image" in status["message"]
+    assert status["rollback_performed"] is False
+    assert not req_file.exists()
+
+    # 2. Status on disk is failed, not completed
+    status_file = updates_dir / "update-status.json"
+    disk_data = json.loads(status_file.read_text(encoding="utf-8"))
+    assert disk_data["state"] == "failed"
+    assert disk_data["current_version"] == "0.13.3-alpha"
+
+    # 3. User fixes the issue (pull now succeeds) and retries
+    docker_client.fail_pull = False
+    req_file.write_text(json.dumps({
+        "request_id": "req-pull-retry-2",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    retry_status = supervisor.process_pending_request()
+    assert retry_status is not None
+    assert retry_status["state"] == "completed"
+    assert retry_status["request_id"] == "req-pull-retry-2"
+    assert retry_status["current_version"] == "0.13.4-alpha"
+
+
+def test_supervisor_activation_failure_rollback_and_immediate_retry(updates_dir: Path, compose_file: Path):
+    """When candidate update fails health check, rollback restores previous version, and retry is possible."""
+    docker_client = MockDockerClient(
+        current_image="ghcr.io/helloaltr/altr-stream:0.13.3-alpha",
+    )
+    health_checker = MockHealthChecker(health_sequence=[False, True], live_version="0.13.3-alpha")
+
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=docker_client,
+        health_checker=health_checker,
+        health_timeout_sec=5,
+    )
+
+    req_file = updates_dir / "update-request.json"
+    req_file.write_text(json.dumps({
+        "request_id": "req-activation-fail-1",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    # Candidate fails health check -> rollback triggers
+    status = supervisor.process_pending_request()
+    assert status is not None
+    assert status["state"] == "rolled_back"
+    assert status["current_version"] == "0.13.3-alpha"
+    assert status["rollback_performed"] is True
+    assert not req_file.exists()
+
+    # Recreate was called for candidate then for rollback
+    assert len(docker_client.recreate_calls) == 2
+    assert docker_client.recreate_calls[0][1] == "ghcr.io/helloaltr/altr-stream:0.13.4-alpha"
+    assert docker_client.recreate_calls[1][1] == "ghcr.io/helloaltr/altr-stream:0.13.3-alpha"
+
+    # Now simulate a subsequent valid update where candidate is healthy
+    health_checker.healthy = True
+    health_checker.live_version = "0.13.4-alpha"
+    req_file.write_text(json.dumps({
+        "request_id": "req-rollback-retry-2",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    retry_status = supervisor.process_pending_request()
+    assert retry_status is not None
+    assert retry_status["state"] == "completed"
+    assert retry_status["request_id"] == "req-rollback-retry-2"
+    assert retry_status["current_version"] == "0.13.4-alpha"
 
 
 

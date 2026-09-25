@@ -495,12 +495,28 @@ class MockTestApiClient extends ApiClient {
         const UpdateStatusResponse(
           requestId: null,
           targetVersion: null,
-          currentVersion: '0.13.4-alpha',
+          currentVersion: '0.13.5-alpha',
           state: 'idle',
           progressPercent: 0,
           message: 'System is up to date.',
           updatedAt: '2026-09-24T12:00:00Z',
         );
+  }
+
+  int clearUpdateStatusCallCount = 0;
+
+  @override
+  Future<UpdateStatusResponse> clearUpdateStatus() async {
+    clearUpdateStatusCallCount++;
+    return const UpdateStatusResponse(
+      requestId: null,
+      targetVersion: null,
+      currentVersion: '0.13.5-alpha',
+      state: 'idle',
+      progressPercent: 0,
+      message: 'System is up to date.',
+      updatedAt: '2026-09-24T12:00:00Z',
+    );
   }
 
   @override
@@ -4496,21 +4512,18 @@ void main() {
     expect(find.text('Your local node has been updated to v0.13.3-alpha.'), findsOneWidget);
     expect(find.text('Current Version: v0.13.3-alpha (Latest)'), findsOneWidget);
     expect(find.text('Altr Stream successfully updated to v0.13.3-alpha!'), findsOneWidget);
+    expect(find.text('A new version is ready. Reload when you\'re ready to activate it.'), findsOneWidget);
     expect(find.text('Reload Now'), findsOneWidget);
-    expect(find.text('Stay on page'), findsOneWidget);
-
-    // Tap Stay on page to pause countdown
-    await tester.tap(find.text('Stay on page'));
-    await tester.pumpAndSettle();
     expect(find.text('Stay on page'), findsNothing);
-    expect(find.text('Reload Now'), findsOneWidget);
 
-    // 5. Tap Close to close dialog
+    // 5. Tap Close to close dialog - does NOT trigger reload
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
 
     // Dialog is closed
     expect(find.text('Altr Stream Version Info'), findsNothing);
+    // App bar chip remains persistent
+    expect(find.text('Reload required'), findsOneWidget);
   });
 
   testWidgets('AppShell Version Info dialog displays up-to-date message when no update is available', (WidgetTester tester) async {
@@ -4521,7 +4534,7 @@ void main() {
 
     final mockApiClient = MockTestApiClient();
     mockApiClient.updateCheckResponseToReturn = const UpdateCheckResponse(
-      currentVersion: '0.13.4-alpha',
+      currentVersion: '0.13.5-alpha',
       latestVersion: null,
       updateAvailable: false,
       channel: 'alpha',
@@ -4559,7 +4572,7 @@ void main() {
 
     // Verify friendly up-to-date state
     expect(find.text('Your local node is running the latest version.'), findsOneWidget);
-    expect(find.text('Your local node is on the latest version (v0.13.4-alpha).'), findsOneWidget);
+    expect(find.text('Your local node is on the latest version (v0.13.5-alpha).'), findsOneWidget);
     expect(find.text('Update Now'), findsNothing);
     expect(find.text('Failed to check for updates: Not Found'), findsNothing);
   });
@@ -4622,7 +4635,7 @@ void main() {
 
     // Verify CRITICAL semantic requirement: NEVER claim up to date or latest
     expect(find.text('Your local node is running the latest version.'), findsNothing);
-    expect(find.text('Your local node is on the latest version (v0.13.4-alpha).'), findsNothing);
+    expect(find.text('Your local node is on the latest version (v0.13.5-alpha).'), findsNothing);
     expect(find.text('Update Now'), findsNothing);
   });
 
@@ -4716,9 +4729,9 @@ void main() {
     expect(find.text('Your local node has been updated to v0.13.4-alpha.'), findsOneWidget);
     expect(find.text('Current Version: v0.13.4-alpha (Latest)'), findsOneWidget);
 
-    // Tap Stay on page to pause countdown
-    await tester.tap(find.text('Stay on page'));
-    await tester.pumpAndSettle();
+    // Verify persistent reload prompt
+    expect(find.text('Reload Now'), findsOneWidget);
+    expect(find.text('Stay on page'), findsNothing);
   });
 
   testWidgets('AppShell Version Info dialog displays terminal rolled_back state when opened', (WidgetTester tester) async {
@@ -4844,9 +4857,9 @@ void main() {
 
     expect(find.text('Your local node has been updated to v0.13.4-alpha.'), findsOneWidget);
 
-    // Tap Stay on page to pause countdown
-    await tester.tap(find.text('Stay on page'));
-    await tester.pumpAndSettle();
+    // Verify persistent reload prompt
+    expect(find.text('Reload Now'), findsOneWidget);
+    expect(find.text('Stay on page'), findsNothing);
   });
 
   testWidgets('AppShell global app-bar chip renders Starting update... during requested state', (WidgetTester tester) async {
@@ -4994,9 +5007,7 @@ void main() {
 
     expect(find.text('Your local node has been updated to v0.13.4-alpha.'), findsOneWidget);
     expect(find.text('Reload Now'), findsOneWidget);
-    expect(find.text('Stay on page'), findsOneWidget);
-    await tester.tap(find.text('Stay on page'));
-    await tester.pump();
+    expect(find.text('Stay on page'), findsNothing);
 
     UpdateController.reset();
   });
@@ -5265,6 +5276,126 @@ void main() {
     // Now error is cleared, update available can show
     expect(find.text('Update Available (v0.13.3-alpha)'), findsOneWidget);
 
+    UpdateController.reset();
+  });
+
+  testWidgets('Reload Lifecycle: persistent Reload required, no countdown, closing dialog preserves state, Reload Now reconciles and clears state', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusResponsesToReturn = [
+      UpdateStatusResponse(
+        requestId: 'req-completed-lifecycle',
+        targetVersion: '0.13.5-alpha',
+        currentVersion: '0.13.4-alpha',
+        state: 'applying',
+        progressPercent: 65,
+        message: 'Recreating container...',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+      UpdateStatusResponse(
+        requestId: 'req-completed-lifecycle',
+        targetVersion: '0.13.5-alpha',
+        currentVersion: '0.13.5-alpha',
+        state: 'completed',
+        progressPercent: 100,
+        message: 'Update to 0.13.5-alpha completed successfully.',
+        updatedAt: DateTime.now().toIso8601String(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Initially in applying (65%)
+    expect(find.text('Updating 65%'), findsOneWidget);
+
+    // Advance 2s: poller receives completed
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    // 1. App-bar chip shows Reload required
+    expect(find.text('Reload required'), findsOneWidget);
+
+    // 2. Open dialog via chip
+    await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
+    await tester.pumpAndSettle();
+
+    // 3. Dialog shows ready message and explicit Reload Now button, NO countdown, NO Stay on page
+    expect(find.text('Your local node has been updated to v0.13.5-alpha.'), findsOneWidget);
+    expect(find.text('A new version is ready. Reload when you\'re ready to activate it.'), findsOneWidget);
+    expect(find.text('Reload Now'), findsOneWidget);
+    expect(find.text('Stay on page'), findsNothing);
+    expect(find.textContaining('Reloading application in'), findsNothing);
+
+    // 4. Advance time: confirm NO automatic reload countdown or timer occurs
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+    expect(find.text('Reload Now'), findsOneWidget);
+    expect(find.text('A new version is ready. Reload when you\'re ready to activate it.'), findsOneWidget);
+
+    // 5. Close dialog: closing dialog must NOT trigger reload, chip remains visible
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Altr Stream Version Info'), findsNothing);
+    expect(find.text('Reload required'), findsOneWidget);
+
+    // 6. Reopen dialog via chip: state is still preserved
+    await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
+    await tester.pumpAndSettle();
+    expect(find.text('Reload Now'), findsOneWidget);
+
+    // 7. Click Reload Now: calls clearUpdateStatus on backend to reconcile
+    await tester.tap(find.text('Reload Now'));
+    await tester.pumpAndSettle();
+
+    expect(mockApiClient.clearUpdateStatusCallCount, greaterThanOrEqualTo(1));
+
+    UpdateController.reset();
+  });
+
+  test('UpdateController: reloadNow calls clearUpdateStatus and reconciles state without reload loop', () async {
+    UpdateController.reset();
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateStatusResponseToReturn = const UpdateStatusResponse(
+      requestId: 'req-completed-prev',
+      targetVersion: '0.13.5-alpha',
+      currentVersion: '0.13.5-alpha',
+      state: 'completed',
+      progressPercent: 100,
+      message: 'Update completed',
+      updatedAt: '2026-09-25T12:00:00Z',
+    );
+
+    final controller = UpdateController(apiClient: mockApiClient);
+    await controller.init();
+
+    expect(controller.isReloadRequired, isTrue);
+    expect(controller.chipState, equals(UpdateChipState.reloadRequired));
+
+    // Calling reloadNow clears terminal status on backend and reconciles state
+    await controller.reloadNow();
+    expect(mockApiClient.clearUpdateStatusCallCount, equals(1));
+    expect(controller.isReloadRequired, isFalse);
+    expect(controller.chipState, equals(UpdateChipState.idle));
+
+    controller.dispose();
     UpdateController.reset();
   });
 

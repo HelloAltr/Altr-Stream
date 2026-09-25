@@ -151,7 +151,7 @@ async def test_update_check_with_channel_filter(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncClient, mock_updates_dir: Path):
     payload = {
-        "target_version": "0.13.5-alpha",
+        "target_version": "0.13.6-alpha",
         "channel": "alpha",
     }
     response = await client.post("/api/v1/updates/apply", json=payload)
@@ -159,7 +159,7 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     data = response.json()
 
     assert data["state"] == "requested"
-    assert data["target_version"] == "0.13.5-alpha"
+    assert data["target_version"] == "0.13.6-alpha"
     assert data["request_id"] is not None
 
     # Verify atomic update-request.json file exists on disk
@@ -175,7 +175,7 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     assert status_res.status_code == 200
     status_data = status_res.json()
     assert status_data["state"] == "requested"
-    assert status_data["target_version"] == "0.13.5-alpha"
+    assert status_data["target_version"] == "0.13.6-alpha"
 
 
 @pytest.mark.asyncio
@@ -216,6 +216,26 @@ async def test_update_service_direct_upgrade_0_13_3_to_0_13_4_alpha(mock_updates
     assert req.target_version == "0.13.4-alpha"
     assert req.current_version == "0.13.3-alpha"
     assert req.target_image == "ghcr.io/helloaltr/altr-stream:0.13.4-alpha"
+
+
+@pytest.mark.asyncio
+async def test_update_service_direct_upgrade_0_13_4_to_0_13_5_alpha(mock_updates_dir: Path):
+    import json
+    from altr_stream.domain.updates import UpdateRequest
+    # Node running 0.13.4-alpha updating to 0.13.5-alpha
+    svc = UpdateService(updates_dir=mock_updates_dir, current_version="0.13.4-alpha")
+    status = await svc.request_update("0.13.5-alpha")
+
+    assert status.state == UpdateStatusState.REQUESTED
+    assert status.target_version == "0.13.5-alpha"
+    assert status.current_version == "0.13.4-alpha"
+
+    # Verify written IPC request payload
+    req_data = json.loads((mock_updates_dir / "update-request.json").read_text(encoding="utf-8"))
+    req = UpdateRequest.from_dict(req_data)
+    assert req.target_version == "0.13.5-alpha"
+    assert req.current_version == "0.13.4-alpha"
+    assert req.target_image == "ghcr.io/helloaltr/altr-stream:0.13.5-alpha"
 
 
 @pytest.mark.asyncio
@@ -344,12 +364,12 @@ async def test_api_status_normalizes_stale_failure_to_idle(
     status_file = mock_updates_dir / "update-status.json"
     status_file.write_text(json.dumps(stale_payload), encoding="utf-8")
 
-    # Query API (test app runs 0.13.4-alpha)
+    # Query API (test app runs 0.13.5-alpha)
     res = await client.get("/api/v1/updates/status")
     assert res.status_code == 200
     data = res.json()
     assert data["state"] == "idle"
-    assert data["current_version"] == "0.13.4-alpha"
+    assert data["current_version"] == "0.13.5-alpha"
     assert data["target_version"] is None
     assert data["error"] is None
 
@@ -559,5 +579,59 @@ async def test_api_check_returns_check_available_false_on_rate_limit(mock_update
         assert data["error_code"] == "github_rate_limited"
         assert data["retry_after"] == 60
         assert "rate limited" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_api_clear_terminal_status_success(mock_updates_dir: Path):
+    test_app = FastAPI()
+    test_app.include_router(api_v1_router)
+
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.4-alpha",
+    )
+    test_app.dependency_overrides[get_update_service] = lambda: svc
+
+    # Seed terminal completed status
+    status_file = mock_updates_dir / "update-status.json"
+    status_file.write_text(
+        '{"request_id": "r1", "state": "completed", "current_version": "0.13.4-alpha", "progress_percent": 100, "message": "Done"}'
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://testserver") as ac:
+        res = await ac.post("/api/v1/updates/clear")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["state"] == "idle"
+        assert data["current_version"] == "0.13.4-alpha"
+        assert data["progress_percent"] == 0
+
+        # Verify status on disk was updated to idle
+        status_res = await ac.get("/api/v1/updates/status")
+        assert status_res.status_code == 200
+        assert status_res.json()["state"] == "idle"
+
+
+@pytest.mark.asyncio
+async def test_api_clear_active_status_rejected(mock_updates_dir: Path):
+    test_app = FastAPI()
+    test_app.include_router(api_v1_router)
+
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.3-alpha",
+    )
+    test_app.dependency_overrides[get_update_service] = lambda: svc
+
+    # Seed active staging status
+    status_file = mock_updates_dir / "update-status.json"
+    status_file.write_text(
+        '{"request_id": "r2", "state": "staging", "current_version": "0.13.3-alpha", "target_version": "0.13.4-alpha", "progress_percent": 35, "message": "Pulling"}'
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://testserver") as ac:
+        res = await ac.post("/api/v1/updates/clear")
+        assert res.status_code == 400
+        assert "Cannot clear active update status" in res.json()["detail"]
 
 

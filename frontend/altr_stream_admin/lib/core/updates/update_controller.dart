@@ -42,9 +42,8 @@ class UpdateController extends ChangeNotifier {
   bool _isChecking = false;
   bool _isStartingUpdate = false;
   String? _checkError;
-  int? _reloadCountdown;
+  bool _reloadRequired = false;
   Timer? _pollTimer;
-  Timer? _countdownTimer;
   bool _initialized = false;
   int _consecutivePollErrors = 0;
   static const int maxConsecutivePollErrors = 30; // 60s of complete container restart
@@ -57,7 +56,7 @@ class UpdateController extends ChangeNotifier {
   bool get isChecking => _isChecking;
   bool get isStartingUpdate => _isStartingUpdate;
   String? get checkError => _checkError;
-  int? get reloadCountdown => _reloadCountdown;
+  bool get isReloadRequired => _reloadRequired || isCompleted;
 
   String get state => _currentStatus?.state.toLowerCase() ?? 'idle';
   bool get isIdle => state == 'idle';
@@ -140,6 +139,7 @@ class UpdateController extends ChangeNotifier {
     _checkError = null;
     if (_currentStatus != null && _currentStatus!.isFailed) {
       _currentStatus = null;
+      clearTerminalStatus();
     }
     notifyListeners();
   }
@@ -163,8 +163,10 @@ class UpdateController extends ChangeNotifier {
       } else {
         _isStartingUpdate = false;
         _stopPolling();
-        if (status.isCompleted && _reloadCountdown == null) {
-          startReloadCountdown();
+        if (status.isCompleted) {
+          _reloadRequired = true;
+        } else {
+          _reloadRequired = false;
         }
       }
       notifyListeners();
@@ -233,8 +235,10 @@ class UpdateController extends ChangeNotifier {
 
         if (!status.isActive) {
           _stopPolling();
-          if (status.isCompleted && _reloadCountdown == null) {
-            startReloadCountdown();
+          if (status.isCompleted) {
+            _reloadRequired = true;
+          } else {
+            _reloadRequired = false;
           }
         }
         notifyListeners();
@@ -256,38 +260,35 @@ class UpdateController extends ChangeNotifier {
     _pollTimer = null;
   }
 
-  void startReloadCountdown({int seconds = 5}) {
-    _countdownTimer?.cancel();
-    _reloadCountdown = seconds;
-    notifyListeners();
-
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_reloadCountdown != null && _reloadCountdown! > 1) {
-        _reloadCountdown = _reloadCountdown! - 1;
-        notifyListeners();
-      } else {
-        timer.cancel();
-        _reloadCountdown = null;
-        notifyListeners();
-        reloadNow();
+  Future<void> clearTerminalStatus() async {
+    try {
+      final status = await apiClient.clearUpdateStatus();
+      _currentStatus = status;
+    } catch (_) {
+      // Local fallback reset
+      if (_currentStatus != null && _currentStatus!.isCompleted) {
+        _currentStatus = UpdateStatusResponse(
+          state: 'idle',
+          currentVersion: _currentStatus!.currentVersion,
+          progressPercent: 0,
+          message: 'System is up to date.',
+          updatedAt: DateTime.now().toUtc().toIso8601String(),
+        );
       }
-    });
+    } finally {
+      _reloadRequired = false;
+      notifyListeners();
+    }
   }
 
-  void cancelReloadCountdown() {
-    _countdownTimer?.cancel();
-    _reloadCountdown = null;
-    notifyListeners();
-  }
-
-  void reloadNow() {
+  Future<void> reloadNow() async {
+    await clearTerminalStatus();
     PlatformReload.reload();
   }
 
   @override
   void dispose() {
     _stopPolling();
-    _countdownTimer?.cancel();
     super.dispose();
   }
 }

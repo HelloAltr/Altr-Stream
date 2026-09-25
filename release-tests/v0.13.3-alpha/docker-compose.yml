@@ -1,3 +1,5 @@
+name: altr-stream-release-test
+
 services:
   altr-stream-test:
     image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:0.13.3-alpha}

@@ -174,6 +174,8 @@ class HostDockerClient(DockerClientInterface):
             "compose",
             "-f",
             str(compose_file),
+            "--project-directory",
+            str(compose_file.parent),
             "images",
             "--format",
             "json",
@@ -248,22 +250,41 @@ class HostDockerClient(DockerClientInterface):
             "compose",
             "-f",
             str(compose_file),
+            "--project-directory",
+            str(compose_file.parent),
             "up",
             "-d",
             "--no-deps",
             service_name,
         ]
-        try:
-            res = subprocess.run(
-                cmd,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(f"docker compose up timed out after {timeout}s") from exc
-        if res.returncode != 0:
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                res = subprocess.run(
+                    cmd,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(f"docker compose up timed out after {timeout}s") from exc
+
+            if res.returncode == 0:
+                return
+
+            err_lower = res.stderr.lower()
+            transient_triggers = ("already in progress", "is being removed", "no such container")
+            if attempt < max_attempts and any(trigger in err_lower for trigger in transient_triggers):
+                logger.warning(
+                    "Docker container recreate race detected (%s) (attempt %d/%d). Retrying in 2 seconds...",
+                    res.stderr.strip(),
+                    attempt,
+                    max_attempts,
+                )
+                time.sleep(2.0)
+                continue
+
             raise RuntimeError(f"docker compose up failed ({res.returncode}): {res.stderr.strip()}")
 
     def copy_from_container(

@@ -1883,7 +1883,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Your local node has been updated to v${c.targetVersion ?? ""}.',
+                    'Your local node has been updated to v${c.targetVersion ?? c.currentStatus?.currentVersion ?? ""}.',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                   ),
                 ),
@@ -1891,23 +1891,13 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              c.reloadCountdown != null
-                  ? 'Reloading application in ${c.reloadCountdown}s to activate the new version...'
-                  : 'Reload the application to activate new version features and assets.',
+              'A new version is ready. Reload when you\'re ready to activate it.',
               style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (c.reloadCountdown != null)
-                  M3EButton(
-                    style: M3EButtonStyle.text,
-                    size: M3EButtonSize.sm,
-                    onPressed: () => c.cancelReloadCountdown(),
-                    child: const Text('Stay on page'),
-                  ),
-                const SizedBox(width: 8),
                 M3EButton(
                   onPressed: () => c.reloadNow(),
                   size: M3EButtonSize.sm,

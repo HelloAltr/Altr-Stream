@@ -859,6 +859,13 @@ class ApiClient {
     final data = _processResponse(response);
     return UpdateStatusResponse.fromJson(Map<String, dynamic>.from(data as Map));
   }
+
+  Future<UpdateStatusResponse> clearUpdateStatus() async {
+    final url = _uri('/updates/clear');
+    final response = await _client.post(url, headers: _headers);
+    final data = _processResponse(response);
+    return UpdateStatusResponse.fromJson(Map<String, dynamic>.from(data as Map));
+  }
 }
 
 
