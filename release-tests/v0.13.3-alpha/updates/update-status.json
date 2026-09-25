@@ -1,0 +1,11 @@
+{
+  "request_id": "9a93b163-b934-45d6-bcc7-592a918efddc",
+  "state": "completed",
+  "current_version": "0.13.4-alpha",
+  "target_version": "0.13.4-alpha",
+  "progress_percent": 100,
+  "message": "Update to 0.13.4-alpha completed successfully.",
+  "error": null,
+  "rollback_performed": false,
+  "updated_at": "2026-09-25T12:10:37.628214+00:00"
+}

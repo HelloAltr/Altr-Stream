@@ -78,7 +78,10 @@ class UpdateController extends ChangeNotifier {
       isRollingBack ||
       _isStartingUpdate;
 
+  bool get isCheckAvailable => _latestCheck?.checkAvailable ?? true;
+
   bool get isUpdateAvailable =>
+      _latestCheck?.checkAvailable == true &&
       _latestCheck?.updateAvailable == true &&
       !isActive &&
       !isCompleted &&
@@ -184,6 +187,9 @@ class UpdateController extends ChangeNotifier {
         forceRefresh: forceRefresh,
       );
       _latestCheck = checkRes;
+      if (!checkRes.checkAvailable) {
+        _checkError = checkRes.message ?? 'Unable to check for updates right now.';
+      }
     } catch (e) {
       _checkError = 'Update check failed: $e';
     } finally {

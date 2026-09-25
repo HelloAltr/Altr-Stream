@@ -353,3 +353,211 @@ async def test_api_status_normalizes_stale_failure_to_idle(
     assert data["target_version"] is None
     assert data["error"] is None
 
+
+@pytest.mark.asyncio
+async def test_update_check_github_200_no_newer_release(mock_updates_dir: Path):
+    from httpx import MockTransport
+
+    # Running 1.0.0, available releases only up to 1.0.0
+    releases_payload = [
+        {"tag_name": "v0.13.4-alpha", "name": "0.13.4", "prerelease": True, "published_at": "2026-09-24T00:00:00Z"},
+        {"tag_name": "v1.0.0", "name": "1.0.0", "prerelease": False, "published_at": "2026-09-25T00:00:00Z"},
+    ]
+
+    mock_client = AsyncClient(
+        transport=MockTransport(lambda req: Response(200, json=releases_payload))
+    )
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="1.0.0",
+        http_client=mock_client,
+    )
+    plan = await svc.check_for_updates()
+    assert plan.check_available is True
+    assert plan.update_available is False
+    assert plan.target_version is None
+    assert plan.error_code is None
+
+
+@pytest.mark.asyncio
+async def test_update_check_github_403_rate_limited(mock_updates_dir: Path):
+    import time
+    from httpx import MockTransport
+
+    reset_time = int(time.time()) + 1800  # 30 mins in future
+    headers = {
+        "x-ratelimit-remaining": "0",
+        "x-ratelimit-reset": str(reset_time),
+    }
+
+    mock_client = AsyncClient(
+        transport=MockTransport(
+            lambda req: Response(403, headers=headers, json={"message": "API rate limit exceeded"})
+        )
+    )
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.3-alpha",
+        http_client=mock_client,
+    )
+    plan = await svc.check_for_updates()
+    assert plan.check_available is False
+    assert plan.update_available is False
+    assert plan.error_code == "github_rate_limited"
+    assert "rate limited" in plan.message
+    assert plan.retry_after is not None
+    assert plan.retry_after > 0
+
+
+@pytest.mark.asyncio
+async def test_update_check_github_429_rate_limited(mock_updates_dir: Path):
+    from httpx import MockTransport
+
+    headers = {"retry-after": "120"}
+    mock_client = AsyncClient(
+        transport=MockTransport(
+            lambda req: Response(429, headers=headers, json={"message": "Too many requests"})
+        )
+    )
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.3-alpha",
+        http_client=mock_client,
+    )
+    plan = await svc.check_for_updates()
+    assert plan.check_available is False
+    assert plan.update_available is False
+    assert plan.error_code == "github_rate_limited"
+    assert plan.retry_after == 120
+
+
+@pytest.mark.asyncio
+async def test_update_check_network_timeout(mock_updates_dir: Path):
+    import httpx
+    from httpx import MockTransport
+
+    def timeout_handler(req):
+        raise httpx.ReadTimeout("Connection timed out")
+
+    mock_client = AsyncClient(transport=MockTransport(timeout_handler))
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.3-alpha",
+        http_client=mock_client,
+    )
+    plan = await svc.check_for_updates()
+    assert plan.check_available is False
+    assert plan.update_available is False
+    assert plan.error_code == "network_timeout"
+    assert "timed out" in plan.message
+
+
+@pytest.mark.asyncio
+async def test_update_check_github_500_unavailable(mock_updates_dir: Path):
+    from httpx import MockTransport
+
+    mock_client = AsyncClient(
+        transport=MockTransport(lambda req: Response(500, text="Internal Server Error"))
+    )
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.3-alpha",
+        http_client=mock_client,
+    )
+    plan = await svc.check_for_updates()
+    assert plan.check_available is False
+    assert plan.update_available is False
+    assert plan.error_code == "github_api_unavailable"
+    assert "500" in plan.message
+
+
+@pytest.mark.asyncio
+async def test_update_check_unexpected_json(mock_updates_dir: Path):
+    from httpx import MockTransport
+
+    # Non-list response
+    mock_client = AsyncClient(
+        transport=MockTransport(lambda req: Response(200, json={"error": "bad format"}))
+    )
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.3-alpha",
+        http_client=mock_client,
+    )
+    plan = await svc.check_for_updates()
+    assert plan.check_available is False
+    assert plan.update_available is False
+    assert plan.error_code == "github_api_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_update_service_caching_behavior(mock_updates_dir: Path):
+    from httpx import MockTransport
+
+    call_count = 0
+
+    def counting_handler(req):
+        nonlocal call_count
+        call_count += 1
+        return Response(200, json=[
+            {"tag_name": "v0.13.5-alpha", "name": "0.13.5", "prerelease": True, "published_at": "2026-09-25T00:00:00Z"}
+        ])
+
+    mock_client = AsyncClient(transport=MockTransport(counting_handler))
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.3-alpha",
+        http_client=mock_client,
+        cache_ttl_sec=60.0,
+    )
+
+    # First check: live fetch
+    res1 = await svc.fetch_releases_result()
+    assert res1.is_cached is False
+    assert len(res1.releases) == 1
+    assert call_count == 1
+
+    # Second check: within TTL -> cached
+    res2 = await svc.fetch_releases_result()
+    assert res2.is_cached is True
+    assert len(res2.releases) == 1
+    assert call_count == 1  # No additional network call
+
+    # Force refresh -> live fetch
+    res3 = await svc.fetch_releases_result(force_refresh=True)
+    assert res3.is_cached is False
+    assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_api_check_returns_check_available_false_on_rate_limit(mock_updates_dir: Path):
+    from httpx import MockTransport
+    from altr_stream.presentation.api.router import api_v1_router
+
+    test_app = FastAPI()
+    test_app.include_router(api_v1_router)
+
+    headers = {"retry-after": "60"}
+    mock_client = AsyncClient(
+        transport=MockTransport(
+            lambda req: Response(403, headers=headers, json={"message": "rate limit exceeded"})
+        )
+    )
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="0.13.3-alpha",
+        http_client=mock_client,
+    )
+    test_app.dependency_overrides[get_update_service] = lambda: svc
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://testserver") as ac:
+        res = await ac.get("/api/v1/updates/check")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["check_available"] is False
+        assert data["update_available"] is False
+        assert data["error_code"] == "github_rate_limited"
+        assert data["retry_after"] == 60
+        assert "rate limited" in data["message"]
+
+

@@ -19,6 +19,8 @@ from altr_stream.domain.semver import (
     UpgradePlan,
 )
 from altr_stream.domain.updates import (
+    ReleaseFetchResult,
+    ReleaseFetchStatus,
     UpdateRequest,
     UpdateStatus,
     UpdateStatusState,
@@ -85,15 +87,19 @@ class UpdateService:
                 except OSError:
                     pass
 
-    async def fetch_releases(self, force_refresh: bool = False) -> list[ReleaseInfo]:
-        """Fetch releases from GitHub API with caching and error handling."""
+    async def fetch_releases_result(self, force_refresh: bool = False) -> ReleaseFetchResult:
+        """Fetch releases from GitHub API with caching, rate limit header inspection, and explicit status."""
         now = datetime.now(timezone.utc).timestamp()
         if (
             not force_refresh
             and self._cached_releases is not None
             and (now - self._cache_timestamp) < self.cache_ttl_sec
         ):
-            return self._cached_releases
+            return ReleaseFetchResult(
+                status=ReleaseFetchStatus.SUCCESS,
+                releases=self._cached_releases,
+                is_cached=True,
+            )
 
         url = f"https://api.github.com/repos/{self.github_repo}/releases"
         headers = {
@@ -110,6 +116,14 @@ class UpdateService:
 
             if response.status_code == 200:
                 raw_data = response.json()
+                if not isinstance(raw_data, list):
+                    logger.warning("GitHub Releases API returned non-list JSON.")
+                    return ReleaseFetchResult(
+                        status=ReleaseFetchStatus.UNAVAILABLE,
+                        releases=[],
+                        error_code="github_api_unavailable",
+                        message="Unable to check for updates: GitHub API returned unexpected format.",
+                    )
                 releases: list[ReleaseInfo] = []
                 for item in raw_data:
                     tag = item.get("tag_name", "")
@@ -129,32 +143,129 @@ class UpdateService:
 
                 self._cached_releases = releases
                 self._cache_timestamp = now
-                return releases
-
-            if response.status_code in (403, 429):
-                logger.warning("GitHub Releases API rate limited (HTTP %d).", response.status_code)
-            else:
-                logger.warning(
-                    "GitHub Releases API returned unexpected status %d.", response.status_code
+                return ReleaseFetchResult(
+                    status=ReleaseFetchStatus.SUCCESS,
+                    releases=releases,
+                    is_cached=False,
                 )
 
+            if response.status_code in (403, 429):
+                retry_after_hdr = response.headers.get("retry-after")
+                reset_hdr = response.headers.get("x-ratelimit-reset")
+                retry_after_sec: int | None = None
+                if retry_after_hdr and retry_after_hdr.strip().isdigit():
+                    retry_after_sec = int(retry_after_hdr.strip())
+                elif reset_hdr and reset_hdr.strip().isdigit():
+                    reset_epoch = int(reset_hdr.strip())
+                    retry_after_sec = max(1, reset_epoch - int(now))
+
+                logger.warning(
+                    "GitHub Releases API rate limited (HTTP %d). Retry-after: %s sec.",
+                    response.status_code,
+                    retry_after_sec,
+                )
+                msg = "Unable to check for updates right now because GitHub Releases API is temporarily rate limited."
+                if retry_after_sec:
+                    msg += f" Please try again in {retry_after_sec} seconds."
+
+                return ReleaseFetchResult(
+                    status=ReleaseFetchStatus.RATE_LIMITED,
+                    releases=[],
+                    error_code="github_rate_limited",
+                    message=msg,
+                    retry_after=retry_after_sec,
+                )
+
+            logger.warning(
+                "GitHub Releases API returned unexpected status %d.", response.status_code
+            )
+            return ReleaseFetchResult(
+                status=ReleaseFetchStatus.UNAVAILABLE,
+                releases=[],
+                error_code="github_api_unavailable",
+                message=f"Unable to check for updates: GitHub API returned status {response.status_code}.",
+            )
+
+        except httpx.TimeoutException as exc:
+            logger.warning("GitHub Releases API request timed out: %s", exc)
+            return ReleaseFetchResult(
+                status=ReleaseFetchStatus.UNAVAILABLE,
+                releases=[],
+                error_code="network_timeout",
+                message="Unable to check for updates: connection to GitHub timed out.",
+            )
         except Exception as exc:
             logger.warning("Failed to fetch GitHub releases: %s", exc)
+            return ReleaseFetchResult(
+                status=ReleaseFetchStatus.UNAVAILABLE,
+                releases=[],
+                error_code="network_error",
+                message="Unable to check for updates due to a network error.",
+            )
 
-        # Return cached releases if available on error, otherwise empty list
-        return self._cached_releases or []
+    async def fetch_releases(self, force_refresh: bool = False) -> list[ReleaseInfo]:
+        """Fetch releases from GitHub API with caching, returning release list."""
+        res = await self.fetch_releases_result(force_refresh=force_refresh)
+        return res.releases
 
     async def check_for_updates(
         self,
         channel: ReleaseChannel | None = None,
         force_refresh: bool = False,
     ) -> UpgradePlan:
-        """Resolve direct upgrade plan against official GitHub releases."""
-        releases = await self.fetch_releases(force_refresh=force_refresh)
-        return DirectUpgradeResolver.resolve_direct_upgrade(
+        """Resolve direct upgrade plan against official GitHub releases with explicit discovery status."""
+        fetch_releases_func = getattr(self, "fetch_releases", None)
+        if fetch_releases_func and getattr(fetch_releases_func, "__func__", None) != UpdateService.fetch_releases:
+            mocked_res = await fetch_releases_func(force_refresh=force_refresh)
+            if isinstance(mocked_res, list):
+                plan = DirectUpgradeResolver.resolve_direct_upgrade(
+                    current_version=self.current_semver,
+                    available_releases=mocked_res,
+                    channel=channel,
+                )
+                return UpgradePlan(
+                    current_version=plan.current_version,
+                    target_version=plan.target_version,
+                    update_available=plan.update_available,
+                    channel=plan.channel,
+                    target_release=plan.target_release,
+                    all_releases=plan.all_releases,
+                    check_available=True,
+                )
+
+        fetch_res = await self.fetch_releases_result(force_refresh=force_refresh)
+        if fetch_res.status == ReleaseFetchStatus.SUCCESS:
+            plan = DirectUpgradeResolver.resolve_direct_upgrade(
+                current_version=self.current_semver,
+                available_releases=fetch_res.releases,
+                channel=channel,
+            )
+            return UpgradePlan(
+                current_version=plan.current_version,
+                target_version=plan.target_version,
+                update_available=plan.update_available,
+                channel=plan.channel,
+                target_release=plan.target_release,
+                all_releases=plan.all_releases,
+                check_available=True,
+                error_code=None,
+                message=None,
+                retry_after=None,
+            )
+
+        # Discovery failed (rate limited or unavailable)
+        target_channel = channel or self.current_semver.channel
+        return UpgradePlan(
             current_version=self.current_semver,
-            available_releases=releases,
-            channel=channel,
+            target_version=None,
+            update_available=False,
+            channel=target_channel,
+            target_release=None,
+            all_releases=[],
+            check_available=False,
+            error_code=fetch_res.error_code,
+            message=fetch_res.message,
+            retry_after=fetch_res.retry_after,
         )
 
     async def request_update(

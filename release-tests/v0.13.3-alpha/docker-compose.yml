@@ -1,0 +1,32 @@
+services:
+  altr-stream-test:
+    image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:0.13.3-alpha}
+    container_name: altr-stream-release-test
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      - ALTR_STREAM_HOST=0.0.0.0
+      - ALTR_STREAM_PORT=8000
+      - ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:////app/data/altr_stream.db
+      - ALTR_STREAM_STATIC_DIR=/app/static
+      - ALTR_STREAM_DEBUG=false
+    volumes:
+      - altr_stream_release_test_data:/app/data
+      - ./updates:/app/data/updates
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - altr-stream-test-net
+
+volumes:
+  altr_stream_release_test_data:
+    driver: local
+
+networks:
+  altr-stream-test-net:
+    driver: bridge

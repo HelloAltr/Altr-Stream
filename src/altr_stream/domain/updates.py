@@ -9,6 +9,26 @@ from typing import Any
 import uuid
 
 
+class ReleaseFetchStatus(str, Enum):
+    """Status of external distribution release discovery fetch."""
+
+    SUCCESS = "success"
+    RATE_LIMITED = "rate_limited"
+    UNAVAILABLE = "unavailable"
+
+
+@dataclass
+class ReleaseFetchResult:
+    """Result of fetching releases from external distribution source."""
+
+    status: ReleaseFetchStatus
+    releases: list[Any] = field(default_factory=list)
+    error_code: str | None = None
+    message: str | None = None
+    retry_after: int | None = None
+    is_cached: bool = False
+
+
 class UpdateStatusState(str, Enum):
     """Lifecycle state machine for update execution."""
 

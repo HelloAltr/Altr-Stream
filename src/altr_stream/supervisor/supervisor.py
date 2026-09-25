@@ -41,37 +41,62 @@ ALLOWED_IMAGE_PREFIXES = (
 class DockerClientInterface:
     """Interface for host Docker engine interactions."""
 
-    def pull_image(self, image: str) -> None:
+    def pull_image(self, image: str, timeout_sec: int | None = None) -> None:
         raise NotImplementedError
 
-    def image_exists_locally(self, image: str) -> bool:
+    def image_exists_locally(self, image: str, timeout_sec: int | None = None) -> bool:
         """Check if image exists in host Docker local cache."""
         return False
 
-    def get_current_image(self, compose_file: Path, service_name: str) -> str:
+    def get_current_image(self, compose_file: Path, service_name: str, timeout_sec: int | None = None) -> str:
         raise NotImplementedError
 
-    def recreate_service(self, compose_file: Path, service_name: str, image: str) -> None:
+    def recreate_service(
+        self, compose_file: Path, service_name: str, image: str, timeout_sec: int | None = None
+    ) -> None:
         raise NotImplementedError
 
-    def copy_from_container(self, service_name: str, container_path: str, host_path: Path) -> bool:
+    def copy_from_container(
+        self, service_name: str, container_path: str, host_path: Path, timeout_sec: int | None = None
+    ) -> bool:
         """Copy file or directory from container to host. Returns True on success, False if absent/failed."""
         return False
 
-    def copy_to_container(self, service_name: str, host_path: Path, container_path: str) -> bool:
+    def copy_to_container(
+        self, service_name: str, host_path: Path, container_path: str, timeout_sec: int | None = None
+    ) -> bool:
         """Copy file or directory from host to container. Returns True on success, False on failure."""
         return False
 
-    def remove_in_container(self, service_name: str, container_path: str) -> bool:
+    def remove_in_container(
+        self, service_name: str, container_path: str, timeout_sec: int | None = None
+    ) -> bool:
         """Remove file or directory inside container. Returns True on success, False on failure."""
         return False
 
 
 class HostDockerClient(DockerClientInterface):
-    """Executes Docker CLI commands on the host."""
+    """Executes Docker CLI commands on the host with explicit timeout boundaries."""
 
-    def __init__(self, docker_bin: str | None = None) -> None:
+    def __init__(
+        self,
+        docker_bin: str | None = None,
+        pull_timeout_sec: int | None = None,
+        compose_timeout_sec: int | None = None,
+        default_timeout_sec: int = 30,
+    ) -> None:
         self.docker_bin = docker_bin or self._find_docker()
+        self.pull_timeout_sec = (
+            pull_timeout_sec
+            if pull_timeout_sec is not None
+            else int(os.environ.get("ALTR_SUPERVISOR_PULL_TIMEOUT_SEC", "1800"))
+        )
+        self.compose_timeout_sec = (
+            compose_timeout_sec
+            if compose_timeout_sec is not None
+            else int(os.environ.get("ALTR_SUPERVISOR_COMPOSE_TIMEOUT_SEC", "120"))
+        )
+        self.default_timeout_sec = default_timeout_sec
 
     @staticmethod
     def _find_docker() -> str:
@@ -107,19 +132,43 @@ class HostDockerClient(DockerClientInterface):
         env["PATH"] = current_path
         return env
 
-    def image_exists_locally(self, image: str) -> bool:
+    def image_exists_locally(self, image: str, timeout_sec: int | None = None) -> bool:
         cmd = [self.docker_bin, "image", "inspect", image]
-        res = subprocess.run(cmd, env=self._get_env(), capture_output=True, text=True)
-        return res.returncode == 0
+        timeout = timeout_sec or self.default_timeout_sec
+        try:
+            res = subprocess.run(
+                cmd,
+                env=self._get_env(),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            return res.returncode == 0
+        except subprocess.TimeoutExpired:
+            logger.warning("docker image inspect timed out after %ss for %s", timeout, image)
+            return False
 
-    def pull_image(self, image: str) -> None:
-        logger.info("Pulling container image: %s", image)
+    def pull_image(self, image: str, timeout_sec: int | None = None) -> None:
+        timeout = timeout_sec or self.pull_timeout_sec
+        logger.info("Pulling container image: %s (timeout: %ss)", image, timeout)
         cmd = [self.docker_bin, "pull", image]
-        res = subprocess.run(cmd, env=self._get_env(), capture_output=True, text=True)
+        try:
+            res = subprocess.run(
+                cmd,
+                env=self._get_env(),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"docker pull timed out after {timeout}s for image {image}") from exc
         if res.returncode != 0:
             raise RuntimeError(f"docker pull failed ({res.returncode}): {res.stderr.strip()}")
 
-    def get_current_image(self, compose_file: Path, service_name: str) -> str:
+    def get_current_image(
+        self, compose_file: Path, service_name: str, timeout_sec: int | None = None
+    ) -> str:
+        timeout = timeout_sec or self.default_timeout_sec
         cmd = [
             self.docker_bin,
             "compose",
@@ -130,22 +179,31 @@ class HostDockerClient(DockerClientInterface):
             "json",
             service_name,
         ]
-        res = subprocess.run(cmd, env=self._get_env(), capture_output=True, text=True)
-        if res.returncode == 0 and res.stdout.strip():
-            try:
-                parsed = json.loads(res.stdout.strip())
-                item: dict[str, Any] = {}
-                if isinstance(parsed, list) and parsed:
-                    item = parsed[0] if isinstance(parsed[0], dict) else {}
-                elif isinstance(parsed, dict):
-                    item = parsed
+        try:
+            res = subprocess.run(
+                cmd,
+                env=self._get_env(),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                try:
+                    parsed = json.loads(res.stdout.strip())
+                    item: dict[str, Any] = {}
+                    if isinstance(parsed, list) and parsed:
+                        item = parsed[0] if isinstance(parsed[0], dict) else {}
+                    elif isinstance(parsed, dict):
+                        item = parsed
 
-                repo = item.get("Repository") or item.get("repository")
-                tag = item.get("Tag") or item.get("tag")
-                if repo and tag:
-                    return f"{repo}:{tag}"
-            except Exception as exc:
-                logger.warning("Failed to parse docker compose images output: %s", exc)
+                    repo = item.get("Repository") or item.get("repository")
+                    tag = item.get("Tag") or item.get("tag")
+                    if repo and tag:
+                        return f"{repo}:{tag}"
+                except Exception as exc:
+                    logger.warning("Failed to parse docker compose images output: %s", exc)
+        except subprocess.TimeoutExpired:
+            logger.warning("docker compose images timed out after %ss", timeout)
 
         # Fallback to inspect running container
         inspect_cmd = [
@@ -155,14 +213,31 @@ class HostDockerClient(DockerClientInterface):
             "{{.Config.Image}}",
             service_name,
         ]
-        res_inspect = subprocess.run(inspect_cmd, env=self._get_env(), capture_output=True, text=True)
-        if res_inspect.returncode == 0 and res_inspect.stdout.strip():
-            return res_inspect.stdout.strip()
+        try:
+            res_inspect = subprocess.run(
+                inspect_cmd,
+                env=self._get_env(),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            if res_inspect.returncode == 0 and res_inspect.stdout.strip():
+                return res_inspect.stdout.strip()
+        except subprocess.TimeoutExpired:
+            logger.warning("docker inspect timed out after %ss", timeout)
 
         return ""
 
-    def recreate_service(self, compose_file: Path, service_name: str, image: str) -> None:
-        logger.info("Recreating service '%s' with image: %s", service_name, image)
+    def recreate_service(
+        self, compose_file: Path, service_name: str, image: str, timeout_sec: int | None = None
+    ) -> None:
+        timeout = timeout_sec or self.compose_timeout_sec
+        logger.info(
+            "Recreating service '%s' with image: %s (timeout: %ss)",
+            service_name,
+            image,
+            timeout,
+        )
         env = self._get_env()
         env["ALTR_STREAM_IMAGE"] = image
         env.pop("ALTR_STREAM_APP_VERSION", None)
@@ -178,25 +253,73 @@ class HostDockerClient(DockerClientInterface):
             "--no-deps",
             service_name,
         ]
-        res = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        try:
+            res = subprocess.run(
+                cmd,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"docker compose up timed out after {timeout}s") from exc
         if res.returncode != 0:
             raise RuntimeError(f"docker compose up failed ({res.returncode}): {res.stderr.strip()}")
 
-    def copy_from_container(self, service_name: str, container_path: str, host_path: Path) -> bool:
+    def copy_from_container(
+        self, service_name: str, container_path: str, host_path: Path, timeout_sec: int | None = None
+    ) -> bool:
+        timeout = timeout_sec or self.default_timeout_sec
         host_path.parent.mkdir(parents=True, exist_ok=True)
         cmd = [self.docker_bin, "cp", f"{service_name}:{container_path}", str(host_path)]
-        res = subprocess.run(cmd, env=self._get_env(), capture_output=True, text=True)
-        return res.returncode == 0
+        try:
+            res = subprocess.run(
+                cmd,
+                env=self._get_env(),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            return res.returncode == 0
+        except subprocess.TimeoutExpired:
+            logger.warning("docker cp from container timed out after %ss", timeout)
+            return False
 
-    def copy_to_container(self, service_name: str, host_path: Path, container_path: str) -> bool:
+    def copy_to_container(
+        self, service_name: str, host_path: Path, container_path: str, timeout_sec: int | None = None
+    ) -> bool:
+        timeout = timeout_sec or self.default_timeout_sec
         cmd = [self.docker_bin, "cp", str(host_path), f"{service_name}:{container_path}"]
-        res = subprocess.run(cmd, env=self._get_env(), capture_output=True, text=True)
-        return res.returncode == 0
+        try:
+            res = subprocess.run(
+                cmd,
+                env=self._get_env(),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            return res.returncode == 0
+        except subprocess.TimeoutExpired:
+            logger.warning("docker cp to container timed out after %ss", timeout)
+            return False
 
-    def remove_in_container(self, service_name: str, container_path: str) -> bool:
+    def remove_in_container(
+        self, service_name: str, container_path: str, timeout_sec: int | None = None
+    ) -> bool:
+        timeout = timeout_sec or self.default_timeout_sec
         cmd = [self.docker_bin, "exec", service_name, "rm", "-f", container_path]
-        res = subprocess.run(cmd, env=self._get_env(), capture_output=True, text=True)
-        return res.returncode == 0
+        try:
+            res = subprocess.run(
+                cmd,
+                env=self._get_env(),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            return res.returncode == 0
+        except subprocess.TimeoutExpired:
+            logger.warning("docker exec rm timed out after %ss", timeout)
+            return False
 
 
 class HealthCheckerInterface:
@@ -295,13 +418,19 @@ class AltrSupervisor:
         docker_client: DockerClientInterface | None = None,
         health_checker: HealthCheckerInterface | None = None,
         health_timeout_sec: int = 60,
+        pull_timeout_sec: int | None = None,
         allow_local_images: bool | None = None,
     ) -> None:
         self.updates_dir = updates_dir.resolve()
         self.compose_file = compose_file.resolve()
         self.service_name = service_name
         self.health_url = health_url
-        self.docker_client = docker_client or HostDockerClient()
+        self.pull_timeout_sec = (
+            pull_timeout_sec
+            if pull_timeout_sec is not None
+            else int(os.environ.get("ALTR_SUPERVISOR_PULL_TIMEOUT_SEC", "1800"))
+        )
+        self.docker_client = docker_client or HostDockerClient(pull_timeout_sec=self.pull_timeout_sec)
         self.health_checker = health_checker or HostHealthChecker()
         self.health_timeout_sec = health_timeout_sec
         if allow_local_images is not None:
@@ -510,14 +639,17 @@ class AltrSupervisor:
                 "current_version": current_version,
                 "target_version": target_version,
                 "progress_percent": 25,
-                "message": f"Pulling target image {target_image}...",
+                "message": f"Downloading target image {target_image} (this may take several minutes on slower connections)...",
                 "error": None,
                 "rollback_performed": False,
             }
         )
 
         try:
-            self.docker_client.pull_image(target_image)
+            try:
+                self.docker_client.pull_image(target_image, timeout_sec=self.pull_timeout_sec)
+            except TypeError:
+                self.docker_client.pull_image(target_image)
         except Exception as exc:
             if self.allow_local_images and self.docker_client.image_exists_locally(target_image):
                 logger.warning(
@@ -694,6 +826,67 @@ class AltrSupervisor:
         self._cleanup_request_file()
         return final_status
 
+    def reconcile_startup_state(self) -> dict[str, Any] | None:
+        """Detect and reconcile orphaned/dangling active workflows across supervisor restarts."""
+        if not self.status_file.is_file():
+            return None
+
+        try:
+            status_data = json.loads(self.status_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning("Failed to parse existing status file on startup: %s", exc)
+            return None
+
+        state = str(status_data.get("state", "")).lower()
+        if state in ("staging", "applying", "health_check", "rolling_back", "requested"):
+            request_id = status_data.get("request_id")
+            current_version = status_data.get("current_version", "unknown")
+            target_version = status_data.get("target_version")
+
+            live_version = self.get_live_node_version()
+            logger.warning(
+                "Supervisor startup detected orphaned active workflow '%s' in state '%s'. Live node version: %s",
+                request_id,
+                state,
+                live_version,
+            )
+
+            # Did node successfully reach target version despite the restart?
+            if (
+                live_version
+                and target_version
+                and SemVer.try_parse(live_version) is not None
+                and SemVer.try_parse(live_version) == SemVer.try_parse(target_version)
+            ):
+                reconciled = {
+                    "request_id": request_id,
+                    "state": "completed",
+                    "current_version": live_version,
+                    "target_version": target_version,
+                    "progress_percent": 100,
+                    "message": f"Service is running target version v{target_version}.",
+                    "error": None,
+                    "rollback_performed": False,
+                }
+            else:
+                actual_version = live_version or current_version
+                reconciled = {
+                    "request_id": request_id,
+                    "state": "failed",
+                    "current_version": actual_version,
+                    "target_version": target_version,
+                    "progress_percent": 0,
+                    "message": f"Update workflow interrupted by supervisor restart while in '{state}'.",
+                    "error": f"Supervisor was restarted during active state '{state}'. Node is running v{actual_version}.",
+                    "rollback_performed": False,
+                }
+
+            self._write_status_atomic(reconciled)
+            self._cleanup_request_file()
+            return reconciled
+
+        return None
+
     def run_loop(self, poll_interval: float = 2.0, once: bool = False) -> None:
         """Supervisor monitoring loop."""
         logger.info(
@@ -707,6 +900,9 @@ class AltrSupervisor:
                 pid_file.write_text(str(os.getpid()), encoding="utf-8")
             except OSError:
                 pass
+
+        # Reconcile any orphaned active status from an interrupted prior supervisor run
+        self.reconcile_startup_state()
 
         def _handle_term(signum: int, frame: Any) -> None:
             if not once and pid_file.is_file():
@@ -755,6 +951,7 @@ def start_daemon(
     service_name: str = "altr-stream",
     health_url: str = "http://localhost:8000/api/v1/health",
     health_timeout_sec: int = 60,
+    pull_timeout_sec: int = 300,
     poll_interval: float = 2.0,
     allow_local_images: bool | None = None,
 ) -> int:
@@ -789,6 +986,8 @@ def start_daemon(
         health_url,
         "--health-timeout",
         str(health_timeout_sec),
+        "--pull-timeout",
+        str(pull_timeout_sec),
         "--poll-interval",
         str(poll_interval),
     ]
@@ -922,6 +1121,12 @@ def main() -> None:
         help="Timeout in seconds for healthcheck",
     )
     parser.add_argument(
+        "--pull-timeout",
+        type=int,
+        default=int(os.environ.get("ALTR_SUPERVISOR_PULL_TIMEOUT_SEC", "1800")),
+        help="Timeout in seconds for pulling target image",
+    )
+    parser.add_argument(
         "--poll-interval",
         type=float,
         default=2.0,
@@ -949,6 +1154,7 @@ def main() -> None:
                 service_name=args.service_name,
                 health_url=args.health_url,
                 health_timeout_sec=args.health_timeout,
+                pull_timeout_sec=args.pull_timeout,
                 poll_interval=args.poll_interval,
                 allow_local_images=args.allow_local_images,
             )
@@ -966,6 +1172,7 @@ def main() -> None:
                 service_name=args.service_name,
                 health_url=args.health_url,
                 health_timeout_sec=args.health_timeout,
+                pull_timeout_sec=args.pull_timeout,
                 poll_interval=args.poll_interval,
                 allow_local_images=args.allow_local_images,
             )
@@ -982,6 +1189,7 @@ def main() -> None:
         service_name=args.service_name,
         health_url=args.health_url,
         health_timeout_sec=args.health_timeout,
+        pull_timeout_sec=args.pull_timeout,
         allow_local_images=args.allow_local_images,
     )
     supervisor.run_loop(poll_interval=args.poll_interval, once=args.once)

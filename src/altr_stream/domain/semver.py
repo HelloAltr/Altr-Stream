@@ -202,6 +202,10 @@ class UpgradePlan:
     channel: ReleaseChannel
     target_release: ReleaseInfo | None
     all_releases: list[ReleaseInfo]
+    check_available: bool = True
+    error_code: str | None = None
+    message: str | None = None
+    retry_after: int | None = None
 
 
 class DirectUpgradeResolver:

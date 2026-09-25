@@ -4564,6 +4564,68 @@ void main() {
     expect(find.text('Failed to check for updates: Not Found'), findsNothing);
   });
 
+  testWidgets('AppShell Version Info dialog displays rate limit warning and NOT up-to-date when check is unavailable', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(UpdateController.reset);
+    UpdateController.reset();
+
+    final mockApiClient = MockTestApiClient();
+    mockApiClient.updateCheckResponseToReturn = const UpdateCheckResponse(
+      currentVersion: '0.13.3-alpha',
+      latestVersion: null,
+      updateAvailable: false,
+      channel: 'alpha',
+      releaseName: null,
+      checkAvailable: false,
+      errorCode: 'github_rate_limited',
+      message: 'Unable to check for updates right now because GitHub Releases API is temporarily rate limited. Please try again in 1800 seconds.',
+      retryAfter: 1800,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: AppShell(
+          apiClient: mockApiClient,
+          activeRoute: '/',
+          onNavigate: (_) {},
+          child: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1. Open brand menu
+    await tester.tap(find.text('Altr Stream'));
+    await tester.pumpAndSettle();
+
+    // 2. Tap Check for updates in menu
+    await tester.tap(find.text('Check for updates'));
+    await tester.pumpAndSettle();
+
+    // 3. Tap Check for Updates inside dialog
+    await tester.tap(find.text('Check for Updates'));
+    await tester.pump();
+    expect(find.text('Checking...'), findsOneWidget);
+
+    // Complete async check call
+    await tester.pumpAndSettle();
+
+    // Verify rate-limited message is displayed
+    expect(
+      find.text('Unable to check for updates right now because GitHub Releases API is temporarily rate limited. Please try again in 1800 seconds.'),
+      findsOneWidget,
+    );
+
+    // Verify CRITICAL semantic requirement: NEVER claim up to date or latest
+    expect(find.text('Your local node is running the latest version.'), findsNothing);
+    expect(find.text('Your local node is on the latest version (v0.13.4-alpha).'), findsNothing);
+    expect(find.text('Update Now'), findsNothing);
+  });
+
   testWidgets('AppShell Version Info dialog restores active update when opened and survives closing/reopening', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;

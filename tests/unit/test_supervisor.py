@@ -8,6 +8,7 @@ from altr_stream.supervisor import (
     AltrSupervisor,
     DockerClientInterface,
     HealthCheckerInterface,
+    HostDockerClient,
 )
 
 
@@ -664,6 +665,225 @@ def test_supervisor_pull_fails_when_local_enabled_but_image_missing(updates_dir:
     assert result is not None
     assert result["state"] == "failed"
     assert result["message"] == "Failed to pull image."
+
+
+def test_host_docker_client_pull_image_timeout(monkeypatch):
+    import subprocess
+    from altr_stream.supervisor.supervisor import HostDockerClient
+
+    client = HostDockerClient(pull_timeout_sec=5)
+
+    def mock_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=["docker", "pull"], timeout=5)
+
+    monkeypatch.setattr(subprocess, "run", mock_run)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        client.pull_image("ghcr.io/helloaltr/altr-stream:0.13.4-alpha")
+
+    assert "docker pull timed out after 5s" in str(exc_info.value)
+
+
+def test_supervisor_staging_timeout_transitions_to_failed(updates_dir: Path, compose_file: Path):
+    """When docker pull times out, workflow must transition to failed (never stuck in staging)."""
+    docker_client = MockDockerClient(current_image="ghcr.io/helloaltr/altr-stream:0.13.3-alpha")
+
+    def timeout_pull(image, timeout_sec=None):
+        raise RuntimeError(f"docker pull timed out after {timeout_sec}s for image {image}")
+
+    docker_client.pull_image = timeout_pull
+    health_checker = MockHealthChecker(healthy=True)
+
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=docker_client,
+        health_checker=health_checker,
+        pull_timeout_sec=30,
+        allow_local_images=False,
+    )
+
+    req_file = updates_dir / "update-request.json"
+    req_file.write_text(json.dumps({
+        "request_id": "req-timeout-1",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    result = supervisor.process_pending_request()
+    assert result is not None
+    # Crucial: Must be marked failed with progress 0, not stuck in staging
+    assert result["state"] == "failed"
+    assert result["progress_percent"] == 0
+    assert "docker pull timed out after 30s" in result["error"]
+    # Request file must be cleaned up
+    assert not req_file.exists()
+
+
+def test_supervisor_staging_timeout_proceeds_with_local_image_if_allowed(updates_dir: Path, compose_file: Path):
+    """When docker pull times out, but image exists locally and allow_local_images is True, proceed to applying."""
+    docker_client = MockDockerClient(
+        current_image="ghcr.io/helloaltr/altr-stream:0.13.3-alpha",
+        local_images={"ghcr.io/helloaltr/altr-stream:0.13.4-alpha": True},
+    )
+
+    def timeout_pull(image, timeout_sec=None):
+        raise RuntimeError(f"docker pull timed out after {timeout_sec}s for image {image}")
+
+    docker_client.pull_image = timeout_pull
+    health_checker = MockHealthChecker(healthy=True)
+
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=docker_client,
+        health_checker=health_checker,
+        pull_timeout_sec=30,
+        allow_local_images=True,
+    )
+
+    req_file = updates_dir / "update-request.json"
+    req_file.write_text(json.dumps({
+        "request_id": "req-timeout-local",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    result = supervisor.process_pending_request()
+    assert result is not None
+    # Since image is locally cached and allow_local_images is True, update succeeded
+    assert result["state"] == "completed"
+    assert result["progress_percent"] == 100
+
+
+def test_supervisor_reconcile_startup_orphaned_staging_to_failed(updates_dir: Path, compose_file: Path):
+    """When supervisor restarts with a dangling staging status on disk, it reconciles to failed."""
+    # Write dangling active status
+    status_file = updates_dir / "update-status.json"
+    status_file.write_text(json.dumps({
+        "request_id": "dangling-req-1",
+        "state": "staging",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "progress_percent": 25,
+        "message": "Pulling target image...",
+    }))
+    req_file = updates_dir / "update-request.json"
+    req_file.write_text(json.dumps({
+        "request_id": "dangling-req-1",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    # Node is still on 0.13.3-alpha
+    health_checker = MockHealthChecker(healthy=True, live_version="0.13.3-alpha")
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=MockDockerClient(),
+        health_checker=health_checker,
+    )
+
+    reconciled = supervisor.reconcile_startup_state()
+    assert reconciled is not None
+    assert reconciled["state"] == "failed"
+    assert "interrupted by supervisor restart" in reconciled["message"]
+    assert reconciled["current_version"] == "0.13.3-alpha"
+    # Status file updated on disk
+    disk_data = json.loads(status_file.read_text(encoding="utf-8"))
+    assert disk_data["state"] == "failed"
+    # Request file cleaned up
+    assert not req_file.exists()
+
+
+def test_supervisor_reconcile_startup_orphaned_active_to_completed_if_node_updated(updates_dir: Path, compose_file: Path):
+    """When supervisor restarts and live node already reached target version, reconcile to completed."""
+    status_file = updates_dir / "update-status.json"
+    status_file.write_text(json.dumps({
+        "request_id": "dangling-req-2",
+        "state": "health_check",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "progress_percent": 75,
+        "message": "Verifying new version healthcheck...",
+    }))
+
+    # Node successfully reached 0.13.4-alpha
+    health_checker = MockHealthChecker(healthy=True, live_version="0.13.4-alpha")
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=MockDockerClient(),
+        health_checker=health_checker,
+    )
+
+    reconciled = supervisor.reconcile_startup_state()
+    assert reconciled is not None
+    assert reconciled["state"] == "completed"
+    assert reconciled["current_version"] == "0.13.4-alpha"
+    assert reconciled["progress_percent"] == 100
+
+
+def test_host_docker_client_default_timeout(monkeypatch: pytest.MonkeyPatch):
+    """Verify HostDockerClient default pull timeout is 1800s and respects env var."""
+    monkeypatch.delenv("ALTR_SUPERVISOR_PULL_TIMEOUT_SEC", raising=False)
+    client = HostDockerClient()
+    assert client.pull_timeout_sec == 1800
+
+    monkeypatch.setenv("ALTR_SUPERVISOR_PULL_TIMEOUT_SEC", "2400")
+    client_custom = HostDockerClient()
+    assert client_custom.pull_timeout_sec == 2400
+
+
+def test_supervisor_reconcile_startup_interrupted_staging_allows_retry(updates_dir: Path, compose_file: Path):
+    """When supervisor restarts after an interrupted staging state, retry request can be processed."""
+    # Orphaned staging status
+    status_file = updates_dir / "update-status.json"
+    status_file.write_text(json.dumps({
+        "request_id": "crashed-staging-999",
+        "state": "staging",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "progress_percent": 25,
+        "message": "Downloading target image...",
+    }))
+
+    docker_client = MockDockerClient(
+        current_image="ghcr.io/helloaltr/altr-stream:0.13.3-alpha",
+    )
+    health_checker = MockHealthChecker(healthy=True, live_version="0.13.3-alpha")
+
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=docker_client,
+        health_checker=health_checker,
+    )
+
+    # 1. Startup reconciliation recovers from interrupted staging
+    reconciled = supervisor.reconcile_startup_state()
+    assert reconciled is not None
+    assert reconciled["state"] == "failed"
+
+    # 2. Now user retries: write new request
+    health_checker.live_version = "0.13.4-alpha"
+    req_file = updates_dir / "update-request.json"
+    req_file.write_text(json.dumps({
+        "request_id": "retry-req-1000",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    # 3. New request is successfully picked up and processed
+    result = supervisor.process_pending_request()
+    assert result is not None
+    assert result["state"] == "completed"
+    assert result["request_id"] == "retry-req-1000"
+    assert result["current_version"] == "0.13.4-alpha"
+
 
 
 

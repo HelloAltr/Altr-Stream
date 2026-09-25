@@ -1195,6 +1195,10 @@ class UpdateCheckResponse {
   final String? releaseNotes;
   final String? publishedAt;
   final String? htmlUrl;
+  final bool checkAvailable;
+  final String? errorCode;
+  final String? message;
+  final int? retryAfter;
 
   const UpdateCheckResponse({
     required this.currentVersion,
@@ -1206,6 +1210,10 @@ class UpdateCheckResponse {
     this.releaseNotes,
     this.publishedAt,
     this.htmlUrl,
+    this.checkAvailable = true,
+    this.errorCode,
+    this.message,
+    this.retryAfter,
   });
 
   factory UpdateCheckResponse.fromJson(Map<String, dynamic> json) {
@@ -1220,6 +1228,12 @@ class UpdateCheckResponse {
       releaseNotes: rel?['body']?.toString(),
       publishedAt: rel?['published_at']?.toString(),
       htmlUrl: rel?['html_url']?.toString(),
+      checkAvailable: json['check_available'] != false,
+      errorCode: json['error_code']?.toString(),
+      message: json['message']?.toString(),
+      retryAfter: json['retry_after'] is int
+          ? json['retry_after'] as int
+          : int.tryParse(json['retry_after']?.toString() ?? ''),
     );
   }
 }

@@ -25,6 +25,10 @@ class UpdateCheckResponseDTO(BaseModel):
     update_available: bool = Field(..., description="Whether a direct upgrade is available")
     channel: str = Field(..., description="Active release channel (alpha, beta, stable)")
     release: UpdateReleaseDTO | None = Field(None, description="Metadata for the target release")
+    check_available: bool = Field(True, description="Whether the update discovery check succeeded")
+    error_code: str | None = Field(None, description="Error code if check_available is false")
+    message: str | None = Field(None, description="Informational message or error description")
+    retry_after: int | None = Field(None, description="Seconds until retry is permitted")
 
 
 class UpdateApplyRequestDTO(BaseModel):
@@ -78,6 +82,10 @@ async def check_updates(
         update_available=plan.update_available,
         channel=plan.channel.value,
         release=target_rel,
+        check_available=plan.check_available,
+        error_code=plan.error_code,
+        message=plan.message,
+        retry_after=plan.retry_after,
     )
 
 

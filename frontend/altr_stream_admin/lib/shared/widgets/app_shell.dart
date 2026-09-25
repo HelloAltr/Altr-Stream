@@ -1725,6 +1725,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           }
         });
       } else if (c.latestCheck != null &&
+          c.latestCheck!.checkAvailable &&
           !c.latestCheck!.updateAvailable &&
           !_upToDateSnackbarShown &&
           !c.isChecking &&
@@ -2044,6 +2045,29 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
               style: M3EButtonStyle.filled,
               shape: M3EButtonShape.round,
               child: const Text('Update Now'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!c.isCheckAvailable || (c.latestCheck != null && !c.latestCheck!.checkAvailable)) {
+      final msg = c.latestCheck?.message ?? 'Unable to check for updates right now.';
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.errorContainer.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                msg,
+                style: TextStyle(fontSize: 12, color: colorScheme.onErrorContainer),
+              ),
             ),
           ],
         ),
