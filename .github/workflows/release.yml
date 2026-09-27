@@ -75,6 +75,18 @@ jobs:
           build-args: |
             ALTR_APP_VERSION=${{ steps.version_info.outputs.version }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Package Release Assets & Installers
+        run: |
+          python3 scripts/package_release.py \
+            --version "${{ steps.version_info.outputs.version }}" \
+            --tag "${{ steps.version_info.outputs.tag }}" \
+            --output-dir dist
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -82,5 +94,14 @@ jobs:
           name: Altr Stream ${{ steps.version_info.outputs.tag }}
           prerelease: ${{ contains(steps.version_info.outputs.tag, 'alpha') || contains(steps.version_info.outputs.tag, 'beta') || contains(steps.version_info.outputs.tag, 'rc') }}
           generate_release_notes: true
+          files: |
+            dist/Altr-Stream_macOS_Installer.command
+            dist/Altr-Stream_Linux_Installer.sh
+            dist/Altr-Stream_Windows_Installer.ps1
+            dist/README.txt
+            dist/altr-stream-${{ steps.version_info.outputs.tag }}-deployment.tar.gz
+            dist/altr-stream-${{ steps.version_info.outputs.tag }}-deployment.zip
+            dist/SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

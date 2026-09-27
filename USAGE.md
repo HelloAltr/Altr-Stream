@@ -12,13 +12,13 @@ This document provides a comprehensive, copy-pasteable command reference for run
 
 ---
 
-## 2. Production Stack Workflow (Port 3000)
+## 2. Production Stack Workflow (Port 8000)
 
-Production mode compiles a release web bundle of the Flutter Admin application and serves it via an Nginx reverse proxy alongside the FastAPI backend and all three pre-seeded test databases (PostgreSQL, MySQL, MongoDB).
+In production, Altr Stream runs as a unified service container serving both the FastAPI REST backend and the pre-compiled Flutter Web administrative interface on a single port (**8000**).
 
-### Start Production Stack
+### Start Production Container
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 ### Check Container Status
@@ -26,24 +26,11 @@ docker compose up -d --build
 docker compose ps
 ```
 
-All 5 services should show `Up` / `healthy`:
-- `altr-stream-app` (Port 8000)
-- `altr-stream-admin` (Port 3000)
-- `altr-postgres-test` (Port 5432)
-- `altr-mysql-test` (Port 3306)
-- `altr-mongodb-test` (Port 27017)
+The container `altr-stream` should show `Up` / `healthy` on `0.0.0.0:8000->8000/tcp`.
 
 ### View Live Logs
 ```bash
-# All services
-docker compose logs -f
-
-# Specific service
 docker compose logs -f altr-stream
-docker compose logs -f altr-stream-admin
-docker compose logs -f postgres-test
-docker compose logs -f mysql-test
-docker compose logs -f mongodb-test
 ```
 
 ### Stop Production Stack (Preserving Persistent Volumes)
@@ -51,59 +38,27 @@ docker compose logs -f mongodb-test
 docker compose down
 ```
 
-### Rebuild Only Frontend
-```bash
-docker compose up -d --build altr-stream-admin
-```
-
-### Rebuild Frontend Without Cache
-```bash
-docker compose build --no-cache altr-stream-admin
-docker compose up -d altr-stream-admin
-```
-
 ---
 
-## 3. Flutter Development Mode (Port 3001)
+## 3. Flutter Web Development Mode (Port 3001)
 
-Development mode mounts your local `frontend/altr_stream_admin/` source code directly into a Flutter development container. Changes made to Dart files on your host machine take effect with hot reload without rebuilding Docker images.
+When working on Flutter UI features, development mode mounts your local `frontend/altr_stream_admin/` source code into a hot-reloading Flutter development container on Port 3001, connecting to the backend on Port 8000.
 
 ### Start Development Stack
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-```
-*(Or in background)*:
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
 ### Accessing the Application
 - **Flutter Dev Server (Web):** [http://localhost:3001/](http://localhost:3001/)
-- **FastAPI Backend:** [http://localhost:8000/](http://localhost:8000/)
+- **FastAPI Backend & Production UI:** [http://localhost:8000/](http://localhost:8000/)
 - **Swagger API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-
-### Reload Behavior & Iteration Workflow
-1. Edit any Flutter file on your host machine (e.g., `lib/features/overview/screens/overview_screen.dart`).
-2. The mounted Docker volume updates immediately inside the container.
-3. If running interactively in foreground or attached via `docker attach altr-stream-admin-dev` (enabled by `stdin_open: true` and `tty: true`), press `r` in the terminal to trigger a hot reload, or `R` to trigger a hot restart.
-4. Refresh your browser tab at [http://localhost:3001/](http://localhost:3001/) to see your changes immediately.
-
-### Attaching to Development Container
-If the stack was started in the background (`-d`), you can attach to the Flutter interactive terminal:
-```bash
-docker attach altr-stream-admin-dev
-```
-*(Use `Ctrl+C` or detach keys `Ctrl+P, Ctrl+Q` to detach without stopping the container)*
 
 ### Stop Development Mode
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml down
 ```
 
-### Switch Back to Production Mode
-```bash
-docker compose up -d
-```
 
 ---
 
@@ -326,18 +281,16 @@ docker compose down -v --remove-orphans
 
 | Scenario | Command |
 | :--- | :--- |
-| **Start Production Stack** | `docker compose up -d --build` |
+| **Start Production Stack** | `docker compose up -d` |
 | **Stop Stack (Preserve Data)** | `docker compose down` |
-| **Start Flutter Development Mode** | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` |
-| **Attach to Flutter Terminal (Hot Reload)** | `docker attach altr-stream-admin-dev` |
+| **Start Flutter Development Mode** | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
 | **Stop Development Mode** | `docker compose -f docker-compose.yml -f docker-compose.dev.yml down` |
-| **Rebuild Production Frontend Only** | `docker compose up -d --build altr-stream-admin` |
-| **Force Rebuild Without Cache** | `docker compose build --no-cache altr-stream-admin && docker compose up -d` |
 | **Check Container Status** | `docker compose ps` |
-| **View Live Tail Logs** | `docker compose logs -f` |
-| **Run Backend Tests (707 tests)** | `uv run pytest tests/ -v` |
-| **Run Parity Tests** | `uv run pytest tests/integration/test_cross_db_parity.py -v` |
-| **Run Frontend Tests (86 tests)** | `cd frontend/altr_stream_admin && flutter test` |
+| **View Live Tail Logs** | `docker compose logs -f altr-stream` |
+| **Run Backend Tests (800+ tests)** | `pytest tests/ -v` |
+| **Run Parity Tests** | `pytest tests/integration/test_cross_db_parity.py -v` |
+| **Run Frontend Tests (130 tests)** | `cd frontend/altr_stream_admin && flutter test` |
 | **Run Frontend Analysis** | `cd frontend/altr_stream_admin && flutter analyze` |
 | **Full Reset (Drop DB Volumes)** | `docker compose down -v --remove-orphans` |
 | **Update Knowledge Graph** | `graphify update .` |
+

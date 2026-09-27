@@ -39,11 +39,71 @@ The unified container serves both the backend data federation engine and the Flu
 
 ---
 
-## 3. Production Deployment via Docker Compose
+---
 
-### Step 1: Prepare the `docker-compose.yml` File
+## 3. Primary Deployment via Setup Utility
 
-Ensure your deployment directory contains the production `docker-compose.yml`:
+Altr Stream is distributed as an interactive **Setup Utility** that manages container provisioning, prerequisite checks, persistent volumes, diagnostics, status, and clean uninstallation without requiring manual Compose editing.
+
+```text
+╭──────────────────────────────────────────────╮
+│              ALTR STREAM                     │
+│              Setup Utility                   │
+│                                              │
+│   ❯ Install Altr Stream                      │
+│     Uninstall Altr Stream                    │
+│     Repair Installation                      │
+│     Installation Status                      │
+│     Exit                                     │
+╰──────────────────────────────────────────────╯
+```
+
+### Launching the Setup Utility
+
+- **macOS**: Download `Altr-Stream_macOS_Installer.command` from the GitHub Release, then double-click in Finder or execute `chmod +x Altr-Stream_macOS_Installer.command && ./Altr-Stream_macOS_Installer.command`.
+- **Linux**: Download `Altr-Stream_Linux_Installer.sh` from the GitHub Release, then execute `chmod +x Altr-Stream_Linux_Installer.sh && ./Altr-Stream_Linux_Installer.sh`.
+- **Windows**: Download `Altr-Stream_Windows_Installer.ps1` from the GitHub Release, right-click and choose **Run with PowerShell** (or run `powershell -ExecutionPolicy Bypass -File .\Altr-Stream_Windows_Installer.ps1`).
+
+### Lifecycle Workflows Supported by the Utility
+
+1. **Install Altr Stream**:
+   - Detects Docker CLI, engine, and Docker Compose plugin.
+   - Validates that the Docker daemon is running and accessible.
+   - Allows choosing between default location (`~/.altr-stream` / `%USERPROFILE%\.altr-stream`) or specifying a custom directory.
+   - Generates production `docker-compose.yml` and `.env` configuration.
+   - Pulls official pinned image `ghcr.io/helloaltr/altr-stream:0.13.5-alpha`.
+   - Starts the unified container and polls `/api/v1/health`.
+   - Launches your system browser to `http://localhost:8000`.
+
+2. **Uninstall Altr Stream**:
+   - Stops and terminates the Altr Stream container.
+   - Removes deployment runtime files and update IPC folder.
+   - **Data Choice**:
+     - *Keep application data (Default)*: Strictly preserves the `altr_stream_data` Docker volume. Re-installing in the future reconnects to all your previously created data sources and mappings.
+     - *Delete application data*: Permanently destroys `altr_stream_data`. Requires typing exact confirmation string: `DELETE ALTR STREAM DATA`.
+
+3. **Repair Installation**:
+   - Diagnoses missing `docker-compose.yml`, offline containers, missing image caches, or failing healthchecks.
+   - Safely regenerates deployment files and recreates the container (`docker compose up -d --force-recreate`).
+   - Strictly preserves persistent volume data.
+
+4. **Installation Status**:
+   - Inspects and displays configured image version, installation directory, Docker daemon status, container status, and healthcheck responsiveness.
+
+---
+
+## 4. Secondary Deployment: Manual Docker Compose Bundle
+
+For server automation, CI pipelines, or air-gapped systems where interactive scripts are not desired, use the manual deployment bundle:
+
+### Step 1: Extract Release Deployment Bundle
+
+```bash
+tar -xzf altr-stream-v0.13.5-alpha-deployment.tar.gz
+cd altr-stream-v0.13.5-alpha-deployment
+```
+
+### Step 2: Review `docker-compose.yml`
 
 ```yaml
 services:
@@ -80,23 +140,13 @@ networks:
     driver: bridge
 ```
 
-### Step 2: Start the Service
+### Step 3: Start Container and Verify
 
 ```bash
-# Pull and start Altr Stream in the background
 docker compose up -d
-
-# Verify container status and healthcheck
 docker compose ps
+curl -s http://localhost:8000/api/v1/health
 ```
-
-Expected output:
-```text
-NAME          IMAGE                                       COMMAND                  SERVICE       CREATED         STATUS                   PORTS
-altr-stream   ghcr.io/helloaltr/altr-stream:0.13.5-alpha  "uvicorn altr_stream…"   altr-stream   5 seconds ago   Up 4 seconds (healthy)   0.0.0.0:8000->8000/tcp
-```
-
-### Step 3: Enable the Host Update Supervisor (Automatic Zero-Terminal Updates)
 
 Altr Stream uses a secure host-isolated supervisor architecture: the application container runs unprivileged with **no Docker socket access**, while an external host supervisor executes atomic image pulls, container recreation, health checks, and rollback.
 
@@ -126,7 +176,7 @@ Alternatively, for local development sessions without installing a system servic
 
 ---
 
-## 4. Alternative: Standalone Docker Run
+## 5. Alternative: Standalone Docker Run
 
 If running without Docker Compose, launch the container using `docker run`:
 
@@ -149,7 +199,7 @@ docker run -d \
 
 ---
 
-## 5. Ports & Networking
+## 6. Ports & Networking
 
 | Port | Description | Scope |
 | :--- | :--- | :--- |
@@ -162,7 +212,7 @@ docker run -d \
 
 ---
 
-## 6. Persistent Storage
+## 7. Persistent Storage
 
 Altr Stream persists its operational state, registered data sources, logical entity schemas, field mappings, and telemetry to a local SQLite database located in `/app/data`:
 
@@ -183,7 +233,7 @@ docker run --rm \
 
 ---
 
-## 7. Environment Variables
+## 8. Environment Variables
 
 All settings use the `ALTR_STREAM_` prefix:
 
@@ -198,7 +248,7 @@ All settings use the `ALTR_STREAM_` prefix:
 
 ---
 
-## 8. Connecting Physical Data Sources
+## 9. Connecting Physical Data Sources
 
 Altr Stream connects outbound to physical databases (PostgreSQL, MySQL, MongoDB). Ensure that:
 
@@ -210,7 +260,7 @@ Altr Stream connects outbound to physical databases (PostgreSQL, MySQL, MongoDB)
 
 ---
 
-## 9. Health & Monitoring
+## 10. Health & Monitoring
 
 The container defines a native Docker `HEALTHCHECK` using curl:
 ```bash
