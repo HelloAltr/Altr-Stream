@@ -81,6 +81,58 @@ def ensure_gum_archive(filename: str, cache_dir: Path) -> Path:
     return archive_path
 
 
+def install_gum_binary(
+    dest_path: Path,
+    archive_name: str | None = None,
+    cache_dir: Path | None = None,
+) -> Path:
+    """Download, verify against pinned SHA-256, and extract official Gum binary to dest_path."""
+    if archive_name is None:
+        import platform
+        system = platform.system()
+        machine = platform.machine().lower()
+        if system == "Linux":
+            if machine in ("x86_64", "amd64"):
+                archive_name = "gum_2.0.2_Linux_x86_64.tar.gz"
+            elif machine in ("aarch64", "arm64"):
+                archive_name = "gum_2.0.2_Linux_arm64.tar.gz"
+        elif system == "Darwin":
+            if machine in ("arm64", "aarch64"):
+                archive_name = "gum_2.0.2_Darwin_arm64.tar.gz"
+            else:
+                archive_name = "gum_2.0.2_Darwin_x86_64.tar.gz"
+        elif system == "Windows":
+            archive_name = "gum_2.0.2_Windows_x86_64.zip"
+
+    if not archive_name or archive_name not in GUM_CHECKSUMS:
+        raise ValueError(f"Unsupported platform or unknown archive for Gum: {archive_name}")
+
+    if cache_dir is None:
+        cache_dir = REPO_ROOT / ".cache" / "gum"
+
+    archive_path = ensure_gum_archive(archive_name, cache_dir)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if archive_name.endswith(".tar.gz"):
+        with tarfile.open(archive_path, "r:gz") as tar:
+            for member in tar.getmembers():
+                if member.name.endswith("/gum") or member.name == "gum":
+                    extracted_f = tar.extractfile(member)
+                    if extracted_f:
+                        dest_path.write_bytes(extracted_f.read())
+                        dest_path.chmod(dest_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                        return dest_path
+    elif archive_name.endswith(".zip"):
+        with zipfile.ZipFile(archive_path, "r") as zf:
+            for name in zf.namelist():
+                if name.endswith("gum.exe") or name == "gum.exe":
+                    data = zf.read(name)
+                    dest_path.write_bytes(data)
+                    return dest_path
+
+    raise RuntimeError(f"Could not locate gum executable in archive {archive_name}")
+
+
 def generate_deployment_readme(version: str, tag: str) -> str:
     """Generate the concise user README for the manual deployment bundle."""
     return f"""# Altr Stream Manual Deployment Bundle — {tag}
@@ -364,8 +416,27 @@ def main() -> int:
         default="dist",
         help="Directory to place release artifacts (default: dist)",
     )
+    parser.add_argument(
+        "--install-gum-binary",
+        default=None,
+        help="Download, verify against pinned checksum, and install Gum binary to the specified path",
+    )
+    parser.add_argument(
+        "--install-gum-archive",
+        default=None,
+        help="Optional archive name to extract when using --install-gum-binary (e.g. gum_2.0.2_Linux_x86_64.tar.gz)",
+    )
 
     args = parser.parse_args()
+
+    if args.install_gum_binary:
+        target = Path(args.install_gum_binary)
+        if not target.is_absolute():
+            target = Path.cwd() / target
+        installed = install_gum_binary(target, archive_name=args.install_gum_archive)
+        print(f"Installed verified Gum binary to: {installed}")
+        return 0
+
     version = args.version.lstrip("v")
     tag = args.tag if args.tag else f"v{version}"
     output_dir = Path(args.output_dir)

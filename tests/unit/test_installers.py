@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
+import sys
 import tarfile
 import time
 import zipfile
@@ -12,26 +14,67 @@ from pathlib import Path
 import pytest
 import yaml
 
-import sys
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from altr_stream.__version__ import __version__
 from scripts.package_release import compute_sha256, package_release
-HOST_GUM_BIN = Path.home() / ".altr-stream" / "bin" / "gum"
+
+REAL_USER_HOME = Path(os.environ.get("HOME", str(Path.home())))
+
+
+def get_resolved_gum_bin() -> str | None:
+    """Deterministically resolve a verified Gum binary for installer testing.
+
+    Precedence:
+    1. Explicit GUM_BIN environment variable (e.g. provided by CI or runner)
+    2. System PATH (via shutil.which('gum'))
+    3. User cache (~/.altr-stream/bin/gum relative to real user home)
+    4. Repo-local cache or automated on-demand fetch via package_release
+    """
+    # 1. Explicit GUM_BIN environment variable
+    explicit = os.environ.get("GUM_BIN")
+    if explicit and Path(explicit).is_file() and os.access(explicit, os.X_OK):
+        return explicit
+
+    # 2. System PATH
+    system_gum = shutil.which("gum")
+    if system_gum and os.access(system_gum, os.X_OK):
+        return system_gum
+
+    # 3. User cache in real home
+    real_cache = REAL_USER_HOME / ".altr-stream" / "bin" / "gum"
+    if real_cache.is_file() and os.access(real_cache, os.X_OK):
+        return str(real_cache)
+
+    # 4. Repo-local cache / on-demand fetch
+    repo_cache = REPO_ROOT / ".cache" / "gum" / "gum"
+    if repo_cache.is_file() and os.access(repo_cache, os.X_OK):
+        return str(repo_cache)
+
+    try:
+        from scripts.package_release import install_gum_binary
+        installed = install_gum_binary(repo_cache)
+        if installed.is_file() and os.access(installed, os.X_OK):
+            return str(installed)
+    except Exception:
+        pass
+
+    return None
 
 
 @pytest.fixture(autouse=True)
 def isolate_test_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Isolate HOME, USERPROFILE, and config file to temporary directory across all tests."""
+    resolved_gum = get_resolved_gum_bin()
     fake_home = tmp_path / "global_fake_home"
     fake_home.mkdir(parents=True, exist_ok=True)
     fake_config = fake_home / ".altr-stream-config"
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("USERPROFILE", str(fake_home))
     monkeypatch.setenv("ALTR_STREAM_CONFIG_FILE", str(fake_config))
-    if HOST_GUM_BIN.is_file():
-        monkeypatch.setenv("GUM_BIN", str(HOST_GUM_BIN))
+    if resolved_gum:
+        monkeypatch.setenv("GUM_BIN", resolved_gum)
 
 
 def test_installer_template_files_exist() -> None:
@@ -692,9 +735,9 @@ def test_tui_interactive_arrow_navigation_and_exit(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -767,9 +810,9 @@ def test_linux_tui_interactive_arrow_navigation_and_exit(tmp_path: Path) -> None
     env = os.environ.copy()
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -949,9 +992,9 @@ def test_tui_interactive_install_success_and_browser_launch(tmp_path: Path) -> N
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -1054,9 +1097,9 @@ def test_tui_interactive_install_failure_screen_and_recovery(tmp_path: Path) -> 
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(fast_script)],
@@ -1142,9 +1185,9 @@ def test_tui_interactive_install_failure_retry_workflow(tmp_path: Path) -> None:
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(fast_script)],
@@ -1218,9 +1261,9 @@ def test_linux_tui_interactive_install_success_and_browser_launch(tmp_path: Path
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -1305,9 +1348,9 @@ def test_regression_test_a_existing_container_conflict_detected_no_auto_delete(t
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -1375,9 +1418,9 @@ def test_regression_test_b_view_container_details(tmp_path: Path) -> None:
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -1454,9 +1497,9 @@ def test_regression_test_c_use_existing_container(tmp_path: Path) -> None:
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -1559,9 +1602,9 @@ def test_regression_test_d_remove_existing_container_with_confirmation(tmp_path:
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -1664,9 +1707,9 @@ def test_regression_test_e_retry_installation_after_conflict_resolved(tmp_path: 
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -1753,9 +1796,9 @@ def test_regression_test_f_view_container_logs_when_creation_fails(tmp_path: Pat
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
     env["SIMULATE_CREATION_FAILURE"] = "1"
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -1892,9 +1935,9 @@ def test_regression_test_i_successful_installer_flow_e2e(tmp_path: Path) -> None
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
-    gum_candidate = Path.home() / ".altr-stream" / "bin" / "gum"
-    if gum_candidate.is_file():
-        env["GUM_BIN"] = str(gum_candidate)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -2082,6 +2125,9 @@ def test_req06_to_14_repair_tui_lifecycle_success_screen(tmp_path: Path) -> None
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -2174,6 +2220,9 @@ def test_req07_to_09_repair_tui_lifecycle_failure_and_retry(tmp_path: Path) -> N
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
     env["HEALTH_TIMEOUT"] = "2"
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -2485,6 +2534,9 @@ def test_repair_regression_h_genuine_recreate_failure_shows_real_error_and_no_co
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
     env["SIMULATE_CREATION_FAILURE"] = "1"
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -2538,6 +2590,9 @@ def test_repair_regression_i_retry_repair_runs_preflight_and_succeeds(tmp_path: 
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
     env["HEALTH_TIMEOUT"] = "2"
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -2606,6 +2661,9 @@ def test_terminal_min_size_enforcement_and_dynamic_unblock(tmp_path: Path) -> No
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(install_script)],
@@ -2689,6 +2747,9 @@ def test_selector_centered_inside_application_viewport(tmp_path: Path) -> None:
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(macos_script)],
@@ -2754,6 +2815,9 @@ def test_normal_screens_do_not_run_background_resize_poller(tmp_path: Path) -> N
     env["PATH"] = f"{mock_bin}:{env.get('PATH', '')}"
     env["TERM"] = "xterm-256color"
     env["ALTR_STREAM_HOME"] = str(target_install_dir)
+    gum_bin = get_resolved_gum_bin()
+    if gum_bin:
+        env["GUM_BIN"] = gum_bin
 
     proc = subprocess.Popen(
         ["bash", str(macos_script)],
