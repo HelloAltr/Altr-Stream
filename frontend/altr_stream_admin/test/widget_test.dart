@@ -495,7 +495,7 @@ class MockTestApiClient extends ApiClient {
         const UpdateStatusResponse(
           requestId: null,
           targetVersion: null,
-          currentVersion: '0.13.5-alpha',
+          currentVersion: '0.13.7-alpha',
           state: 'idle',
           progressPercent: 0,
           message: 'System is up to date.',
@@ -511,7 +511,7 @@ class MockTestApiClient extends ApiClient {
     return const UpdateStatusResponse(
       requestId: null,
       targetVersion: null,
-      currentVersion: '0.13.5-alpha',
+      currentVersion: '0.13.7-alpha',
       state: 'idle',
       progressPercent: 0,
       message: 'System is up to date.',
@@ -4534,7 +4534,7 @@ void main() {
 
     final mockApiClient = MockTestApiClient();
     mockApiClient.updateCheckResponseToReturn = const UpdateCheckResponse(
-      currentVersion: '0.13.5-alpha',
+      currentVersion: '0.13.7-alpha',
       latestVersion: null,
       updateAvailable: false,
       channel: 'alpha',
@@ -4572,7 +4572,7 @@ void main() {
 
     // Verify friendly up-to-date state
     expect(find.text('Your local node is running the latest version.'), findsOneWidget);
-    expect(find.text('Your local node is on the latest version (v0.13.5-alpha).'), findsOneWidget);
+    expect(find.text('Your local node is on the latest version (v0.13.7-alpha).'), findsOneWidget);
     expect(find.text('Update Now'), findsNothing);
     expect(find.text('Failed to check for updates: Not Found'), findsNothing);
   });
@@ -4635,7 +4635,7 @@ void main() {
 
     // Verify CRITICAL semantic requirement: NEVER claim up to date or latest
     expect(find.text('Your local node is running the latest version.'), findsNothing);
-    expect(find.text('Your local node is on the latest version (v0.13.5-alpha).'), findsNothing);
+    expect(find.text('Your local node is on the latest version (v0.13.7-alpha).'), findsNothing);
     expect(find.text('Update Now'), findsNothing);
   });
 
@@ -5291,7 +5291,7 @@ void main() {
     mockApiClient.updateStatusResponsesToReturn = [
       UpdateStatusResponse(
         requestId: 'req-completed-lifecycle',
-        targetVersion: '0.13.5-alpha',
+        targetVersion: '0.13.7-alpha',
         currentVersion: '0.13.4-alpha',
         state: 'applying',
         progressPercent: 65,
@@ -5300,11 +5300,11 @@ void main() {
       ),
       UpdateStatusResponse(
         requestId: 'req-completed-lifecycle',
-        targetVersion: '0.13.5-alpha',
-        currentVersion: '0.13.5-alpha',
+        targetVersion: '0.13.7-alpha',
+        currentVersion: '0.13.7-alpha',
         state: 'completed',
         progressPercent: 100,
-        message: 'Update to 0.13.5-alpha completed successfully.',
+        message: 'Update to 0.13.7-alpha completed successfully.',
         updatedAt: DateTime.now().toIso8601String(),
       ),
     ];
@@ -5338,7 +5338,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 3. Dialog shows ready message and explicit Reload Now button, NO countdown, NO Stay on page
-    expect(find.text('Your local node has been updated to v0.13.5-alpha.'), findsOneWidget);
+    expect(find.text('Your local node has been updated to v0.13.7-alpha.'), findsOneWidget);
     expect(find.text('A new version is ready. Reload when you\'re ready to activate it.'), findsOneWidget);
     expect(find.text('Reload Now'), findsOneWidget);
     expect(find.text('Stay on page'), findsNothing);
@@ -5375,8 +5375,8 @@ void main() {
     final mockApiClient = MockTestApiClient();
     mockApiClient.updateStatusResponseToReturn = const UpdateStatusResponse(
       requestId: 'req-completed-prev',
-      targetVersion: '0.13.5-alpha',
-      currentVersion: '0.13.5-alpha',
+      targetVersion: '0.13.7-alpha',
+      currentVersion: '0.13.7-alpha',
       state: 'completed',
       progressPercent: 100,
       message: 'Update completed',

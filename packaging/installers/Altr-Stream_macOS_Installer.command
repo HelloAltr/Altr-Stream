@@ -9,7 +9,7 @@
 
 set -eo pipefail
 
-ALTR_VERSION="0.13.5-alpha"
+ALTR_VERSION="0.13.7-alpha"
 ALTR_IMAGE="ghcr.io/helloaltr/altr-stream:${ALTR_VERSION}"
 
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.docker/bin:/Applications/Docker.app/Contents/Resources/bin"
@@ -484,7 +484,7 @@ write_runtime_files() {
     cat << 'EOF' > "$install_dir/docker-compose.yml"
 services:
   altr-stream:
-    image: ghcr.io/helloaltr/altr-stream:0.13.5-alpha
+    image: ghcr.io/helloaltr/altr-stream:0.13.7-alpha
     container_name: altr-stream
     restart: unless-stopped
     ports:

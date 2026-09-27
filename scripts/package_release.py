@@ -5,7 +5,7 @@ Generates OS-specific automated installers, bundled Gum setup archives,
 the manual Docker Compose deployment bundle, and cryptographic checksums for a given release tag/version.
 
 Usage:
-    python3 scripts/package_release.py [--version 0.13.5-alpha] [--tag v0.13.5-alpha] [--output-dir dist]
+    python3 scripts/package_release.py [--version 0.13.7-alpha] [--tag v0.13.7-alpha] [--output-dir dist]
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -29,7 +30,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 try:
     from altr_stream.__version__ import __version__ as CANONICAL_VERSION
 except ImportError:
-    CANONICAL_VERSION = "0.13.5-alpha"
+    CANONICAL_VERSION = "0.13.7-alpha"
 
 GUM_VERSION = "2.0.2"
 GUM_PINNED_VERSION = GUM_VERSION
@@ -214,7 +215,7 @@ def package_release(
     macos_dest = output_dir / "Altr-Stream_macOS_Installer.command"
     if macos_src.exists():
         content = macos_src.read_text(encoding="utf-8")
-        content = content.replace('ALTR_VERSION="0.13.5-alpha"', f'ALTR_VERSION="{version}"')
+        content = re.sub(r'ALTR_VERSION="[^"]+"', f'ALTR_VERSION="{version}"', content)
         macos_dest.write_text(content, encoding="utf-8")
         macos_dest.chmod(macos_dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         generated_files.append(macos_dest)
@@ -225,7 +226,7 @@ def package_release(
     linux_dest = output_dir / "Altr-Stream_Linux_Installer.sh"
     if linux_src.exists():
         content = linux_src.read_text(encoding="utf-8")
-        content = content.replace('ALTR_VERSION="0.13.5-alpha"', f'ALTR_VERSION="{version}"')
+        content = re.sub(r'ALTR_VERSION="[^"]+"', f'ALTR_VERSION="{version}"', content)
         linux_dest.write_text(content, encoding="utf-8")
         linux_dest.chmod(linux_dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         generated_files.append(linux_dest)
@@ -236,7 +237,7 @@ def package_release(
     win_dest = output_dir / "Altr-Stream_Windows_Installer.ps1"
     if win_src.exists():
         content = win_src.read_text(encoding="utf-8")
-        content = content.replace('$Version = "0.13.5-alpha"', f'$Version = "{version}"')
+        content = re.sub(r'\$Version\s*=\s*"[^"]+"', f'$Version = "{version}"', content)
         win_dest.write_text(content, encoding="utf-8")
         generated_files.append(win_dest)
         print(f"  ✔ Created: {win_dest.name}")

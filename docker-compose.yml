@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - ALTR_APP_VERSION=0.13.5-alpha
-    image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:0.13.5-alpha}
+        - ALTR_APP_VERSION=0.13.7-alpha
+    image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:0.13.7-alpha}
     container_name: altr-stream-dev
     restart: unless-stopped
     ports:

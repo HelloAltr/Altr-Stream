@@ -7,7 +7,7 @@
 .PARAMETER Action
     Optional direct action: Install, Uninstall, Repair, Status, or Menu (default).
 .PARAMETER Version
-    The version of Altr Stream. Defaults to 0.13.5-alpha.
+    The version of Altr Stream. Defaults to 0.13.7-alpha.
 .PARAMETER InstallPath
     Target directory for Altr Stream runtime and data. Defaults to $HOME\.altr-stream.
 .EXAMPLE
@@ -18,7 +18,7 @@
 param (
     [ValidateSet("Menu", "Install", "Uninstall", "Repair", "Status")]
     [string]$Action = "Menu",
-    [string]$Version = "0.13.5-alpha",
+    [string]$Version = "0.13.7-alpha",
     [string]$InstallPath = ""
 )
 

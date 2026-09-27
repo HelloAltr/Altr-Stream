@@ -148,8 +148,8 @@ def test_packaged_installers_contain_target_version(tmp_path: Path) -> None:
 
 def test_deployment_bundle_contents_and_security(tmp_path: Path) -> None:
     """Ensure manual deployment bundle contains required deployment files and no source code."""
-    test_version = "0.13.5-alpha"
-    test_tag = "v0.13.5-alpha"
+    test_version = "0.13.7-alpha"
+    test_tag = "v0.13.7-alpha"
 
     package_release(version=test_version, tag=test_tag, output_dir=tmp_path)
     tar_path = tmp_path / f"altr-stream-{test_tag}-deployment.tar.gz"
@@ -190,8 +190,8 @@ def test_deployment_bundle_contents_and_security(tmp_path: Path) -> None:
 
 def test_sha256sums_accuracy(tmp_path: Path) -> None:
     """Verify that SHA256SUMS contains valid hashes for each generated release artifact."""
-    test_version = "0.13.5-alpha"
-    test_tag = "v0.13.5-alpha"
+    test_version = "0.13.7-alpha"
+    test_tag = "v0.13.7-alpha"
 
     package_release(version=test_version, tag=test_tag, output_dir=tmp_path)
     checksums_file = tmp_path / "SHA256SUMS"
@@ -297,7 +297,7 @@ def _setup_mock_docker(
     existing_container: bool = False,
     existing_status: str = "exited",
     existing_workdir: str = "/another/test/path",
-    existing_image: str = "ghcr.io/helloaltr/altr-stream:0.13.5-alpha",
+    existing_image: str = "ghcr.io/helloaltr/altr-stream:0.13.7-alpha",
 ) -> tuple[Path, Path]:
     """Helper to set up mock Docker and curl binaries with realistic container state management."""
     mock_bin = tmp_path / "mock_bin"
@@ -379,7 +379,7 @@ if [ "$1" = "compose" ]; then
             echo "EXISTS=1" > "$STATE_FILE"
             echo "STATUS=running" >> "$STATE_FILE"
             echo "WORKDIR=$compose_dir" >> "$STATE_FILE"
-            echo "IMAGE=ghcr.io/helloaltr/altr-stream:0.13.5-alpha" >> "$STATE_FILE"
+            echo "IMAGE=ghcr.io/helloaltr/altr-stream:0.13.7-alpha" >> "$STATE_FILE"
             echo "CID=46ccc79f24b91234567890abcdef" >> "$STATE_FILE"
             exit 0
             ;;
@@ -423,7 +423,7 @@ if [ "$1" = "inspect" ]; then
             *"working_dir"*) echo "$WORKDIR" ; exit 0 ;;
             *"project"*) echo "altr-stream" ; exit 0 ;;
             *"Ports"*) echo "8000/tcp -> 8000" ; exit 0 ;;
-            *"Labels"*) echo "org.opencontainers.image.version=0.13.5-alpha" ; exit 0 ;;
+            *"Labels"*) echo "org.opencontainers.image.version=0.13.7-alpha" ; exit 0 ;;
             *) echo "$STATUS" ; exit 0 ;;
         esac
     fi
@@ -455,7 +455,7 @@ STATE_FILE="{state_file}"
 if [ -f "$STATE_FILE" ]; then
     . "$STATE_FILE"
     if [ "$STATUS" = "running" ]; then
-        echo '{{"status":"healthy","version":"0.13.5-alpha"}}'
+        echo '{{"status":"healthy","version":"0.13.7-alpha"}}'
         exit 0
     fi
 fi
@@ -906,7 +906,7 @@ def test_bundled_installer_packages_in_release_packager(tmp_path: Path) -> None:
     if not cache_dir.exists():
         pytest.skip(".cache/gum not found")
 
-    manifest = package_release("0.13.5-alpha", out_dir)
+    manifest = package_release("0.13.7-alpha", out_dir)
     assert (out_dir / "SHA256SUMS").is_file()
 
     # Verify macOS setup zip contains Altr-Stream_macOS_Installer.command and bin/gum
@@ -2418,7 +2418,7 @@ def test_repair_regression_c_healthy_compatible_container_safely_reused(tmp_path
         existing_container=True,
         existing_status="running",
         existing_workdir="/existing/home",
-        existing_image="ghcr.io/helloaltr/altr-stream:0.13.5-alpha",
+        existing_image="ghcr.io/helloaltr/altr-stream:0.13.7-alpha",
     )
     install_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_macOS_Installer.command"
     target_install_dir = tmp_path / "repair_reuse_home"
@@ -2469,7 +2469,7 @@ def test_repair_regression_d_incompatible_container_stopped_and_replaced(tmp_pat
 
     # Canonical image must now be active
     state_file = tmp_path / "docker_state.env"
-    assert "ghcr.io/helloaltr/altr-stream:0.13.5-alpha" in state_file.read_text()
+    assert "ghcr.io/helloaltr/altr-stream:0.13.7-alpha" in state_file.read_text()
 
 
 def test_repair_regression_e_and_f_replacement_and_successful_repair(tmp_path: Path) -> None:
@@ -2621,7 +2621,7 @@ def test_repair_regression_i_retry_repair_runs_preflight_and_succeeds(tmp_path: 
 
         # Now fix curl mock so retry succeeds
         mock_curl = mock_bin / "curl"
-        mock_curl.write_text('#!/bin/sh\necho \'{"status":"healthy","version":"0.13.5-alpha"}\'\nexit 0\n')
+        mock_curl.write_text('#!/bin/sh\necho \'{"status":"healthy","version":"0.13.7-alpha"}\'\nexit 0\n')
         mock_curl.chmod(0o755)
 
         # Step 5: Retry Repair (Enter on Retry Repair option)

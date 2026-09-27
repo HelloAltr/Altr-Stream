@@ -151,15 +151,15 @@ async def test_update_check_with_channel_filter(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncClient, mock_updates_dir: Path):
     payload = {
-        "target_version": "0.13.6-alpha",
-        "channel": "alpha",
+        "target_version": "1.0.0-beta",
+        "channel": "beta",
     }
     response = await client.post("/api/v1/updates/apply", json=payload)
     assert response.status_code == 202
     data = response.json()
 
     assert data["state"] == "requested"
-    assert data["target_version"] == "0.13.6-alpha"
+    assert data["target_version"] == "1.0.0-beta"
     assert data["request_id"] is not None
 
     # Verify atomic update-request.json file exists on disk
@@ -175,7 +175,7 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     assert status_res.status_code == 200
     status_data = status_res.json()
     assert status_data["state"] == "requested"
-    assert status_data["target_version"] == "0.13.6-alpha"
+    assert status_data["target_version"] == "1.0.0-beta"
 
 
 @pytest.mark.asyncio
@@ -364,12 +364,12 @@ async def test_api_status_normalizes_stale_failure_to_idle(
     status_file = mock_updates_dir / "update-status.json"
     status_file.write_text(json.dumps(stale_payload), encoding="utf-8")
 
-    # Query API (test app runs 0.13.5-alpha)
+    # Query API (test app runs 0.13.7-alpha)
     res = await client.get("/api/v1/updates/status")
     assert res.status_code == 200
     data = res.json()
     assert data["state"] == "idle"
-    assert data["current_version"] == "0.13.5-alpha"
+    assert data["current_version"] == "0.13.7-alpha"
     assert data["target_version"] is None
     assert data["error"] is None
 
