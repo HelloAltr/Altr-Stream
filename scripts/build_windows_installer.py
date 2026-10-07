@@ -137,24 +137,44 @@ def compile_inno_setup(
 
     default_dist = REPO_ROOT / "dist"
     default_dist.mkdir(parents=True, exist_ok=True)
+    for stale in default_dist.glob("Altr-Stream-Installer*"):
+        try:
+            stale.unlink()
+        except OSError:
+            pass
 
-    if runner_type == "docker":
-        cmd = runner + [
-            f"/DMyAppVersion={version}",
-            f"/DMyDockerImage={image}",
-            "Altr-Stream.iss",
-        ]
-    else:
-        cmd = runner + [
-            f"/DMyAppVersion={version}",
-            f"/DMyDockerImage={image}",
-            f"/DMyOutputDir={output_dir.resolve()}",
-            str(iss_file.resolve()),
-        ]
+    needs_perm_reset = False
+    if runner_type == "docker" and os.name != "nt":
+        try:
+            default_dist.chmod(0o777)
+            needs_perm_reset = True
+        except OSError:
+            pass
 
-    res = subprocess.run(cmd, cwd=iss_file.parent, capture_output=True, text=True)
-    if res.returncode != 0:
-        raise RuntimeError(f"Inno Setup compilation failed (exit {res.returncode}):\n{res.stderr}\n{res.stdout}")
+    try:
+        if runner_type == "docker":
+            cmd = runner + [
+                f"/DMyAppVersion={version}",
+                f"/DMyDockerImage={image}",
+                "Altr-Stream.iss",
+            ]
+        else:
+            cmd = runner + [
+                f"/DMyAppVersion={version}",
+                f"/DMyDockerImage={image}",
+                f"/DMyOutputDir={output_dir.resolve()}",
+                str(iss_file.resolve()),
+            ]
+
+        res = subprocess.run(cmd, cwd=iss_file.parent, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise RuntimeError(f"Inno Setup compilation failed (exit {res.returncode}):\n{res.stderr}\n{res.stdout}")
+    finally:
+        if needs_perm_reset:
+            try:
+                default_dist.chmod(0o755)
+            except OSError:
+                pass
 
     built_exe = (default_dist / "Altr-Stream-Installer.exe") if runner_type == "docker" else target_exe
     if not built_exe.exists():

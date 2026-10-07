@@ -213,7 +213,15 @@ def test_build_windows_installer_produces_valid_pe(tmp_path: Path) -> None:
     """End-to-end test of the Windows installer build pipeline and PE binary validation."""
     from scripts.build_windows_installer import build_windows_installer
 
-    installer_exe = build_windows_installer(output_dir=tmp_path)
+    try:
+        installer_exe = build_windows_installer(output_dir=tmp_path)
+    except RuntimeError as e:
+        err = str(e)
+        if "Inno Setup 6 compiler (iscc) not found" in err:
+            pytest.skip(f"Inno Setup compiler (iscc) is not available in this environment: {e}")
+        if "Cannot connect to the Docker daemon" in err or "docker daemon is not running" in err.lower():
+            pytest.skip(f"Docker daemon unavailable to run containerized Inno Setup compiler: {e}")
+        raise
     assert installer_exe.is_file()
     assert installer_exe.name == "Altr-Stream-Installer.exe"
 

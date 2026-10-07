@@ -1492,6 +1492,9 @@ func TestStartContainer_DetectsContainerAlreadyRunning(t *testing.T) {
 
 // 35. Test OpenDockerSettings Execution & Application Fallback
 func TestOpenDockerSettings(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("skipping Darwin-specific Docker settings deep-link test on non-Darwin host")
+	}
 	mockExec := NewMockExecutor()
 	dm := NewDockerManager(mockExec)
 
@@ -1824,6 +1827,9 @@ func TestDarwinPlatform_OfficialDockerURL(t *testing.T) {
 
 // 48. Test Docker Resolution with GUI-like restricted PATH (Finder launch)
 func TestDockerResolution_GUILikePath_UsesResolvedCLIForInstallAndVolumes(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("skipping Darwin-specific GUI launch path resolution test on non-Darwin host")
+	}
 	testDir := setupTestDir(t)
 	mockExec := NewMockExecutor()
 
@@ -3058,6 +3064,9 @@ func TestCheckDocker_AllDockerStates(t *testing.T) {
 
 // 75. Test UnpauseDockerDesktop
 func TestUnpauseDockerDesktop(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("skipping Darwin-specific Docker Desktop unpause test on non-Darwin host")
+	}
 	t.Run("Direct Socket or Platform Unpause", func(t *testing.T) {
 		mockExec := NewMockExecutor()
 		engine := NewInstallerEngine(mockExec, &MockHTTPClient{})
