@@ -51,7 +51,9 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
         dataType: _dataType,
         nullable: _nullable,
         isPrimaryKey: _isPrimaryKey,
-        description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
       );
 
       if (mounted) {
@@ -70,7 +72,16 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    const dataTypes = ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'JSON', 'BINARY'];
+    const dataTypes = [
+      'STRING',
+      'INTEGER',
+      'FLOAT',
+      'BOOLEAN',
+      'DATE',
+      'TIMESTAMP',
+      'JSON',
+      'BINARY',
+    ];
 
     return Dialog(
       backgroundColor: colorScheme.surfaceContainerHigh,
@@ -92,7 +103,11 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: HugeIcon(icon: HugeIcons.strokeRoundedCodeCircle, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedCodeCircle,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -107,7 +122,10 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 18,
+                    ),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -119,9 +137,14 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
                   decoration: BoxDecoration(
                     color: colorScheme.errorContainer.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: colorScheme.error.withValues(alpha: 0.5),
+                    ),
                   ),
-                  child: Text(_errorMessage!, style: TextStyle(color: colorScheme.error, fontSize: 12)),
+                  child: Text(
+                    _errorMessage!,
+                    style: TextStyle(color: colorScheme.error, fontSize: 12),
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -132,7 +155,9 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
                   hintText: 'e.g. email, total_amount, created_at',
                 ),
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Field name is required';
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Field name is required';
+                  }
                   if (!RegExp(r'^[a-zA-Z0-9_\-]+$').hasMatch(val.trim())) {
                     return 'Alphanumeric and underscores only';
                   }
@@ -143,7 +168,9 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
               DropdownButtonFormField<String>(
                 initialValue: _dataType,
                 decoration: const InputDecoration(labelText: 'Data Type'),
-                items: dataTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                items: dataTypes
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                    .toList(),
                 onChanged: (val) {
                   if (val != null) setState(() => _dataType = val);
                 },
@@ -162,17 +189,25 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
                   Expanded(
                     child: CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Primary Key', style: TextStyle(fontSize: 13)),
+                      title: const Text(
+                        'Primary Key',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       value: _isPrimaryKey,
-                      onChanged: (val) => setState(() => _isPrimaryKey = val ?? false),
+                      onChanged: (val) =>
+                          setState(() => _isPrimaryKey = val ?? false),
                     ),
                   ),
                   Expanded(
                     child: CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Nullable', style: TextStyle(fontSize: 13)),
+                      title: const Text(
+                        'Nullable',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       value: _nullable,
-                      onChanged: (val) => setState(() => _nullable = val ?? true),
+                      onChanged: (val) =>
+                          setState(() => _nullable = val ?? true),
                     ),
                   ),
                 ],
@@ -182,8 +217,13 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(
@@ -194,7 +234,10 @@ class _AddFieldDialogState extends State<AddFieldDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
+                        : const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                            size: 16,
+                          ),
                     label: Text(_isSubmitting ? 'Adding...' : 'Add Field'),
                   ),
                 ],

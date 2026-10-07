@@ -18,7 +18,10 @@ class ApiCurlGenerator {
       ...?headers,
     };
 
-    if (body != null && body.trim().isNotEmpty && normalizedMethod != 'GET' && normalizedMethod != 'HEAD') {
+    if (body != null &&
+        body.trim().isNotEmpty &&
+        normalizedMethod != 'GET' &&
+        normalizedMethod != 'HEAD') {
       effectiveHeaders['Content-Type'] = 'application/json';
     }
 
@@ -26,7 +29,10 @@ class ApiCurlGenerator {
       buffer.writeln('  -H "$k: $v" \\');
     });
 
-    if (body != null && body.trim().isNotEmpty && normalizedMethod != 'GET' && normalizedMethod != 'HEAD') {
+    if (body != null &&
+        body.trim().isNotEmpty &&
+        normalizedMethod != 'GET' &&
+        normalizedMethod != 'HEAD') {
       // Escape single quotes for bash single-quoted string
       final escapedBody = body.replaceAll("'", "'\\''");
       buffer.write("  -d '$escapedBody'");

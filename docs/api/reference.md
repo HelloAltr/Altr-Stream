@@ -13,7 +13,7 @@ Returns the operational health and version of the Altr Stream node.
 ```json
 {
   "service": "Altr Stream",
-  "version": "0.13.7-alpha",
+  "version": "1.0.0-beta",
   "status": "healthy",
   "timestamp": "2026-09-25T12:00:00.000000"
 }

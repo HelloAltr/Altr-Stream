@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../api/api_client.dart';
 import '../api/models.dart';
+import '../config/app_config.dart';
 import '../platform/platform_reload.dart';
 
 enum UpdateChipState {
@@ -20,7 +21,10 @@ class UpdateController extends ChangeNotifier {
   static UpdateController get instance => instanceFor(null);
 
   static UpdateController instanceFor(ApiClient? client) {
-    return _instances.putIfAbsent(client, () => UpdateController(apiClient: client));
+    return _instances.putIfAbsent(
+      client,
+      () => UpdateController(apiClient: client),
+    );
   }
 
   static void setMock(UpdateController controller) {
@@ -45,18 +49,31 @@ class UpdateController extends ChangeNotifier {
   bool _reloadRequired = false;
   Timer? _pollTimer;
   bool _initialized = false;
+  bool _autoCheckStarted = false;
+  bool _dismissedLaterThisSession = false;
+  bool _isCancelling = false;
   int _consecutivePollErrors = 0;
-  static const int maxConsecutivePollErrors = 30; // 60s of complete container restart
+  int _requestedStateTicks = 0;
+  static const int maxConsecutivePollErrors =
+      30; // 60s of complete container restart
 
   UpdateController({ApiClient? apiClient})
-      : apiClient = apiClient ?? ApiClient();
+    : apiClient = apiClient ?? ApiClient();
 
   UpdateStatusResponse? get currentStatus => _currentStatus;
   UpdateCheckResponse? get latestCheck => _latestCheck;
   bool get isChecking => _isChecking;
   bool get isStartingUpdate => _isStartingUpdate;
+  bool get isCancelling => _isCancelling;
   String? get checkError => _checkError;
   bool get isReloadRequired => _reloadRequired || isCompleted;
+  bool get autoCheckStarted => _autoCheckStarted;
+  bool get isDismissedLaterThisSession => _dismissedLaterThisSession;
+
+  void dismissLater() {
+    _dismissedLaterThisSession = true;
+    notifyListeners();
+  }
 
   String get state => _currentStatus?.state.toLowerCase() ?? 'idle';
   bool get isIdle => state == 'idle';
@@ -68,6 +85,11 @@ class UpdateController extends ChangeNotifier {
   bool get isRolledBack => state == 'rolled_back';
   bool get isCompleted => state == 'completed';
   bool get isFailed => state == 'failed' || isRolledBack;
+  bool get isCancelled => state == 'cancelled';
+
+  bool get isCancellable =>
+      (isRequested || isStaging || _isStartingUpdate) && !isCritical;
+  bool get isCritical => isApplying || isHealthCheck || isRollingBack;
 
   bool get isActive =>
       isRequested ||
@@ -90,7 +112,8 @@ class UpdateController extends ChangeNotifier {
       _currentStatus?.targetVersion ?? _latestCheck?.latestVersion;
 
   int get progressPercent {
-    if (_isStartingUpdate && (_currentStatus == null || _currentStatus!.progressPercent == 0)) {
+    if (_isStartingUpdate &&
+        (_currentStatus == null || _currentStatus!.progressPercent == 0)) {
       return 10;
     }
     return _currentStatus?.progressPercent ?? 0;
@@ -109,8 +132,11 @@ class UpdateController extends ChangeNotifier {
   String? get errorMessage {
     if (_currentStatus != null) {
       if (isRolledBack) {
-        final detail = _currentStatus!.error ??
-            (_currentStatus!.message.isNotEmpty ? _currentStatus!.message : 'Update rolled back.');
+        final detail =
+            _currentStatus!.error ??
+            (_currentStatus!.message.isNotEmpty
+                ? _currentStatus!.message
+                : 'Update rolled back.');
         return 'Update rolled back: $detail';
       }
       if (_currentStatus!.error != null) {
@@ -145,9 +171,24 @@ class UpdateController extends ChangeNotifier {
   }
 
   Future<void> init() async {
-    if (_initialized) return;
+    if (_initialized) {
+      return;
+    }
     _initialized = true;
-    await fetchStatus();
+    try {
+      await fetchStatus();
+    } catch (_) {}
+
+    if (!isActive && !isCompleted && !_autoCheckStarted) {
+      _autoCheckStarted = true;
+      unawaited(_performInitialAutoCheck());
+    }
+  }
+
+  Future<void> _performInitialAutoCheck() async {
+    try {
+      await checkForUpdates(silent: true);
+    } catch (_) {}
   }
 
   Future<void> fetchStatus() async {
@@ -178,9 +219,16 @@ class UpdateController extends ChangeNotifier {
     }
   }
 
-  Future<void> checkForUpdates({String? channel, bool forceRefresh = false}) async {
+  Future<void> checkForUpdates({
+    String? channel,
+    bool forceRefresh = false,
+    bool silent = false,
+  }) async {
+    if (_isChecking) return;
     _isChecking = true;
-    _checkError = null;
+    if (!silent) {
+      _checkError = null;
+    }
     notifyListeners();
 
     try {
@@ -190,10 +238,15 @@ class UpdateController extends ChangeNotifier {
       );
       _latestCheck = checkRes;
       if (!checkRes.checkAvailable) {
-        _checkError = checkRes.message ?? 'Unable to check for updates right now.';
+        if (!silent) {
+          _checkError =
+              checkRes.message ?? 'Unable to check for updates right now.';
+        }
       }
     } catch (e) {
-      _checkError = 'Update check failed: $e';
+      if (!silent) {
+        _checkError = 'Update check failed: $e';
+      }
     } finally {
       _isChecking = false;
       notifyListeners();
@@ -225,13 +278,58 @@ class UpdateController extends ChangeNotifier {
     }
   }
 
+  Future<void> cancelUpdate() async {
+    if (!isCancellable || _isCancelling) return;
+    _isCancelling = true;
+    _checkError = null;
+    notifyListeners();
+
+    try {
+      final status = await apiClient.cancelUpdate();
+      _currentStatus = status;
+      _isStartingUpdate = false;
+      _stopPolling();
+      notifyListeners();
+    } catch (e) {
+      _checkError = 'Failed to cancel update: $e';
+      notifyListeners();
+    } finally {
+      _isCancelling = false;
+      notifyListeners();
+    }
+  }
+
   void _startPolling() {
     _pollTimer?.cancel();
+    _requestedStateTicks = 0;
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
       try {
         final status = await apiClient.getUpdateStatus();
         _consecutivePollErrors = 0;
         _currentStatus = status;
+
+        if (status.isRequested) {
+          _requestedStateTicks++;
+          if (_requestedStateTicks >= 30) {
+            // Timed out waiting for host supervisor (60s)
+            _stopPolling();
+            _currentStatus = UpdateStatusResponse(
+              state: 'failed',
+              currentVersion:
+                  _currentStatus?.currentVersion ?? AppConfig.appVersion,
+              targetVersion: targetVersion,
+              progressPercent: 0,
+              message:
+                  'Update request timed out. The host supervisor did not respond.',
+              error: 'Host supervisor response timed out after 60 seconds.',
+              updatedAt: DateTime.now().toUtc().toIso8601String(),
+            );
+            notifyListeners();
+            return;
+          }
+        } else {
+          _requestedStateTicks = 0;
+        }
 
         if (!status.isActive) {
           _stopPolling();
@@ -248,7 +346,8 @@ class UpdateController extends ChangeNotifier {
         // Retain last known active status and continue retrying.
         if (_consecutivePollErrors >= maxConsecutivePollErrors && isActive) {
           _stopPolling();
-          _checkError = 'Connection to node timed out during update. Node may be restarting.';
+          _checkError =
+              'Connection to node timed out during update. Node may be restarting.';
           notifyListeners();
         }
       }

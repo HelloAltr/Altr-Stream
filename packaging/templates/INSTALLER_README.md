@@ -11,8 +11,10 @@ Linux
   Run: chmod +x Altr-Stream_Linux_Installer.sh && ./Altr-Stream_Linux_Installer.sh
 
 Windows
-  Altr-Stream_Windows_Installer.ps1
-  Right-click and select "Run with PowerShell" (or execute in PowerShell)
+  Altr-Stream-Installer.exe (Recommended: Native Setup)
+    Double-click Altr-Stream-Installer.exe to run graphical setup
+  Altr-Stream_Windows_Installer.bat (Console Setup)
+    Double-click Altr-Stream_Windows_Installer.bat (or run in Command Prompt)
 
 ---
 For detailed documentation and guides, visit:

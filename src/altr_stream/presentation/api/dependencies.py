@@ -1,5 +1,7 @@
 """Centralized FastAPI dependency providers."""
 
+from __future__ import annotations
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +13,6 @@ from altr_stream.infrastructure.database.registry_repository import SqliteRegist
 from altr_stream.infrastructure.database.repository import SqliteSourceRepository
 from altr_stream.infrastructure.database.session import get_session
 from altr_stream.query_engine.planning import QueryPlanner
-
 
 
 def get_source_service(session: AsyncSession = Depends(get_session)) -> SourceService:
@@ -47,7 +48,3 @@ def get_query_planner(
 ) -> QueryPlanner:
     """Provide a scoped QueryPlanner instance for source-agnostic query compilation."""
     return QueryPlanner(registry_service, schema_service, source_service)
-
-
-
-

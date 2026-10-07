@@ -6,11 +6,9 @@ PhysicalQuery structured command dictionary without using eval(), exec(), or arb
 
 from datetime import datetime, timezone
 import decimal
-import re
 from typing import Any
 import uuid
 
-import bson
 from bson import Decimal128, ObjectId
 from bson.timestamp import Timestamp
 

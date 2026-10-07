@@ -463,476 +463,482 @@ DELETE users;''',
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          // AltrQL Editor Card (styled like QueryEditor)
-          Card(
-            elevation: 0,
-            margin: EdgeInsets.zero,
-            clipBehavior: Clip.antiAlias,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(28)),
-              side: BorderSide.none,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header with M3EMenu Target Source Selector & Normalize on Left, M3EButton Reset Query on Right
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerLow,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Left side: Target Source M3EMenu & Normalize Checkbox
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+              // AltrQL Editor Card (styled like QueryEditor)
+              Card(
+                elevation: 0,
+                margin: EdgeInsets.zero,
+                clipBehavior: Clip.antiAlias,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(28)),
+                  side: BorderSide.none,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header with M3EMenu Target Source Selector & Normalize on Left, M3EButton Reset Query on Right
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerLow,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Target Source:',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Theme(
-                            data: Theme.of(context).copyWith(
-                              textTheme: Theme.of(context).textTheme.copyWith(
-                                bodyMedium: const TextStyle(fontSize: 11.5),
-                                bodySmall: const TextStyle(fontSize: 11),
-                                labelLarge: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                labelMedium: const TextStyle(fontSize: 11),
-                              ),
-                            ),
-                            child: M3EMenu(
-                              position: M3EMenuAnchorPosition.bottomStart,
-                              colorStyle: M3EMenuColorStyle.standard,
-                              closeOnSelect: true,
-                              selectedValue: _selectedSource?.id ?? 'auto',
-                              onSelected: (Object? value) {
-                                setState(() {
-                                  if (value == 'auto' || value == null) {
-                                    _selectedSource = null;
-                                  } else {
-                                    final found = widget.sources.where(
-                                      (s) => s.id == value.toString(),
-                                    );
-                                    if (found.isNotEmpty) {
-                                      _selectedSource = found.first;
-                                    } else {
-                                      _selectedSource = null;
-                                    }
-                                  }
-                                });
-                              },
-                              anchorBuilder:
-                                  (BuildContext context, VoidCallback open) {
-                                    final isAuto = _selectedSource == null;
-                                    final labelText = isAuto
-                                        ? 'Auto-Select / All Sources (Federated)'
-                                        : '${_selectedSource!.name} (${_selectedSource!.type})';
-                                    final iconData = isAuto
-                                        ? HugeIcons.strokeRoundedWorkflow
-                                        : AppTheme.getSourceTypeIcon(
-                                            _selectedSource!.type,
-                                          );
-                                    final iconColor = isAuto
-                                        ? colorScheme.primary
-                                        : AppTheme.getSourceTypeColor(
-                                            _selectedSource!.type,
-                                            context,
-                                          );
-
-                                    return Theme(
-                                      data: Theme.of(context).copyWith(
-                                        colorScheme: colorScheme.copyWith(
-                                          secondaryContainer:
-                                              colorScheme.surfaceContainer,
-                                          onSecondaryContainer:
-                                              colorScheme.onSurface,
-                                        ),
-                                      ),
-                                      child: SizedBox(
-                                        width: 270,
-                                        child: M3EButton.icon(
-                                          style: M3EButtonStyle.outlined,
-                                          size: M3EButtonSize.sm,
-                                          decoration: M3EButtonDecoration(
-                                            side: WidgetStatePropertyAll(
-                                              BorderSide(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .outline
-                                                    .withAlpha(100),
-                                              ),
-                                            ),
-                                          ),
-                                          icon: HugeIcon(
-                                            icon: iconData,
-                                            size: 14,
-                                            color: iconColor,
-                                          ),
-                                          label: Text(
-                                            labelText,
-                                            style: TextStyle(
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: colorScheme.onSurface,
-                                            ),
-                                          ),
-                                          onPressed: open,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                              children: <M3EMenuNode>[
-                                M3EMenuSelectable(
-                                  label:
-                                      'Auto-Select / All Sources (Federated)',
-                                  value: 'auto',
-                                  selected: _selectedSource == null,
-                                  leading: HugeIcon(
-                                    icon: HugeIcons.strokeRoundedWorkflow,
-                                    color: colorScheme.primary,
-                                    size: 15,
-                                  ),
-                                ),
-                                ...widget.sources.map((src) {
-                                  final srcColor = AppTheme.getSourceTypeColor(
-                                    src.type,
-                                    context,
-                                  );
-                                  return M3EMenuSelectable(
-                                    label: '${src.name} (${src.type})',
-                                    value: src.id,
-                                    selected: _selectedSource?.id == src.id,
-                                    leading: HugeIcon(
-                                      icon: AppTheme.getSourceTypeIcon(
-                                        src.type,
-                                      ),
-                                      color: srcColor,
-                                      size: 15,
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
+                          // Left side: Target Source M3EMenu & Normalize Checkbox
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: Checkbox(
-                                  value: _selectedSource == null
-                                      ? true
-                                      : _normalizeThroughLogicalSchema,
-                                  onChanged: _selectedSource == null
-                                      ? null
-                                      : (val) {
-                                          setState(() {
-                                            _normalizeThroughLogicalSchema =
-                                                val ?? false;
-                                          });
-                                        },
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  visualDensity: VisualDensity.compact,
+                              Text(
+                                'Target Source:',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              Tooltip(
-                                message: _selectedSource == null
-                                    ? 'Normalization is mandatory for federated multi-source execution'
-                                    : 'When enabled, translates physical column names to canonical logical field names',
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Normalize (Logical)',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: _selectedSource == null
-                                            ? colorScheme.onSurface.withValues(
-                                                alpha: 0.7,
-                                              )
-                                            : colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                    if (_selectedSource == null) ...[
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '(Auto)',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontStyle: FontStyle.italic,
-                                          color: colorScheme.outline,
+                              const SizedBox(width: 8),
+                              Theme(
+                                data: Theme.of(context).copyWith(
+                                  textTheme: Theme.of(context).textTheme
+                                      .copyWith(
+                                        bodyMedium: const TextStyle(
+                                          fontSize: 11.5,
+                                        ),
+                                        bodySmall: const TextStyle(
+                                          fontSize: 11,
+                                        ),
+                                        labelLarge: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        labelMedium: const TextStyle(
+                                          fontSize: 11,
                                         ),
                                       ),
-                                    ],
-                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      // Right side: M3EButton for Reset Query
-                      M3EButton.icon(
-                        style: M3EButtonStyle.outlined,
-                        size: M3EButtonSize.sm,
-                        decoration: M3EButtonDecoration(
-                          side: WidgetStatePropertyAll(
-                            BorderSide(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.outline.withAlpha(100),
-                            ),
-                          ),
-                        ),
-                        icon: const HugeIcon(
-                          icon: HugeIcons.strokeRoundedRefresh,
-                          size: 14,
-                        ),
-                        label: const Text('Reset Query'),
-                        onPressed: () {
-                          setState(() => _queryController.clear());
-                          _focusNode.requestFocus();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                                child: M3EMenu(
+                                  position: M3EMenuAnchorPosition.bottomStart,
+                                  colorStyle: M3EMenuColorStyle.standard,
+                                  closeOnSelect: true,
+                                  selectedValue: _selectedSource?.id ?? 'auto',
+                                  onSelected: (Object? value) {
+                                    setState(() {
+                                      if (value == 'auto' || value == null) {
+                                        _selectedSource = null;
+                                      } else {
+                                        final found = widget.sources.where(
+                                          (s) => s.id == value.toString(),
+                                        );
+                                        if (found.isNotEmpty) {
+                                          _selectedSource = found.first;
+                                        } else {
+                                          _selectedSource = null;
+                                        }
+                                      }
+                                    });
+                                  },
+                                  anchorBuilder:
+                                      (
+                                        BuildContext context,
+                                        VoidCallback open,
+                                      ) {
+                                        final isAuto = _selectedSource == null;
+                                        final labelText = isAuto
+                                            ? 'Auto-Select / All Sources (Federated)'
+                                            : '${_selectedSource!.name} (${_selectedSource!.type})';
+                                        final iconData = isAuto
+                                            ? HugeIcons.strokeRoundedWorkflow
+                                            : AppTheme.getSourceTypeIcon(
+                                                _selectedSource!.type,
+                                              );
+                                        final iconColor = isAuto
+                                            ? colorScheme.primary
+                                            : AppTheme.getSourceTypeColor(
+                                                _selectedSource!.type,
+                                                context,
+                                              );
 
-                // Text Field Container with Surface Container Low Background Color (fitted for 10 lines: 10 * 19.5 + 32 = 227)
-                Container(
-                  height: 227,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerLowest,
-                    border: BoxBorder.all(
-                      color: colorScheme.surfaceContainerLow,
-                    ),
-                  ),
-                  child: CallbackShortcuts(
-                    bindings: <ShortcutActivator, VoidCallback>{
-                      const SingleActivator(LogicalKeyboardKey.tab):
-                          _handleTabKey,
-                    },
-                    child: TextField(
-                      controller: _queryController,
-                      focusNode: _focusNode,
-                      maxLines: null,
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      style: GoogleFonts.robotoMono(
-                        fontWeight: FontWeight.normal,
-                        fontSize: 13,
-                        color: colorScheme.onSurface,
-                        height: 1.5,
-                        letterSpacing: 0.2,
-                      ),
-                      cursorColor: colorScheme.primary,
-                      decoration: InputDecoration(
-                        hintText: 'Write an AltrQL query...',
-                        hintStyle: GoogleFonts.robotoMono(
-                          fontWeight: FontWeight.normal,
-                          fontSize: 13,
-                          height: 1.5,
-                          letterSpacing: 0.2,
-                          color: colorScheme.onSurfaceVariant.withValues(
-                            alpha: 0.45,
-                          ),
-                        ),
-                        border: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        hoverColor: Colors.transparent,
-                        fillColor: Colors.transparent,
-                        filled: false,
-                        contentPadding: const EdgeInsets.all(16),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Footer Action Bar
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerLow,
-                  ),
-                  child: Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      Text(
-                        'Shortcuts: ⌘/Ctrl + Enter to Execute · Tab to Indent',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          PopupMenuButton<String>(
-                            tooltip: 'Insert Template',
-                            onSelected: (templateValue) {
-                              setState(() {
-                                _queryController.text = templateValue;
-                              });
-                              _focusNode.requestFocus();
-                            },
-                            itemBuilder: (context) => _templates.entries.map((
-                              entry,
-                            ) {
-                              return PopupMenuItem<String>(
-                                value: entry.value,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                ),
-                                child: Row(
-                                  children: [
-                                    HugeIcon(
-                                      icon: HugeIcons.strokeRoundedCode,
-                                      size: 14,
-                                      color: colorScheme.primary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        entry.key,
-                                        style: const TextStyle(fontSize: 12),
-                                        overflow: TextOverflow.ellipsis,
+                                        return Theme(
+                                          data: Theme.of(context).copyWith(
+                                            colorScheme: colorScheme.copyWith(
+                                              secondaryContainer:
+                                                  colorScheme.surfaceContainer,
+                                              onSecondaryContainer:
+                                                  colorScheme.onSurface,
+                                            ),
+                                          ),
+                                          child: SizedBox(
+                                            width: 270,
+                                            child: M3EButton.icon(
+                                              style: M3EButtonStyle.outlined,
+                                              size: M3EButtonSize.sm,
+                                              decoration: M3EButtonDecoration(
+                                                side: WidgetStatePropertyAll(
+                                                  BorderSide(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .outline
+                                                        .withAlpha(100),
+                                                  ),
+                                                ),
+                                              ),
+                                              icon: HugeIcon(
+                                                icon: iconData,
+                                                size: 14,
+                                                color: iconColor,
+                                              ),
+                                              label: Text(
+                                                labelText,
+                                                style: TextStyle(
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: colorScheme.onSurface,
+                                                ),
+                                              ),
+                                              onPressed: open,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                  children: <M3EMenuNode>[
+                                    M3EMenuSelectable(
+                                      label:
+                                          'Auto-Select / All Sources (Federated)',
+                                      value: 'auto',
+                                      selected: _selectedSource == null,
+                                      leading: HugeIcon(
+                                        icon: HugeIcons.strokeRoundedWorkflow,
+                                        color: colorScheme.primary,
+                                        size: 15,
                                       ),
                                     ),
+                                    ...widget.sources.map((src) {
+                                      final srcColor =
+                                          AppTheme.getSourceTypeColor(
+                                            src.type,
+                                            context,
+                                          );
+                                      return M3EMenuSelectable(
+                                        label: '${src.name} (${src.type})',
+                                        value: src.id,
+                                        selected: _selectedSource?.id == src.id,
+                                        leading: HugeIcon(
+                                          icon: AppTheme.getSourceTypeIcon(
+                                            src.type,
+                                          ),
+                                          color: srcColor,
+                                          size: 15,
+                                        ),
+                                      );
+                                    }),
                                   ],
                                 ),
-                              );
-                            }).toList(),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
                               ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: colorScheme.outlineVariant.withValues(
-                                    alpha: 0.8,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
+                              const SizedBox(width: 12),
+                              Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  HugeIcon(
-                                    icon: HugeIcons.strokeRoundedCode,
-                                    size: 14,
-                                    color: colorScheme.primary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Templates',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: colorScheme.onSurface,
+                                  SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: Checkbox(
+                                      value: _selectedSource == null
+                                          ? true
+                                          : _normalizeThroughLogicalSchema,
+                                      onChanged: _selectedSource == null
+                                          ? null
+                                          : (val) {
+                                              setState(() {
+                                                _normalizeThroughLogicalSchema =
+                                                    val ?? false;
+                                              });
+                                            },
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
                                     ),
                                   ),
-                                  const SizedBox(width: 2),
-                                  HugeIcon(
-                                    icon: HugeIcons.strokeRoundedArrowDown01,
-                                    size: 16,
-                                    color: colorScheme.onSurfaceVariant,
+                                  const SizedBox(width: 4),
+                                  Tooltip(
+                                    message: _selectedSource == null
+                                        ? 'Normalization is mandatory for federated multi-source execution'
+                                        : 'When enabled, translates physical column names to canonical logical field names',
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Normalize (Logical)',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: _selectedSource == null
+                                                ? colorScheme.onSurface
+                                                      .withValues(alpha: 0.7)
+                                                : colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        if (_selectedSource == null) ...[
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '(Auto)',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontStyle: FontStyle.italic,
+                                              color: colorScheme.outline,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
+                            ],
+                          ),
+                          // Right side: M3EButton for Reset Query
+                          M3EButton.icon(
+                            style: M3EButtonStyle.outlined,
+                            size: M3EButtonSize.sm,
+                            decoration: M3EButtonDecoration(
+                              side: WidgetStatePropertyAll(
+                                BorderSide(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.outline.withAlpha(100),
+                                ),
+                              ),
+                            ),
+                            icon: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedRefresh,
+                              size: 14,
+                            ),
+                            label: const Text('Reset Query'),
+                            onPressed: () {
+                              setState(() => _queryController.clear());
+                              _focusNode.requestFocus();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Text Field Container with Surface Container Low Background Color (fitted for 10 lines: 10 * 19.5 + 32 = 227)
+                    Container(
+                      height: 227,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerLowest,
+                        border: BoxBorder.all(
+                          color: colorScheme.surfaceContainerLow,
+                        ),
+                      ),
+                      child: CallbackShortcuts(
+                        bindings: <ShortcutActivator, VoidCallback>{
+                          const SingleActivator(LogicalKeyboardKey.tab):
+                              _handleTabKey,
+                        },
+                        child: TextField(
+                          controller: _queryController,
+                          focusNode: _focusNode,
+                          maxLines: null,
+                          expands: true,
+                          textAlignVertical: TextAlignVertical.top,
+                          style: GoogleFonts.robotoMono(
+                            fontWeight: FontWeight.normal,
+                            fontSize: 13,
+                            color: colorScheme.onSurface,
+                            height: 1.5,
+                            letterSpacing: 0.2,
+                          ),
+                          cursorColor: colorScheme.primary,
+                          decoration: InputDecoration(
+                            hintText: 'Write an AltrQL query...',
+                            hintStyle: GoogleFonts.robotoMono(
+                              fontWeight: FontWeight.normal,
+                              fontSize: 13,
+                              height: 1.5,
+                              letterSpacing: 0.2,
+                              color: colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.45,
+                              ),
+                            ),
+                            border: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            hoverColor: Colors.transparent,
+                            fillColor: Colors.transparent,
+                            filled: false,
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Footer Action Bar
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerLow,
+                      ),
+                      child: Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          Text(
+                            'Shortcuts: ⌘/Ctrl + Enter to Execute · Tab to Indent',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
-                          M3ESplitButton<String>(
-                            label: _isExecuting
-                                ? 'Executing...'
-                                : (_isBinding
-                                      ? 'Binding...'
-                                      : (_isParsing
-                                            ? 'Parsing...'
-                                            : 'Execute Query')),
-                            leadingIcon: M3EIcons.play_arrow,
-                            style: M3EButtonStyle.filled,
-                            size: M3EButtonSize.sm,
-                            shape: M3EButtonShape.round,
-                            enabled: !_isBusy,
-                            selectedValue: null,
-                            decoration: const M3ESplitButtonDecoration(
-                              menuStyle: M3ESplitButtonMenuStyle.popup,
-                            ),
-                            onPressed: _handleExecute,
-                            onSelected: (String value) {
-                              if (value == 'execute') _handleExecute();
-                              if (value == 'bind') _handleBind();
-                              if (value == 'parse') _handleParse();
-                            },
-                            items: const <M3ESplitButtonItem<String>>[
-                              M3ESplitButtonItem<String>(
-                                value: 'execute',
-                                child: Text('Execute Query'),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              PopupMenuButton<String>(
+                                tooltip: 'Insert Template',
+                                onSelected: (templateValue) {
+                                  setState(() {
+                                    _queryController.text = templateValue;
+                                  });
+                                  _focusNode.requestFocus();
+                                },
+                                itemBuilder: (context) =>
+                                    _templates.entries.map((entry) {
+                                      return PopupMenuItem<String>(
+                                        value: entry.value,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            HugeIcon(
+                                              icon: HugeIcons.strokeRoundedCode,
+                                              size: 14,
+                                              color: colorScheme.primary,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                entry.key,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: colorScheme.outlineVariant
+                                          .withValues(alpha: 0.8),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      HugeIcon(
+                                        icon: HugeIcons.strokeRoundedCode,
+                                        size: 14,
+                                        color: colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Templates',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: colorScheme.onSurface,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      HugeIcon(
+                                        icon:
+                                            HugeIcons.strokeRoundedArrowDown01,
+                                        size: 16,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              M3ESplitButtonItem<String>(
-                                value: 'bind',
-                                child: Text('Bind Against Source'),
-                              ),
-                              M3ESplitButtonItem<String>(
-                                value: 'parse',
-                                child: Text('Parse Query'),
+                              M3ESplitButton<String>(
+                                label: _isExecuting
+                                    ? 'Executing...'
+                                    : (_isBinding
+                                          ? 'Binding...'
+                                          : (_isParsing
+                                                ? 'Parsing...'
+                                                : 'Execute Query')),
+                                leadingIcon: M3EIcons.play_arrow,
+                                style: M3EButtonStyle.filled,
+                                size: M3EButtonSize.sm,
+                                shape: M3EButtonShape.round,
+                                enabled: !_isBusy,
+                                selectedValue: null,
+                                decoration: const M3ESplitButtonDecoration(
+                                  menuStyle: M3ESplitButtonMenuStyle.popup,
+                                ),
+                                onPressed: _handleExecute,
+                                onSelected: (String value) {
+                                  if (value == 'execute') _handleExecute();
+                                  if (value == 'bind') _handleBind();
+                                  if (value == 'parse') _handleParse();
+                                },
+                                items: const <M3ESplitButtonItem<String>>[
+                                  M3ESplitButtonItem<String>(
+                                    value: 'execute',
+                                    child: Text('Execute Query'),
+                                  ),
+                                  M3ESplitButtonItem<String>(
+                                    value: 'bind',
+                                    child: Text('Bind Against Source'),
+                                  ),
+                                  M3ESplitButtonItem<String>(
+                                    value: 'parse',
+                                    child: Text('Parse Query'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+              ),
+              const SizedBox(height: 16),
 
-          // Output Panel: Multi-view switcher [Results, Physical Query, Bound IR, Canonical IR]
-          if (isBounded)
-            Expanded(
-              child: _buildOutputPanel(context),
-            )
-          else
-            SizedBox(
-              height: 500,
-              child: _buildOutputPanel(context),
-            ),
-        ],
-      );
-    },
-  ),
-);
+              // Output Panel: Multi-view switcher [Results, Physical Query, Bound IR, Canonical IR]
+              if (isBounded)
+                Expanded(child: _buildOutputPanel(context))
+              else
+                SizedBox(height: 500, child: _buildOutputPanel(context)),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildOutputPanel(BuildContext context) {
@@ -1522,8 +1528,9 @@ DELETE users;''',
                         decoration: BoxDecoration(
                           border: Border(
                             bottom: BorderSide(
-                              color: colorScheme.outlineVariant
-                                  .withValues(alpha: 0.2),
+                              color: colorScheme.outlineVariant.withValues(
+                                alpha: 0.2,
+                              ),
                             ),
                           ),
                         ),

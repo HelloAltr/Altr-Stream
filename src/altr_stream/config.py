@@ -2,7 +2,7 @@
 
 from typing import Any
 from pathlib import Path
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from altr_stream.__version__ import __version__
@@ -33,6 +33,23 @@ class Settings(BaseSettings):
 
     # Connection timeouts
     default_connection_timeout_sec: float = 5.0
+
+    # Altr Feedback Integration
+    feedback_service_url: str = Field(
+        default="https://altr-feedback.onrender.com",
+        validation_alias=AliasChoices(
+            "ALTR_STREAM_FEEDBACK_SERVICE_URL",
+            "FEEDBACK_SERVICE_URL",
+        ),
+    )
+    feedback_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "ALTR_FEEDBACK_API_KEY",
+            "ALTR_STREAM_FEEDBACK_API_KEY",
+            "FEEDBACK_API_KEY",
+        ),
+    )
 
     model_config = SettingsConfigDict(
         env_prefix="ALTR_STREAM_",

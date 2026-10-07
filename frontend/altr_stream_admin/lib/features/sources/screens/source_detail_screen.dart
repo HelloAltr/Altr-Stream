@@ -51,6 +51,7 @@ class SourceDetailScreenState extends State<SourceDetailScreen>
     await Future.wait([_testConnection(), _discoverSchema()]);
     if (mounted) setState(() => _isRefreshing = false);
   }
+
   SourceCapabilitiesModel? _capabilities;
   List<BentoCardConfig> _cardConfigs =
       SourceDetailLayoutService.getLayoutSync();
@@ -347,7 +348,10 @@ class SourceDetailScreenState extends State<SourceDetailScreen>
                 return _buildOverviewBentoTab(context, dateFormat);
               }
               final screenHeight = MediaQuery.of(context).size.height;
-              final dynamicTabHeight = (screenHeight - 270.0).clamp(400.0, 1000.0);
+              final dynamicTabHeight = (screenHeight - 270.0).clamp(
+                400.0,
+                1000.0,
+              );
               return SizedBox(
                 height: dynamicTabHeight,
                 child: IndexedStack(
@@ -844,8 +848,7 @@ class SourceDetailScreenState extends State<SourceDetailScreen>
                       color: colorScheme.error.withValues(alpha: 0.5),
                     ),
                   ),
-                  onPressed: () =>
-                      _showDeleteConfirmationDialog(context),
+                  onPressed: () => _showDeleteConfirmationDialog(context),
                   icon: HugeIcon(
                     icon: HugeIcons.strokeRoundedDelete02,
                     size: 15,
@@ -1781,10 +1784,6 @@ class SourceDetailScreenState extends State<SourceDetailScreen>
         ),
         const SizedBox(width: 16),
 
-
-
-
-
         const SizedBox(width: 16),
 
         // Right Column: Table/Collection Column Details
@@ -1836,7 +1835,9 @@ class SourceDetailScreenState extends State<SourceDetailScreen>
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: ConstrainedBox(
-                              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                              constraints: BoxConstraints(
+                                minWidth: constraints.maxWidth,
+                              ),
                               child: DataTable(
                                 columnSpacing: 24,
                                 headingRowHeight: 40,
@@ -1846,25 +1847,33 @@ class SourceDetailScreenState extends State<SourceDetailScreen>
                                   DataColumn(
                                     label: Text(
                                       'Field Name',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                   DataColumn(
                                     label: Text(
                                       'Data Type',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                   DataColumn(
                                     label: Text(
                                       'Nullable',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                   DataColumn(
                                     label: Text(
                                       'Key Type',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1912,7 +1921,8 @@ class SourceDetailScreenState extends State<SourceDetailScreen>
                                             : Text(
                                                 '-',
                                                 style: TextStyle(
-                                                  color: colorScheme.onSurfaceVariant,
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
                                                 ),
                                               ),
                                       ),

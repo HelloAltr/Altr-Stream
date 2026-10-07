@@ -62,7 +62,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml down
 
 ---
 
-## 4. AltrQL v0.9.0-alpha Language & Federated Query Engine
+## 4. AltrQL Language & Federated Query Engine
 
 AltrQL provides unified, cross-database declarative querying and mutation across PostgreSQL, MySQL, SQLite, and MongoDB.
 
@@ -151,7 +151,7 @@ UPDATE users (
   ```
   Requires passing `confirm_mass_mutation=true` in execution requests.
 
-### 4.5 Resilient Federated Multi-Source Logical Execution (v0.10.0-alpha)
+### 4.5 Resilient Federated Multi-Source Logical Execution
 
 Altr Stream executes logical queries across multiple heterogeneous physical databases through the Logical Model & Source Mapping Registry (Path A) and runtime unmapped physical entity discovery (Path B).
 
@@ -243,11 +243,11 @@ Altr Stream provides unified business entity abstractions that map to physical d
 
 ### Backend Test Suite (Pytest)
 ```bash
-# Run all 707 backend tests
+# Run all backend tests (880+ tests)
 uv run pytest tests/ -v
 
 # Run cross-database semantic parity tests only
-uv run pytest tests/integration/test_cross_db_parity.py -v
+uv run pytest tests/integration/test_cross_database_parity.py -v
 
 # Run compiler unit tests only
 uv run pytest tests/unit/ -v
@@ -257,7 +257,7 @@ uv run pytest tests/unit/ -v
 ```bash
 cd frontend/altr_stream_admin
 
-# Run all 86 Flutter widget & integration tests
+# Run complete Flutter test suite (140+ tests)
 flutter test
 
 # Run Flutter static analysis
@@ -287,9 +287,9 @@ docker compose down -v --remove-orphans
 | **Stop Development Mode** | `docker compose -f docker-compose.yml -f docker-compose.dev.yml down` |
 | **Check Container Status** | `docker compose ps` |
 | **View Live Tail Logs** | `docker compose logs -f altr-stream` |
-| **Run Backend Tests (800+ tests)** | `pytest tests/ -v` |
-| **Run Parity Tests** | `pytest tests/integration/test_cross_db_parity.py -v` |
-| **Run Frontend Tests (130 tests)** | `cd frontend/altr_stream_admin && flutter test` |
+| **Run Backend Tests (880+ tests)** | `uv run pytest tests/ -v` |
+| **Run Parity Tests** | `uv run pytest tests/integration/test_cross_database_parity.py -v` |
+| **Run Frontend Tests (140+ tests)** | `cd frontend/altr_stream_admin && flutter test` |
 | **Run Frontend Analysis** | `cd frontend/altr_stream_admin && flutter analyze` |
 | **Full Reset (Drop DB Volumes)** | `docker compose down -v --remove-orphans` |
 | **Update Knowledge Graph** | `graphify update .` |

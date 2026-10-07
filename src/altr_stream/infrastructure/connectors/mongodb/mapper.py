@@ -5,7 +5,6 @@ import decimal
 from typing import Any
 import uuid
 
-import bson
 from bson import Binary, Decimal128, Int64, ObjectId
 from bson.timestamp import Timestamp
 

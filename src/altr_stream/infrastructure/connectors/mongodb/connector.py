@@ -36,9 +36,12 @@ class MongoDBConnector(BaseConnector):
         super().__init__(config, timeout_sec=timeout_sec)
         self._client: AsyncMongoClient | None = None
 
-    def _build_connection_uri(self) -> str:
+    def _build_connection_uri(self, resolved: bool = False) -> str:
         """Construct the MongoDB connection URI safely from ConnectionConfig."""
-        host = self.config.host or "localhost"
+        if resolved:
+            host = self.config.resolved_host or "host.docker.internal"
+        else:
+            host = self.config.host or "localhost"
         port = int(self.config.port or 27017)
         db_name = self.config.database_name or ""
 
@@ -65,7 +68,7 @@ class MongoDBConnector(BaseConnector):
 
     def _create_client(self) -> AsyncMongoClient:
         """Instantiate a new AsyncMongoClient configured with timeouts."""
-        uri = self._build_connection_uri()
+        uri = self._build_connection_uri(resolved=True)
         timeout_ms = int(self.timeout_sec * 1000)
         return AsyncMongoClient(
             uri,

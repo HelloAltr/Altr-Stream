@@ -1,6 +1,5 @@
 """SQLite connector implementation using aiosqlite."""
 
-import asyncio
 from datetime import date, datetime, time
 from decimal import Decimal
 import time as time_module
@@ -15,7 +14,6 @@ from altr_stream.domain.connector import (
     SourceCapabilities,
 )
 from altr_stream.domain.errors import (
-    ConnectionFailedError,
     QueryExecutionError,
     SchemaDiscoveryError,
 )

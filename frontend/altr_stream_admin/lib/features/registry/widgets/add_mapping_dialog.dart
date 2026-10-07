@@ -27,7 +27,8 @@ class _EntityMappingDraft {
   final LogicalEntityModel logicalEntity;
   String? physicalEntityName;
   String physicalNamespace = 'public';
-  final Map<String, String> fieldMappings = {}; // logical_field_name -> physical_field_name
+  final Map<String, String> fieldMappings =
+      {}; // logical_field_name -> physical_field_name
 
   _EntityMappingDraft({required this.logicalEntity});
 }
@@ -49,9 +50,13 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
     for (var entity in widget.logicalModel.entities) {
       final draft = _EntityMappingDraft(logicalEntity: entity);
       if (_isEditMode) {
-        final em = widget.existingMapping!.entityMappings.where(
-          (m) => m.logicalEntityId == entity.id || m.logicalEntityName == entity.name,
-        ).firstOrNull;
+        final em = widget.existingMapping!.entityMappings
+            .where(
+              (m) =>
+                  m.logicalEntityId == entity.id ||
+                  m.logicalEntityName == entity.name,
+            )
+            .firstOrNull;
         if (em != null) {
           draft.physicalEntityName = em.physicalEntityName;
           draft.physicalNamespace = em.physicalNamespace;
@@ -72,7 +77,10 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
     }
   }
 
-  Future<void> _loadSourceSchema(String sourceId, {bool preserveExistingMappings = false}) async {
+  Future<void> _loadSourceSchema(
+    String sourceId, {
+    bool preserveExistingMappings = false,
+  }) async {
     setState(() {
       _isLoadingSchema = true;
       _sourceSchema = null;
@@ -80,7 +88,9 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
     });
 
     try {
-      SourceSchemaModel? schema = await widget.apiClient.getLatestSchema(sourceId);
+      SourceSchemaModel? schema = await widget.apiClient.getLatestSchema(
+        sourceId,
+      );
       if (schema == null || schema.entities.isEmpty) {
         schema = await widget.apiClient.discoverSchema(sourceId);
       }
@@ -152,7 +162,8 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
     // Build entity mappings payload
     final entityPayloads = <Map<String, dynamic>>[];
     for (var draft in _entityDrafts) {
-      if (draft.physicalEntityName == null || draft.physicalEntityName!.isEmpty) {
+      if (draft.physicalEntityName == null ||
+          draft.physicalEntityName!.isEmpty) {
         continue;
       }
 
@@ -169,7 +180,10 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
       }
 
       if (fieldPayloads.isEmpty) {
-        setState(() => _errorMessage = 'Entity "${draft.logicalEntity.name}" has no mapped fields');
+        setState(
+          () => _errorMessage =
+              'Entity "${draft.logicalEntity.name}" has no mapped fields',
+        );
         return;
       }
 
@@ -183,7 +197,10 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
     }
 
     if (entityPayloads.isEmpty) {
-      setState(() => _errorMessage = 'At least one entity must be mapped to a physical table');
+      setState(
+        () => _errorMessage =
+            'At least one entity must be mapped to a physical table',
+      );
       return;
     }
 
@@ -211,7 +228,9 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
       }
 
       // Trigger automatic validation
-      final validated = await widget.apiClient.validateSourceMapping(resultMapping.id);
+      final validated = await widget.apiClient.validateSourceMapping(
+        resultMapping.id,
+      );
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -248,7 +267,11 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                     color: colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: HugeIcon(icon: HugeIcons.strokeRoundedExchange01, color: colorScheme.primary, size: 20),
+                  child: HugeIcon(
+                    icon: HugeIcons.strokeRoundedExchange01,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -269,14 +292,20 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                         _isEditMode
                             ? 'Update physical database table and column mappings for standard logical entities.'
                             : 'Map physical database tables and columns to standard logical entities.',
-                        style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedCancel01,
+                    size: 18,
+                  ),
                   color: colorScheme.onSurfaceVariant,
                 ),
               ],
@@ -288,14 +317,26 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                 decoration: BoxDecoration(
                   color: colorScheme.errorContainer.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: colorScheme.error.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedAlertCircle,
+                      color: colorScheme.error,
+                      size: 18,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(_errorMessage!, style: TextStyle(color: colorScheme.error, fontSize: 12)),
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          color: colorScheme.error,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -316,7 +357,10 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                       items: widget.sources.map((s) {
                         return DropdownMenuItem(
                           value: s.id,
-                          child: Text('${s.name} (${s.type})', style: const TextStyle(fontSize: 13)),
+                          child: Text(
+                            '${s.name} (${s.type})',
+                            style: const TextStyle(fontSize: 13),
+                          ),
                         );
                       }).toList(),
                       onChanged: _isEditMode
@@ -338,7 +382,10 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                             });
                           }
                         : null,
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedMagicWand01, size: 16),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedMagicWand01,
+                      size: 16,
+                    ),
                     label: const Text('Auto-Match All'),
                   ),
                 ],
@@ -353,7 +400,10 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                     children: [
                       CircularProgressIndicator(color: colorScheme.primary),
                       const SizedBox(height: 12),
-                      const Text('Inspecting physical schema...', style: TextStyle(fontSize: 12)),
+                      const Text(
+                        'Inspecting physical schema...',
+                        style: TextStyle(fontSize: 12),
+                      ),
                     ],
                   ),
                 ),
@@ -362,7 +412,9 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
               Container(
                 padding: const EdgeInsets.all(24),
                 child: const Center(
-                  child: Text('Select a connected data source to inspect its tables and columns.'),
+                  child: Text(
+                    'Select a connected data source to inspect its tables and columns.',
+                  ),
                 ),
               )
             else if (_entityDrafts.isEmpty)
@@ -373,23 +425,36 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                   decoration: BoxDecoration(
                     color: colorScheme.surfaceContainer,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, size: 36, color: colorScheme.onSurfaceVariant),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedAlertCircle,
+                          size: 36,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           'No logical entities in "${widget.logicalModel.name}"',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Please define at least one logical entity in this model before adding a source mapping.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -404,14 +469,20 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                   itemBuilder: (context, eIdx) {
                     final draft = _entityDrafts[eIdx];
                     final physEntities = _sourceSchema!.entities;
-                    final selectedPhysEntity = physEntities.where((pe) => pe.name == draft.physicalEntityName).firstOrNull;
+                    final selectedPhysEntity = physEntities
+                        .where((pe) => pe.name == draft.physicalEntityName)
+                        .firstOrNull;
 
                     return Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainer,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,9 +490,14 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: colorScheme.primary.withValues(alpha: 0.1),
+                                  color: colorScheme.primary.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -434,32 +510,55 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 16),
+                              const HugeIcon(
+                                icon: HugeIcons.strokeRoundedArrowRight01,
+                                size: 16,
+                              ),
                               const SizedBox(width: 12),
-                                Expanded(
+                              Expanded(
                                 child: DropdownButtonFormField<String?>(
                                   initialValue: draft.physicalEntityName,
-                                  hint: const Text('Select Physical Table', style: TextStyle(fontSize: 13)),
+                                  hint: const Text(
+                                    'Select Physical Table',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
                                   isDense: false,
                                   isExpanded: true,
                                   decoration: InputDecoration(
                                     labelText: 'Physical Table',
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.8)),
+                                      borderSide: BorderSide(
+                                        color: colorScheme.outlineVariant
+                                            .withValues(alpha: 0.8),
+                                      ),
                                     ),
                                   ),
                                   items: [
                                     const DropdownMenuItem<String?>(
                                       value: null,
-                                      child: Text('(Not Mapped)', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                                      child: Text(
+                                        '(Not Mapped)',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
                                     ),
                                     ...physEntities.map(
                                       (pe) => DropdownMenuItem<String?>(
                                         value: pe.name,
-                                        child: Text('${pe.namespace}.${pe.name}', style: const TextStyle(fontSize: 13)),
+                                        child: Text(
+                                          '${pe.namespace}.${pe.name}',
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -467,7 +566,9 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                                     setState(() {
                                       draft.physicalEntityName = val;
                                       if (val != null) {
-                                        final pe = physEntities.firstWhere((e) => e.name == val);
+                                        final pe = physEntities.firstWhere(
+                                          (e) => e.name == val,
+                                        );
                                         draft.physicalNamespace = pe.namespace;
                                         _autoMatchFields(draft);
                                       } else {
@@ -479,19 +580,32 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                               ),
                             ],
                           ),
-                          if (draft.physicalEntityName != null && selectedPhysEntity != null) ...[
+                          if (draft.physicalEntityName != null &&
+                              selectedPhysEntity != null) ...[
                             const SizedBox(height: 14),
-                            Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                            Divider(
+                              height: 1,
+                              color: colorScheme.outlineVariant.withValues(
+                                alpha: 0.3,
+                              ),
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'Field Mappings (${draft.logicalEntity.fields.length} logical fields):',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                             ),
                             const SizedBox(height: 10),
                             ...draft.logicalEntity.fields.map((lf) {
-                              final currentPhysField = draft.fieldMappings[lf.name];
+                              final currentPhysField =
+                                  draft.fieldMappings[lf.name];
                               return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
                                 child: Row(
                                   children: [
                                     SizedBox(
@@ -499,9 +613,13 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                                       child: Row(
                                         children: [
                                           HugeIcon(
-                                            icon: lf.isPrimaryKey ? HugeIcons.strokeRoundedKey01 : HugeIcons.strokeRoundedTag01,
+                                            icon: lf.isPrimaryKey
+                                                ? HugeIcons.strokeRoundedKey01
+                                                : HugeIcons.strokeRoundedTag01,
                                             size: 14,
-                                            color: lf.isPrimaryKey ? Colors.amber : colorScheme.onSurfaceVariant,
+                                            color: lf.isPrimaryKey
+                                                ? Colors.amber
+                                                : colorScheme.onSurfaceVariant,
                                           ),
                                           const SizedBox(width: 8),
                                           Expanded(
@@ -515,47 +633,91 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                                             ),
                                           ),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: colorScheme.primary.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(4),
+                                              color: colorScheme.primary
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
                                             ),
                                             child: Text(
                                               lf.dataType,
-                                              style: TextStyle(fontSize: 11, color: colorScheme.primary, fontFamily: 'monospace', fontWeight: FontWeight.w600),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: colorScheme.primary,
+                                                fontFamily: 'monospace',
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
                                     const SizedBox(width: 14),
-                                    const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 18),
+                                    const HugeIcon(
+                                      icon: HugeIcons.strokeRoundedArrowRight01,
+                                      size: 18,
+                                    ),
                                     const SizedBox(width: 14),
                                     Expanded(
                                       child: DropdownButtonFormField<String?>(
-                                        initialValue: selectedPhysEntity.fields.any((pf) => pf.name == currentPhysField) ? currentPhysField : null,
+                                        initialValue:
+                                            selectedPhysEntity.fields.any(
+                                              (pf) =>
+                                                  pf.name == currentPhysField,
+                                            )
+                                            ? currentPhysField
+                                            : null,
                                         isDense: false,
                                         isExpanded: true,
-                                        hint: const Text('Select physical column', style: TextStyle(fontSize: 13)),
+                                        hint: const Text(
+                                          'Select physical column',
+                                          style: TextStyle(fontSize: 13),
+                                        ),
                                         decoration: InputDecoration(
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 8,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
                                           enabledBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.8)),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: colorScheme.outlineVariant
+                                                  .withValues(alpha: 0.8),
+                                            ),
                                           ),
                                         ),
                                         items: [
                                           const DropdownMenuItem<String?>(
                                             value: null,
-                                            child: Text('(Unmapped)', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                                            child: Text(
+                                              '(Unmapped)',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
                                           ),
                                           ...selectedPhysEntity.fields.map(
                                             (pf) => DropdownMenuItem<String?>(
                                               value: pf.name,
                                               child: Text(
                                                 '${pf.name} (${pf.dataType})',
-                                                style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontFamily: 'monospace',
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -563,9 +725,12 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
                                         onChanged: (val) {
                                           setState(() {
                                             if (val == null) {
-                                              draft.fieldMappings.remove(lf.name);
+                                              draft.fieldMappings.remove(
+                                                lf.name,
+                                              );
                                             } else {
-                                              draft.fieldMappings[lf.name] = val;
+                                              draft.fieldMappings[lf.name] =
+                                                  val;
                                             }
                                           });
                                         },
@@ -587,22 +752,40 @@ class _AddMappingDialogState extends State<AddMappingDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                  child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                  onPressed: _isSubmitting
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
-                  onPressed: _isSubmitting || _isLoadingSchema || _sourceSchema == null || _entityDrafts.isEmpty ? null : _submit,
+                  onPressed:
+                      _isSubmitting ||
+                          _isLoadingSchema ||
+                          _sourceSchema == null ||
+                          _entityDrafts.isEmpty
+                      ? null
+                      : _submit,
                   icon: _isSubmitting
                       ? const SizedBox(
                           width: 14,
                           height: 14,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const HugeIcon(icon: HugeIcons.strokeRoundedFloppyDisk, size: 16),
-                  label: Text(_isSubmitting
-                      ? 'Validating & Saving...'
-                      : (_isEditMode ? 'Update & Validate Mapping' : 'Save & Validate Mapping')),
+                      : const HugeIcon(
+                          icon: HugeIcons.strokeRoundedFloppyDisk,
+                          size: 16,
+                        ),
+                  label: Text(
+                    _isSubmitting
+                        ? 'Validating & Saving...'
+                        : (_isEditMode
+                              ? 'Update & Validate Mapping'
+                              : 'Save & Validate Mapping'),
+                  ),
                 ),
               ],
             ),

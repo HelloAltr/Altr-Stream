@@ -39,6 +39,7 @@ class UpdateStatusState(str, Enum):
     HEALTH_CHECK = "health_check"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
     ROLLING_BACK = "rolling_back"
     ROLLED_BACK = "rolled_back"
 
@@ -54,11 +55,29 @@ class UpdateStatusState(str, Enum):
         )
 
     @property
+    def is_cancellable(self) -> bool:
+        """Indicates if the update workflow can be safely cancelled."""
+        return self in (
+            UpdateStatusState.REQUESTED,
+            UpdateStatusState.STAGING,
+        )
+
+    @property
+    def is_critical(self) -> bool:
+        """Indicates if the update workflow is in the critical installation phase where interruption is unsafe."""
+        return self in (
+            UpdateStatusState.APPLYING,
+            UpdateStatusState.HEALTH_CHECK,
+            UpdateStatusState.ROLLING_BACK,
+        )
+
+    @property
     def is_terminal(self) -> bool:
         """Indicates if the workflow reached a terminal state."""
         return self in (
             UpdateStatusState.COMPLETED,
             UpdateStatusState.FAILED,
+            UpdateStatusState.CANCELLED,
             UpdateStatusState.ROLLED_BACK,
             UpdateStatusState.IDLE,
         )
@@ -210,8 +229,8 @@ def is_stale_update_status(status: UpdateStatus, running_version: str | SemVer) 
         except Exception:
             pass
 
-    # Terminal FAILED or ROLLED_BACK
-    if status.state in (UpdateStatusState.FAILED, UpdateStatusState.ROLLED_BACK):
+    # Terminal FAILED, ROLLED_BACK, or CANCELLED
+    if status.state in (UpdateStatusState.FAILED, UpdateStatusState.ROLLED_BACK, UpdateStatusState.CANCELLED):
         if target_semver and running_semver >= target_semver:
             return True
         if from_semver and running_semver != from_semver:

@@ -26,7 +26,11 @@ class QueryResultTable extends StatelessWidget {
         ),
         child: Column(
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedInbox, size: 36, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedInbox,
+              size: 36,
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 8),
             Text(
               'No records returned',
@@ -81,7 +85,9 @@ class QueryResultTable extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.6,
+                        ),
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -124,11 +130,16 @@ class QueryResultTable extends StatelessWidget {
                       decoration: BoxDecoration(
                         border: Border(
                           bottom: BorderSide(
-                            color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.2,
+                            ),
                           ),
                         ),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -138,14 +149,18 @@ class QueryResultTable extends StatelessWidget {
                               '$idx',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                                color: colorScheme.onSurfaceVariant.withValues(
+                                  alpha: 0.6,
+                                ),
                                 fontFamily: 'monospace',
                               ),
                             ),
                           ),
                           ...columns.map((col) {
                             final val = row[col];
-                            final strVal = val == null ? 'NULL' : val.toString();
+                            final strVal = val == null
+                                ? 'NULL'
+                                : val.toString();
                             final isNull = val == null;
 
                             return SizedBox(
@@ -154,9 +169,13 @@ class QueryResultTable extends StatelessWidget {
                                 strVal,
                                 style: TextStyle(
                                   color: isNull
-                                      ? colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
+                                      ? colorScheme.onSurfaceVariant.withValues(
+                                          alpha: 0.5,
+                                        )
                                       : colorScheme.onSurface,
-                                  fontStyle: isNull ? FontStyle.italic : FontStyle.normal,
+                                  fontStyle: isNull
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
                                   fontSize: 12,
                                   fontFamily: 'monospace',
                                 ),

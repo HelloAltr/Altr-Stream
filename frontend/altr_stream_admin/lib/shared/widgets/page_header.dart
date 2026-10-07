@@ -55,10 +55,7 @@ class PageHeader extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           description,
-          style: TextStyle(
-            fontSize: 13,
-            color: colorScheme.onSurfaceVariant,
-          ),
+          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -87,10 +84,7 @@ class PageHeader extends StatelessWidget {
                       spacing: 10,
                       runSpacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        ?secondaryAction,
-                        ?primaryAction,
-                      ],
+                      children: [?secondaryAction, ?primaryAction],
                     ),
                   ],
                 ],
@@ -101,19 +95,14 @@ class PageHeader extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(
-                  child: _buildTitleSection(context, colorScheme),
-                ),
+                Expanded(child: _buildTitleSection(context, colorScheme)),
                 if (hasActions) ...[
                   const SizedBox(width: 16),
                   Wrap(
                     spacing: 10,
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      ?secondaryAction,
-                      ?primaryAction,
-                    ],
+                    children: [?secondaryAction, ?primaryAction],
                   ),
                 ],
               ],

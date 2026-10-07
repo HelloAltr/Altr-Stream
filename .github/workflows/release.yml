@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v0.13.4-alpha)"
+        description: "Release tag (e.g. v1.0.0-beta)"
         required: true
-        default: "v0.13.4-alpha"
+        default: "v1.0.0-beta"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -97,7 +97,7 @@ jobs:
           files: |
             dist/Altr-Stream_macOS_Installer.command
             dist/Altr-Stream_Linux_Installer.sh
-            dist/Altr-Stream_Windows_Installer.ps1
+            dist/Altr-Stream_Windows_Installer.bat
             dist/README.txt
             dist/altr-stream-${{ steps.version_info.outputs.tag }}-deployment.tar.gz
             dist/altr-stream-${{ steps.version_info.outputs.tag }}-deployment.zip

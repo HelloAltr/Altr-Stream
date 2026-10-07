@@ -37,6 +37,37 @@ class ConnectionConfig(BaseModel):
     file_path: str | None = None
     options: dict[str, Any] = Field(default_factory=dict)
 
+    @property
+    def resolved_host(self) -> str | None:
+        """Return host resolved for container network access (e.g. localhost/127.0.0.1 -> host.docker.internal)."""
+        from altr_stream.infrastructure.database.url_resolver import resolve_docker_host
+        return resolve_docker_host(self.host)
+
+    @classmethod
+    def from_connection_url(cls, url: str) -> "ConnectionConfig":
+        """Parse database connection URL into ConnectionConfig, preserving user-entered host while enabling runtime resolution."""
+        import urllib.parse
+
+        parsed = urllib.parse.urlsplit(url)
+        db_name = parsed.path.lstrip("/") if parsed.path else None
+
+        options: dict[str, Any] = {}
+        if parsed.query:
+            for k, v in urllib.parse.parse_qs(parsed.query).items():
+                options[k] = v[0] if len(v) == 1 else v
+
+        user = urllib.parse.unquote(parsed.username) if parsed.username else None
+        pw = urllib.parse.unquote(parsed.password) if parsed.password else ""
+
+        return cls(
+            host=parsed.hostname,
+            port=parsed.port,
+            database_name=db_name,
+            username=user,
+            password=pw,
+            options=options,
+        )
+
     def masked_dict(self) -> dict[str, Any]:
         """Return parameters with password masked."""
         res: dict[str, Any] = {}

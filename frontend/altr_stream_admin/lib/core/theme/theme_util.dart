@@ -9,8 +9,11 @@ TextTheme createTextTheme(
   String displayFont = 'Nunito',
   TextTheme? baseTextTheme,
 }) {
-  final base = baseTextTheme ??
-      (context != null ? Theme.of(context).textTheme : Typography.material2021().englishLike);
+  final base =
+      baseTextTheme ??
+      (context != null
+          ? Theme.of(context).textTheme
+          : Typography.material2021().englishLike);
 
   TextTheme bodyTheme;
   TextTheme displayTheme;

@@ -16,7 +16,6 @@ from altr_stream.domain.connector import (
     SourceCapabilities,
 )
 from altr_stream.domain.errors import (
-    ConnectionFailedError,
     QueryExecutionError,
     SchemaDiscoveryError,
 )
@@ -80,8 +79,8 @@ class PostgreSQLConnector(BaseConnector):
         if self._pool is None:
             try:
                 self._pool = await asyncpg.create_pool(
-                    host=self.config.host,
-                    port=self.config.port,
+                    host=self.config.resolved_host or "host.docker.internal",
+                    port=self.config.port or 5432,
                     database=self.config.database_name,
                     user=self.config.username,
                     password=self.config.password,
@@ -115,8 +114,8 @@ class PostgreSQLConnector(BaseConnector):
     async def _get_connection(self) -> asyncpg.Connection:
         """Establish a direct asyncpg connection with timeout."""
         return await asyncpg.connect(
-            host=self.config.host,
-            port=self.config.port,
+            host=self.config.resolved_host or "host.docker.internal",
+            port=self.config.port or 5432,
             database=self.config.database_name,
             user=self.config.username,
             password=self.config.password,

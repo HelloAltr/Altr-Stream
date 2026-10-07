@@ -11,8 +11,8 @@ void main() {
       AppConfig.resetRuntimeNodeVersion();
     });
 
-    test('defaultAppVersion is canonical 0.13.7-alpha', () {
-      expect(AppConfig.defaultAppVersion, '0.13.7-alpha');
+    test('defaultAppVersion is canonical 1.0.0-beta', () {
+      expect(AppConfig.defaultAppVersion, '1.0.0-beta');
     });
 
     test('appVersion returns default or injected environment variable', () {
@@ -22,41 +22,47 @@ void main() {
         expect(AppConfig.appVersion, injected);
       } else {
         expect(AppConfig.hasBuildTimeOverride, isFalse);
-        expect(AppConfig.appVersion, '0.13.7-alpha');
+        expect(AppConfig.appVersion, '1.0.0-beta');
       }
     });
 
     test('formattedAppVersion properly prefixes v to version strings', () {
       expect(AppConfig.formattedAppVersion.startsWith('v'), isTrue);
       if (!AppConfig.hasBuildTimeOverride) {
-        expect(AppConfig.formattedAppVersion, 'v0.13.7-alpha');
+        expect(AppConfig.formattedAppVersion, 'v1.0.0-beta');
       }
     });
 
-    test('setRuntimeNodeVersion updates appVersion and takes precedence over build-time define', () {
-      AppConfig.setRuntimeNodeVersion('1.2.0');
-      expect(AppConfig.appVersion, '1.2.0');
-      expect(AppConfig.formattedAppVersion, 'v1.2.0');
+    test(
+      'setRuntimeNodeVersion updates appVersion and takes precedence over build-time define',
+      () {
+        AppConfig.setRuntimeNodeVersion('1.2.0');
+        expect(AppConfig.appVersion, '1.2.0');
+        expect(AppConfig.formattedAppVersion, 'v1.2.0');
 
-      // Reset restores fallback (build-time override if provided, else canonical default)
-      AppConfig.resetRuntimeNodeVersion();
-      if (AppConfig.hasBuildTimeOverride) {
-        expect(AppConfig.appVersion, const String.fromEnvironment('ALTR_APP_VERSION'));
-      } else {
-        expect(AppConfig.appVersion, '0.13.7-alpha');
-        expect(AppConfig.formattedAppVersion, 'v0.13.7-alpha');
-      }
-    });
+        // Reset restores fallback (build-time override if provided, else canonical default)
+        AppConfig.resetRuntimeNodeVersion();
+        if (AppConfig.hasBuildTimeOverride) {
+          expect(
+            AppConfig.appVersion,
+            const String.fromEnvironment('ALTR_APP_VERSION'),
+          );
+        } else {
+          expect(AppConfig.appVersion, '1.0.0-beta');
+          expect(AppConfig.formattedAppVersion, 'v1.0.0-beta');
+        }
+      },
+    );
 
     test('setRuntimeNodeVersion ignores null and empty strings', () {
       AppConfig.setRuntimeNodeVersion(null);
       if (!AppConfig.hasBuildTimeOverride) {
-        expect(AppConfig.appVersion, '0.13.7-alpha');
+        expect(AppConfig.appVersion, '1.0.0-beta');
       }
 
       AppConfig.setRuntimeNodeVersion('   ');
       if (!AppConfig.hasBuildTimeOverride) {
-        expect(AppConfig.appVersion, '0.13.7-alpha');
+        expect(AppConfig.appVersion, '1.0.0-beta');
       }
     });
   });

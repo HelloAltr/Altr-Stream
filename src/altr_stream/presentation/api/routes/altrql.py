@@ -13,7 +13,6 @@ from altr_stream.domain.errors import (
     AltrStreamError,
     MappingValidationError,
     MissingPlanningContextError,
-    NoActiveSourceMappingError,
     SourceNotFoundError,
 )
 from altr_stream.domain.mapping import EntityMapping, MappingStatus, SourceMapping
@@ -48,7 +47,6 @@ from altr_stream.query_engine.classification import classify_query
 from altr_stream.query_engine.domain.ast import QueryOperation
 from altr_stream.query_engine.domain.errors import AltrQueryError
 from altr_stream.query_engine.domain.physical_query import (
-    PhysicalQuery,
     PhysicalQueryBatch,
     PhysicalQueryResult,
 )
@@ -765,7 +763,7 @@ async def execute_altrql_query(
                 physical_query=None,
                 error=AltrQLErrorDetailDTO(
                     type="QueryExecutionError",
-                    message=f"Federated Auto-Select execution does not support {ir.operation.value} mutations across multiple sources in v0.9. Please select an explicit physical source.",
+                    message=f"Federated Auto-Select execution does not support {ir.operation.value} mutations across multiple sources. Please select an explicit physical source.",
                 ),
             )
 

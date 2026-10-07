@@ -3,10 +3,8 @@ import 'package:hugeicons/hugeicons.dart';
 import '../services/overview_layout_service.dart';
 import 'dashboard_card_wrapper.dart';
 
-typedef BentoCardWidgetBuilder = Widget Function(
-  BuildContext context,
-  BentoCardConfig config,
-);
+typedef BentoCardWidgetBuilder =
+    Widget Function(BuildContext context, BentoCardConfig config);
 
 /// A high-performance 2D Bento Grid Engine for Flutter supporting:
 /// - Collision & gravity auto-packing (no components ever overlap)
@@ -68,10 +66,7 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
     int newRow = targetRow.clamp(0, 50);
 
     // Place the dragged card into the target grid coordinates
-    list[fromIdx] = fromCard.copyWith(
-      col: newCol,
-      row: newRow,
-    );
+    list[fromIdx] = fromCard.copyWith(col: newCol, row: newRow);
 
     // Resolve any collisions by pushing down only the overlapping components
     final resolved = BentoCollisionResolver.resolve(list, fixedId: draggedId);
@@ -86,14 +81,12 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
     if (idx == -1) return;
 
     // Available spans ordered by increasing footprint within this card's constraints:
-    final List<(int, int)> candidateSpans = [
-      (1, 1),
-      (2, 1),
-      (3, 1),
-      (2, 2),
-      (3, 2),
-      (3, 3),
-    ].where((s) => s.$1 <= config.maxColSpan && s.$2 <= config.maxRowSpan).toList();
+    final List<(int, int)> candidateSpans =
+        [(1, 1), (2, 1), (3, 1), (2, 2), (3, 2), (3, 3)]
+            .where(
+              (s) => s.$1 <= config.maxColSpan && s.$2 <= config.maxRowSpan,
+            )
+            .toList();
 
     if (candidateSpans.isEmpty) return;
 
@@ -170,7 +163,10 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
         _resizeDeltaHeight -= rowsDelta * rowStep;
 
         // Resolve collisions in real-time so surrounding components immediately yield space
-        final resolved = BentoCollisionResolver.resolve(list, fixedId: config.id);
+        final resolved = BentoCollisionResolver.resolve(
+          list,
+          fixedId: config.id,
+        );
         widget.onLayoutChanged(resolved);
       }
     } else {
@@ -296,14 +292,16 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
     }
     int placeRow = _hoveredRow ?? 0;
 
-    final bool isInDropFootprint = _hoveredCol != null &&
+    final bool isInDropFootprint =
+        _hoveredCol != null &&
         _hoveredRow != null &&
         col >= placeCol &&
         col < (placeCol + draggedColSpan) &&
         row >= placeRow &&
         row < (placeRow + draggedRowSpan);
 
-    final bool isPrimaryAnchor = isInDropFootprint && col == placeCol && row == placeRow;
+    final bool isPrimaryAnchor =
+        isInDropFootprint && col == placeCol && row == placeRow;
 
     return Positioned(
       left: left,
@@ -355,7 +353,10 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
             child: isPrimaryAnchor
                 ? Center(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: colorScheme.primary.withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(20),
@@ -399,16 +400,21 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
     final double left = config.col * (colWidth + spacing);
     final double top = config.row * (rowUnitHeight + spacing);
 
-    final double width = config.colSpan * colWidth + (config.colSpan - 1) * spacing;
-    final double height = config.rowSpan * rowUnitHeight + (config.rowSpan - 1) * spacing;
+    final double width =
+        config.colSpan * colWidth + (config.colSpan - 1) * spacing;
+    final double height =
+        config.rowSpan * rowUnitHeight + (config.rowSpan - 1) * spacing;
 
-    final isBeingHovered = _hoveredCardId == config.id && _draggedCardId != config.id;
+    final isBeingHovered =
+        _hoveredCardId == config.id && _draggedCardId != config.id;
     final isBeingDragged = _draggedCardId == config.id;
     final isBeingResized = _resizingCardId == config.id;
 
     return AnimatedPositioned(
       key: ValueKey(config.id),
-      duration: widget.isEditMode ? const Duration(milliseconds: 200) : Duration.zero,
+      duration: widget.isEditMode
+          ? const Duration(milliseconds: 200)
+          : Duration.zero,
       curve: Curves.easeOutCubic,
       left: left,
       top: top,
@@ -417,7 +423,9 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
       child: IgnorePointer(
         ignoring: isBeingDragged,
         child: DragTarget<String>(
-          hitTestBehavior: widget.isEditMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
+          hitTestBehavior: widget.isEditMode
+              ? HitTestBehavior.opaque
+              : HitTestBehavior.deferToChild,
           onWillAcceptWithDetails: (details) {
             setState(() {
               _hoveredCardId = config.id;
@@ -447,8 +455,8 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
                 border: isBeingHovered
                     ? Border.all(color: colorScheme.primary, width: 2.5)
                     : isBeingResized
-                        ? Border.all(color: colorScheme.secondary, width: 2.0)
-                        : null,
+                    ? Border.all(color: colorScheme.secondary, width: 2.0)
+                    : null,
               ),
               child: DashboardCardWrapper(
                 config: config,
@@ -468,8 +476,20 @@ class _BentoGridEngineState extends State<BentoGridEngine> {
                     _hoveredRow = null;
                   });
                 },
-                onResizeUpdate: (details) => _onResizeUpdate(config, details, colWidth, rowUnitHeight, spacing),
-                onResizeEnd: (details) => _onResizeEnd(config, details, colWidth, rowUnitHeight, spacing),
+                onResizeUpdate: (details) => _onResizeUpdate(
+                  config,
+                  details,
+                  colWidth,
+                  rowUnitHeight,
+                  spacing,
+                ),
+                onResizeEnd: (details) => _onResizeEnd(
+                  config,
+                  details,
+                  colWidth,
+                  rowUnitHeight,
+                  spacing,
+                ),
                 child: RepaintBoundary(
                   child: widget.cardBuilder(context, config),
                 ),

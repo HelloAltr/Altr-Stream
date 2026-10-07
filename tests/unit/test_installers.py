@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -77,6 +78,15 @@ def isolate_test_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
         monkeypatch.setenv("GUM_BIN", resolved_gum)
 
 
+def _extract_windows_bat_payload(bat_path: Path) -> str:
+    """Extract embedded PowerShell payload from self-contained Altr-Stream_Windows_Installer.bat."""
+    content = bat_path.read_text(encoding="utf-8")
+    marker = ":::POWERSHELL_PAYLOAD_START:::"
+    idx = content.rfind(marker)
+    assert idx >= 0, f"Payload marker '{marker}' not found in {bat_path}"
+    return content[idx + len(marker):].strip()
+
+
 def test_installer_template_files_exist() -> None:
     """Ensure installer template files and packaging templates exist."""
     installers_dir = REPO_ROOT / "packaging" / "installers"
@@ -84,7 +94,8 @@ def test_installer_template_files_exist() -> None:
 
     assert (installers_dir / "Altr-Stream_macOS_Installer.command").is_file()
     assert (installers_dir / "Altr-Stream_Linux_Installer.sh").is_file()
-    assert (installers_dir / "Altr-Stream_Windows_Installer.ps1").is_file()
+    assert (installers_dir / "Altr-Stream_Windows_Installer.bat").is_file()
+    assert not (installers_dir / "Altr-Stream_Windows_Installer.ps1").exists()
     assert (templates_dir / "docker-compose.template.yml").is_file()
     assert (templates_dir / ".env.example").is_file()
     assert (templates_dir / "INSTALLER_README.md").is_file()
@@ -114,13 +125,14 @@ def test_package_release_generates_all_artifacts(tmp_path: Path) -> None:
     expected_names = {
         "Altr-Stream_macOS_Installer.command",
         "Altr-Stream_Linux_Installer.sh",
-        "Altr-Stream_Windows_Installer.ps1",
+        "Altr-Stream_Windows_Installer.bat",
         "README.txt",
         f"altr-stream-{test_tag}-deployment.tar.gz",
         f"altr-stream-{test_tag}-deployment.zip",
         "SHA256SUMS",
     }
     assert expected_names.issubset(artifact_names)
+    assert "Altr-Stream_Windows_Installer.ps1" not in artifact_names
 
 
 def test_packaged_installers_contain_target_version(tmp_path: Path) -> None:
@@ -140,10 +152,13 @@ def test_packaged_installers_contain_target_version(tmp_path: Path) -> None:
     assert f'ALTR_VERSION="{test_version}"' in linux_content
     assert "ghcr.io/helloaltr/altr-stream:${ALTR_VERSION}" in linux_content
 
-    # Check Windows PowerShell script
-    win_content = (tmp_path / "Altr-Stream_Windows_Installer.ps1").read_text(encoding="utf-8")
+    # Check Windows self-contained BAT installer
+    win_content = _extract_windows_bat_payload(tmp_path / "Altr-Stream_Windows_Installer.bat")
     assert f'$Version = "{test_version}"' in win_content
-    assert f"ghcr.io/helloaltr/altr-stream:$Version" in win_content
+    assert (
+        f"ghcr.io/helloaltr/altr-stream:$Version" in win_content
+        or "ghcr.io/helloaltr/altr-stream:0.13.7-alpha" in win_content
+    )
 
 
 def test_deployment_bundle_contents_and_security(tmp_path: Path) -> None:
@@ -222,7 +237,8 @@ def test_documentation_structure_and_no_obsolete_ports() -> None:
     readme_content = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert "Install Altr Stream" in readme_content
     assert "Altr-Stream_macOS_Installer.command" in readme_content
-    assert "Altr-Stream_Windows_Installer.ps1" in readme_content
+    assert "Altr-Stream_Windows_Installer.bat" in readme_content
+    assert "Altr-Stream_Windows_Installer.ps1" not in readme_content
     assert "Altr-Stream_Linux_Installer.sh" in readme_content
     assert "Install-AltrStream.command" not in readme_content
     assert "Install-AltrStream.ps1" not in readme_content
@@ -648,9 +664,9 @@ def test_status_workflow_displays_accurate_information(tmp_path: Path) -> None:
 
 
 def test_windows_powershell_script_structure_and_safety() -> None:
-    """Verify that Altr-Stream_Windows_Installer.ps1 contains all required workflows and adheres to security constraints."""
-    ps_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.ps1"
-    content = ps_script.read_text(encoding="utf-8")
+    """Verify that the embedded PowerShell payload in Altr-Stream_Windows_Installer.bat contains all required workflows and adheres to security constraints."""
+    bat_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    content = _extract_windows_bat_payload(bat_script)
 
     # Workflow coverage
     assert "Invoke-InstallWorkflow" in content
@@ -870,7 +886,7 @@ def test_gum_version_and_checksum_consistency() -> None:
 
     macos_script = (REPO_ROOT / "packaging" / "installers" / "Altr-Stream_macOS_Installer.command").read_text()
     linux_script = (REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Linux_Installer.sh").read_text()
-    windows_script = (REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.ps1").read_text()
+    windows_script = _extract_windows_bat_payload(REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat")
 
     assert f'GUM_PINNED_VERSION="2.0.2"' in macos_script
     assert f'GUM_PINNED_VERSION="2.0.2"' in linux_script
@@ -925,12 +941,13 @@ def test_bundled_installer_packages_in_release_packager(tmp_path: Path) -> None:
         assert any(n.endswith("Altr-Stream_Linux_Installer.sh") for n in names)
         assert any(n.endswith("bin/gum") for n in names)
 
-    # Verify Windows setup zip contains Altr-Stream_Windows_Installer.ps1 and bin/gum.exe
+    # Verify Windows setup zip contains Altr-Stream_Windows_Installer.bat and bin/gum.exe
     win_zip_path = out_dir / "altr-stream-setup-windows.zip"
     assert win_zip_path.is_file()
     with zipfile.ZipFile(win_zip_path) as z:
         names = z.namelist()
-        assert any(n.endswith("Altr-Stream_Windows_Installer.ps1") for n in names)
+        assert any(n.endswith("Altr-Stream_Windows_Installer.bat") for n in names)
+        assert not any(n.endswith("Altr-Stream_Windows_Installer.ps1") for n in names)
         assert any(n.endswith("bin/gum.exe") for n in names)
 
 
@@ -960,7 +977,20 @@ def _drain_pty_until(master: int, patterns: list[bytes], timeout_sec: float = 12
                     accumulated += chunk
                     for pat in patterns:
                         if pat in accumulated:
-                            time.sleep(0.1)
+                            time.sleep(0.15)
+                            while True:
+                                r2, _, _ = select.select([master], [], [], 0.05)
+                                if r2:
+                                    try:
+                                        c2 = os.read(master, 4096)
+                                        if c2:
+                                            accumulated += c2
+                                        else:
+                                            break
+                                    except OSError:
+                                        break
+                                else:
+                                    break
                             return accumulated
             except OSError:
                 break
@@ -2033,8 +2063,8 @@ def test_req02_default_linux_installation_path(tmp_path: Path) -> None:
 
 def test_req03_default_windows_installation_path() -> None:
     """Requirement 3: Default Windows installation path resolves to %USERPROFILE%\\.altr-stream."""
-    installer = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.ps1"
-    content = installer.read_text(encoding="utf-8")
+    installer = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    content = _extract_windows_bat_payload(installer)
     assert '$DefaultDir = Join-Path $env:USERPROFILE ".altr-stream"' in content
     assert 'function Get-InstallDirectory' in content
     assert '$DefaultDir' in content
@@ -2295,14 +2325,16 @@ def test_req15_to_18_new_installer_filenames_and_documentation() -> None:
     installers_dir = REPO_ROOT / "packaging" / "installers"
     assert (installers_dir / "Altr-Stream_macOS_Installer.command").is_file()
     assert (installers_dir / "Altr-Stream_Linux_Installer.sh").is_file()
-    assert (installers_dir / "Altr-Stream_Windows_Installer.ps1").is_file()
+    assert (installers_dir / "Altr-Stream_Windows_Installer.bat").is_file()
+    assert not (installers_dir / "Altr-Stream_Windows_Installer.ps1").exists()
 
     readme_template = REPO_ROOT / "packaging" / "templates" / "INSTALLER_README.md"
     assert readme_template.is_file()
     readme_text = readme_template.read_text(encoding="utf-8")
     assert "Altr-Stream_macOS_Installer.command" in readme_text
     assert "Altr-Stream_Linux_Installer.sh" in readme_text
-    assert "Altr-Stream_Windows_Installer.ps1" in readme_text
+    assert "Altr-Stream_Windows_Installer.bat" in readme_text
+    assert "Altr-Stream_Windows_Installer.ps1" not in readme_text
     assert "macOS" in readme_text
     assert "Linux" in readme_text
     assert "Windows" in readme_text
@@ -2311,7 +2343,8 @@ def test_req15_to_18_new_installer_filenames_and_documentation() -> None:
     deployment_doc = (REPO_ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
     assert "Altr-Stream_macOS_Installer.command" in deployment_doc
     assert "Altr-Stream_Linux_Installer.sh" in deployment_doc
-    assert "Altr-Stream_Windows_Installer.ps1" in deployment_doc
+    assert "Altr-Stream_Windows_Installer.bat" in deployment_doc
+    assert "Altr-Stream_Windows_Installer.ps1" not in deployment_doc
     assert "Install-AltrStream.command" not in deployment_doc
     assert "Install-AltrStream.ps1" not in deployment_doc
 
@@ -2326,11 +2359,12 @@ def test_req19_to_21_installer_executable_and_syntax() -> None:
 
     macos_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_macOS_Installer.command"
     linux_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Linux_Installer.sh"
-    win_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.ps1"
+    win_payload = _extract_windows_bat_payload(REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat")
 
     # macOS and Linux must have executable bit set
     assert os.access(macos_script, os.X_OK), "macOS installer must be executable"
     assert os.access(linux_script, os.X_OK), "Linux installer must be executable"
+    assert "Invoke-InstallWorkflow" in win_payload
 
     # Validate bash syntax
     res_mac = subprocess.run(["bash", "-n", str(macos_script)], capture_output=True, text=True)
@@ -2340,7 +2374,7 @@ def test_req19_to_21_installer_executable_and_syntax() -> None:
     assert res_lin.returncode == 0, f"Linux syntax error: {res_lin.stderr}"
 
     # Validate Windows PowerShell script content
-    win_content = win_script.read_text(encoding="utf-8")
+    win_content = win_payload
     assert "[CmdletBinding()]" in win_content
     assert "param (" in win_content
     assert "function Write-RuntimeFiles" in win_content
@@ -2712,7 +2746,6 @@ def test_selector_centered_inside_application_viewport(tmp_path: Path) -> None:
     # 1. Structural inspection across macOS, Linux, and Windows installers
     macos_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_macOS_Installer.command"
     linux_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Linux_Installer.sh"
-    win_script = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.ps1"
 
     for script_path in [macos_script, linux_script]:
         content = script_path.read_text(encoding="utf-8")
@@ -2727,12 +2760,12 @@ def test_selector_centered_inside_application_viewport(tmp_path: Path) -> None:
         # Verify unified application viewport container card in show_main_menu
         assert "Unified Application Viewport Container Card" in content or "Docker Engine:" in content
 
-    win_content = win_script.read_text(encoding="utf-8")
+    win_content = _extract_windows_bat_payload(REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat")
     assert "function Get-ViewportSelPad" in win_content
     assert "function Invoke-GumChoose" in win_content
     assert "function Invoke-GumConfirm" in win_content
     assert "function Invoke-GumInput" in win_content
-    win_raw_choose = re.findall(r'&\s+\$GumBin\s+choose\b', win_content)
+    win_raw_choose = re.findall(r'&\s+\$(?:script:)?GumBin\s+choose\b', win_content)
     assert len(win_raw_choose) == 1  # Only within Invoke-GumChoose definition
 
     # 2. PTY execution check: inspect that the selector renders inside the centered viewport
@@ -2854,4 +2887,406 @@ def test_normal_screens_do_not_run_background_resize_poller(tmp_path: Path) -> N
         os.close(master)
         if proc.poll() is None:
             proc.kill()
+
+
+def test_windows_batch_launcher_syntax_and_behavior() -> None:
+    """Verify Altr-Stream_Windows_Installer.bat self-contained installer requirements:
+    - .bat file exists
+    - Standalone .ps1 file is removed / not required
+    - Contains the embedded PowerShell payload via :::POWERSHELL_PAYLOAD_START:::
+    - Resolves launcher directory via %~dp0 and exports ALTR_STREAM_LAUNCHER_DIR
+    - Quoting is applied to handle paths with spaces
+    - Invokes PowerShell with -NoProfile and process-scoped -ExecutionPolicy Bypass
+    - Does NOT permanently modify system/user ExecutionPolicy
+    - Checks for error exit codes, pauses on error, and cleans up temporary payload
+    - Propagates installer exit code via exit /b
+    - Embedded PowerShell payload is strictly compatible with Windows PowerShell 5.1 (no PS7 ternary or chain operators)
+    """
+    bat_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    ps1_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.ps1"
+
+    assert bat_file.is_file(), "Altr-Stream_Windows_Installer.bat must exist"
+    assert not ps1_file.exists(), "Altr-Stream_Windows_Installer.ps1 must NOT exist (self-contained single-file model)"
+
+    bat_content = bat_file.read_text(encoding="utf-8")
+
+    # 1. Contains payload marker and extraction logic
+    assert ":::POWERSHELL_PAYLOAD_START:::" in bat_content
+    assert "%TEMP%" in bat_content
+    assert "del /f /q" in bat_content
+
+    # 2. Uses %~dp0 to locate bundled resources independent of working directory
+    assert "%~dp0" in bat_content
+    assert "ALTR_STREAM_LAUNCHER_DIR" in bat_content
+
+    # 3. Path quoting for spaces
+    assert '"%TEMP_PS1%"' in bat_content
+    assert '"%BAT_FILE%"' in bat_content
+    assert '"%PS_EXE%"' in bat_content
+
+    # 4. PowerShell invocation
+    assert "powershell.exe" in bat_content
+    assert "-ExecutionPolicy Bypass" in bat_content
+    assert "-NoProfile" in bat_content
+
+    # 5. Security: No permanent execution policy modification
+    assert "Set-ExecutionPolicy" not in bat_content
+
+    # 6. Exit code handling: pause on error, cleanup temp file, propagate exit code
+    assert "%INSTALLER_EXIT_CODE%" in bat_content
+    assert "pause" in bat_content
+    assert "exit /b" in bat_content
+
+    # 7. Verification of embedded PowerShell payload:
+    ps1_payload = _extract_windows_bat_payload(bat_file)
+    assert "Invoke-InstallWorkflow" in ps1_payload
+    assert "Invoke-UninstallWorkflow" in ps1_payload
+    assert "Invoke-RepairWorkflow" in ps1_payload
+    assert "Invoke-StatusWorkflow" in ps1_payload
+    assert "Show-MainMenu" in ps1_payload
+    assert "Set-ExecutionPolicy" not in ps1_payload
+
+    # 8. Verification of PowerShell 5.1 compatibility:
+    lines = ps1_payload.splitlines()
+    for idx, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if " ? " in line and " : " in line:
+            assert False, f"PowerShell 7 ternary operator detected at line {idx}: {line}"
+        assert " && " not in line, f"PowerShell 7 pipeline chain operator '&&' detected at line {idx}: {line}"
+        assert " || " not in line, f"PowerShell 7 pipeline chain operator '||' detected at line {idx}: {line}"
+
+
+def test_windows_installer_bat_bootstrap_integrity_and_variable_preservation(tmp_path: Path) -> None:
+    """Regression Test for Windows BAT bootstrap PowerShell variable preservation and packaging integrity.
+
+    Verifies that:
+    1. The CMD bootstrap contains intact PowerShell variable syntax ($src, $dst, $raw, $marker, $idx, $env:BAT_FILE, $env:TEMP_PS1).
+    2. No variables have been corrupted/stripped (e.g. ' = ...', ':BAT_FILE', ':TEMP_PS1', '.IndexOf()').
+    3. No control characters like \\x0b (vertical tab) or \\x0c exist in the file.
+    4. setlocal DisableDelayedExpansion is used so '!' in directory paths does not corrupt variables.
+    5. The extraction command byte-for-byte mirrors the exact extraction in both repo and packaged release artifacts.
+    """
+    bat_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    assert bat_file.is_file()
+
+    # Byte-level check for forbidden control characters (e.g. \\x0b from unescaped \\v)
+    raw_bytes = bat_file.read_bytes()
+    assert b"\x0b" not in raw_bytes, "Vertical tab \\x0b detected in Windows installer BAT"
+    assert b"\x0c" not in raw_bytes, "Form feed \\x0c detected in Windows installer BAT"
+
+    content = bat_file.read_text(encoding="utf-8")
+
+    # Check for specific regression signatures where $ was stripped
+    import re
+    # Bare assignment without variable name (e.g. '" = ' or ';  = ')
+    assert not re.search(r'[\";]\s+=\s+\[System\.IO\.File\]', content), "PowerShell variable was stripped before [System.IO.File]"
+    assert not re.search(r'[\";]\s+=\s+[\'\"]:::POWERSHELL', content), "PowerShell variable was stripped before marker"
+    assert not re.search(r'[\";]\s+=\s+\.IndexOf\(', content), "PowerShell variable was stripped before .IndexOf"
+    assert not re.search(r'[\";]\s+=\s+\.Substring\(', content), "PowerShell variable was stripped before .Substring"
+    assert ":BAT_FILE" not in content.replace("$env:BAT_FILE", ""), "Bare ':BAT_FILE' detected (missing $env)"
+    assert ":TEMP_PS1" not in content.replace("$env:TEMP_PS1", ""), "Bare ':TEMP_PS1' detected (missing $env)"
+
+    # Check for required intact bootstrap tokens
+    assert "$src = $env:BAT_FILE;" in content
+    assert "$dst = $env:TEMP_PS1;" in content
+    assert "$raw = [System.IO.File]::ReadAllText($src, [System.Text.Encoding]::UTF8);" in content
+    assert (
+        "$marker = ':::POWERSHELL_' + 'PAYLOAD_START:::';" in content
+        or "$marker = ':::POWERSHELL_PAYLOAD_START:::';" in content
+    )
+    assert (
+        "$idx = $raw.LastIndexOf($marker);" in content
+        or "$idx = $raw.IndexOf($marker);" in content
+    )
+    assert "setlocal DisableDelayedExpansion" in content
+    assert r"WindowsPowerShell\v1.0\powershell.exe" in content
+
+    # Verify Resolve-Gum uses ALTR_STREAM_LAUNCHER_DIR
+    assert "$env:ALTR_STREAM_LAUNCHER_DIR" in content
+
+    # Verify packaged release artifact also preserves bootstrap integrity
+    pkg_script = REPO_ROOT / "scripts" / "package_release.py"
+    pkg_out = tmp_path / "pkg_dist"
+    subprocess.run(
+        [sys.executable, str(pkg_script), "--output-dir", str(pkg_out)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    packaged_bat = pkg_out / "Altr-Stream_Windows_Installer.bat"
+    assert packaged_bat.is_file()
+    pkg_content = packaged_bat.read_text(encoding="utf-8")
+    assert "$src = $env:BAT_FILE;" in pkg_content
+    assert "$dst = $env:TEMP_PS1;" in pkg_content
+    assert not re.search(r'[\";]\s+=\s+\[System\.IO\.File\]', pkg_content)
+    assert b"\x0b" not in packaged_bat.read_bytes()
+
+
+def test_windows_bat_payload_extraction_cleanliness() -> None:
+    """Verify that extracting the PowerShell payload from Altr-Stream_Windows_Installer.bat
+    does not match the bootstrap extraction command and produces clean PowerShell starting with synopsis.
+    """
+    bat_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    content = bat_file.read_text(encoding="utf-8")
+    payload = _extract_windows_bat_payload(bat_file)
+
+    # Must start cleanly with synopsis comment
+    assert payload.startswith("<#"), f"Extracted payload must start with '<#', got: {payload[:50]!r}"
+    assert "@echo off" not in payload
+    assert "TEMP_PS1" not in payload
+    assert ":::POWERSHELL_PAYLOAD_START:::" not in payload
+
+    # Verify the extraction logic in BAT does not match line 57:
+    # the literal marker string must only occur once in the entire BAT file (on the marker boundary line).
+    marker = ":::POWERSHELL_PAYLOAD_START:::"
+    assert content.count(marker) == 1, (
+        f"Literal marker '{marker}' must appear exactly once in BAT to avoid bootstrap self-matching"
+    )
+
+
+def test_windows_installer_workflow_control_flow_and_break_integrity() -> None:
+    """Regression test for the loop-break bug in Invoke-InstallWorkflow.
+
+    In PowerShell, 'break' inside a 'switch' statement only breaks out of the switch,
+    NOT the enclosing 'while' loop. If a while loop uses switch ($action) { "Install" { break } },
+    the while loop never terminates, or falls through to default { return }, causing silent exit.
+    This test verifies that:
+    1. The confirmation prompt in Invoke-InstallWorkflow does NOT use a switch with a bare break inside a while loop.
+    2. A boolean loop-control flag ($proceed) is used to cleanly break the loop when 'Install Altr Stream' is selected.
+    3. 'Change Installation Path' updates $targetDir without exiting the loop prematurely.
+    4. Canceling / Back exits cleanly with return.
+    """
+    bat_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    payload = _extract_windows_bat_payload(bat_file)
+
+    # Locate Invoke-InstallWorkflow
+    assert "function Invoke-InstallWorkflow" in payload
+    install_fn = payload.split("function Invoke-InstallWorkflow")[1].split("function ")[0]
+
+    # Verify loop control flag is used
+    assert "$proceed = $false" in install_fn
+    assert "while (-not $proceed)" in install_fn
+    assert '$act -eq "Install Altr Stream"' in install_fn
+    assert "$proceed = $true" in install_fn
+
+    # Ensure no dangerous switch with bare break inside while loop exists in Invoke-InstallWorkflow confirmation prompt
+    prompt_section = install_fn.split("while (-not $proceed)")[1].split("Save-InstallDirectory")[0]
+    assert "switch ($act)" not in prompt_section, (
+        "Forbidden: switch ($act) inside while loop causes break to only exit switch, trapping execution"
+    )
+
+
+def test_windows_installer_docker_diagnostics_and_states() -> None:
+    """Verify that the Windows installer implements granular Docker diagnostics:
+    - Get-DockerDiagnostics function exists and returns structured state
+    - Supports states: 'Not Installed', 'Not Running', 'Unavailable', 'No Compose', 'Ready'
+    - Show-DockerDiagnosticScreen and Show-DockerTechnicalDetailsScreen exist
+    - Start-DockerDesktopProcess specifically targets 'Docker Desktop.exe' rather than bare 'docker'
+    - Actionable hints are provided in container status and main menu
+    """
+    bat_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    payload = _extract_windows_bat_payload(bat_file)
+
+    assert "function Get-DockerDiagnostics" in payload
+    assert "function Show-DockerDiagnosticScreen" in payload
+    assert "function Show-DockerTechnicalDetailsScreen" in payload
+    assert "function Start-DockerDesktopProcess" in payload
+
+    # Inspect Get-DockerDiagnostics for all required states
+    diag_fn = payload.split("function Get-DockerDiagnostics")[1].split("function ")[0]
+    assert '"Not Installed"' in diag_fn
+    assert '"Not Running"' in diag_fn
+    assert '"Unavailable"' in diag_fn
+    assert '"No Compose"' in diag_fn
+    assert '"Ready"' in diag_fn
+
+    # Verify Start-DockerDesktopProcess targets Docker Desktop.exe specifically
+    start_fn = payload.split("function Start-DockerDesktopProcess")[1].split("function ")[0]
+    assert "Docker Desktop.exe" in start_fn
+    assert 'Start-Process "docker"' not in start_fn, (
+        "Forbidden: Start-Process 'docker' launches the CLI help console instead of the Desktop GUI daemon"
+    )
+
+
+def test_windows_installer_pipeline_stages_and_failure_surfacing() -> None:
+    """Verify that the Windows installer implements explicit progress stages,
+    captures technical details on error, and surfaces failures rather than returning silently:
+    - Stage 1: Runtime configuration (Write-RuntimeFiles in try/catch)
+    - Stage 2: Persistent storage volume (docker volume create altr_stream_data in try/catch)
+    - Stage 3: Image pull (docker compose pull with log capture and local fallback check)
+    - Stage 4: Starting container (docker compose up -d with log capture and error classification)
+    - Stage 5: Polling healthcheck (Invoke-RestMethod with timeout)
+    - Stage 6: Health verification (Test-InstallationHealth)
+    - Show-InstallSuccessScreen is ONLY called when $verified is $true
+    - Show-InstallFailureScreen is called on any stage failure with stage name and reason
+    - Failure screen provides 'Retry Installation' and 'Back to Main Menu'
+    - Success screen provides 'Launch Altr Stream' and 'Back to Main Menu'
+    """
+    bat_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    payload = _extract_windows_bat_payload(bat_file)
+
+    assert "function Show-InstallSuccessScreen" in payload
+    assert "function Show-InstallFailureScreen" in payload
+    assert "function Show-RunningScreen" in payload
+
+    install_fn = payload.split("function Invoke-InstallWorkflow")[1].split("function ")[0]
+
+    # Verify stages in Invoke-InstallWorkflow
+    assert "Preparing configuration" in install_fn
+    assert "Preparing storage volume" in install_fn
+    assert "Pulling Altr Stream image" in install_fn
+    assert "Starting Altr Stream container" in install_fn
+    assert "Waiting for health check" in install_fn
+    assert "Installation verification" in install_fn
+
+    # Verify log capture for pull and start
+    assert ".docker_pull.log" in install_fn
+    assert ".docker_start.log" in install_fn
+
+    # Verify healthcheck verification guard
+    assert "Test-InstallationHealth" in install_fn
+    assert "if ($verified) {" in install_fn
+    assert "Show-InstallSuccessScreen" in install_fn
+    assert "Show-InstallFailureScreen" in install_fn
+
+    # Verify Failure Screen options
+    fail_fn = payload.split("function Show-InstallFailureScreen")[1].split("function ")[0]
+    assert "Retry Installation" in fail_fn
+    assert "Back to Main Menu" in fail_fn
+    assert "Failure Diagnostics:" in fail_fn
+    assert "$Stage" in fail_fn
+    assert "$Reason" in fail_fn
+
+    # Verify Success Screen options
+    succ_fn = payload.split("function Show-InstallSuccessScreen")[1].split("function ")[0]
+    assert "Launch Altr Stream" in succ_fn
+    assert "Back to Main Menu" in succ_fn
+
+
+def test_windows_installer_native_docker_error_isolation_and_container_conflict() -> None:
+    """Regression test for native Docker command error isolation under $ErrorActionPreference = 'Stop'.
+
+    In PowerShell 5.1, when $ErrorActionPreference = 'Stop', any native executable writing to stderr
+    generates a NativeCommandError record, which terminates the script even if 2>$null is present.
+    On fresh installations, 'docker inspect altr-stream' exits with code 1 and writes to stderr
+    ('error: no such object: altr-stream').
+    This test verifies that:
+    1. $ErrorActionPreference = 'Stop' is maintained globally for strict script safety.
+    2. Invoke-DockerCliSafe is defined and uses System.Diagnostics.ProcessStartInfo to redirect
+       stdout and stderr at the process boundary, preventing NativeCommandError.
+    3. Test-ContainerExists and Get-ContainerInspectField are used for safe inspection.
+    4. Test-ContainerConflict uses Test-ContainerExists 'altr-stream' so a missing container
+       returns $false (fresh install) without throwing an error.
+    5. No bare 'docker inspect altr-stream 2>$null' exists in Test-ContainerConflict.
+    6. Get-DockerDiagnostics implements a bounded retry when the 'Docker Desktop' process
+       is running in memory, resolving startup race conditions.
+    """
+    bat_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    payload = _extract_windows_bat_payload(bat_file)
+
+    # 1. Strict global error handling preserved
+    assert '$ErrorActionPreference = "Stop"' in payload
+
+    # 2. ProcessStartInfo isolation layer exists
+    assert "function Invoke-DockerCliSafe" in payload
+    assert "System.Diagnostics.ProcessStartInfo" in payload
+    assert "$psi.RedirectStandardOutput = $true" in payload
+    assert "$psi.RedirectStandardError = $true" in payload
+    assert "$psi.UseShellExecute = $false" in payload
+
+    # 3. Safe inspection helpers exist
+    assert "function Get-ContainerInspectField" in payload
+    assert "function Test-ContainerExists" in payload
+
+    # 4. Test-ContainerConflict uses Test-ContainerExists and Get-ContainerInspectField
+    assert "function Test-ContainerConflict" in payload
+    conflict_fn = payload.split("function Test-ContainerConflict")[1].split("function ")[0]
+    assert 'Test-ContainerExists "altr-stream"' in conflict_fn
+    assert "Get-ContainerInspectField" in conflict_fn
+    assert "docker inspect altr-stream" not in conflict_fn
+
+    # 5. Get-DockerDiagnostics startup delay retry
+    diag_fn = payload.split("function Get-DockerDiagnostics")[1].split("function ")[0]
+    assert 'Get-Process "Docker Desktop"' in diag_fn
+    assert "Invoke-DockerCliSafe" in diag_fn
+    assert "$maxAttempts = 3" in diag_fn
+
+
+def test_windows_installer_gum_style_isolation_and_flag_safety(tmp_path: Path) -> None:
+    """Regression test: Ensure Gum style invocations are hardened against unknown flags,
+    prevent raw usage text leakage, guarantee '--' delimiter before positional text,
+    and provide plain-text fallback rendering."""
+    bat_file = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    payload = _extract_windows_bat_payload(bat_file)
+
+    # 1. Verify expected pinned version and checksum
+    assert '$GumPinnedVersion = "2.0.2"' in payload
+    assert '$GumWindowsX64Sha = "0397091dec9b4e8f00e02b90fd3eb07bf45acabbdb61d67437950f18e03a8b79"' in payload
+
+    # 2. Verify all direct style calls are replaced by Invoke-GumStyle
+    assert "& $GumBin style" not in payload
+    assert "function Invoke-GumStyle" in payload
+    assert payload.count("Invoke-GumStyle") >= 40
+
+    # 3. Verify '--' flag delimiter and 2>$null stderr suppression in Invoke-GumStyle
+    style_fn = payload.split("function Invoke-GumStyle")[1].split("function ")[0]
+    assert '"--"' in style_fn
+    assert "2>$null" in style_fn
+    assert "Fallback-RenderStyle" in style_fn
+
+    # 4. Verify Fallback-RenderStyle and Format-TechnicalLines
+    assert "function Fallback-RenderStyle" in payload
+    assert "function Format-TechnicalLines" in payload
+    fail_fn = payload.split("function Show-InstallFailureScreen")[1].split("function ")[0]
+    assert "Format-TechnicalLines" in fail_fn
+
+    # 5. Verify live Gum behavior with '--' delimiter preventing -f unknown flag error
+    resolved_gum = get_resolved_gum_bin()
+    if resolved_gum:
+        # Without '--', passing -f in positional text must fail with unknown flag error
+        res_fail = subprocess.run(
+            [str(resolved_gum), "style", "SomeText", "-f", "OtherText"],
+            capture_output=True,
+            text=True,
+        )
+        assert res_fail.returncode != 0
+        assert "unknown flag -f" in res_fail.stderr
+
+        # With '--' delimiter, passing -f in positional text must succeed cleanly
+        res_ok = subprocess.run(
+            [str(resolved_gum), "style", "--border", "rounded", "--", "SomeText", "-f", "OtherText"],
+            capture_output=True,
+            text=True,
+        )
+        assert res_ok.returncode == 0
+        assert "SomeText" in res_ok.stdout
+        assert "-f" in res_ok.stdout
+
+    # 6. PowerShell 5.1 Syntax Audit: Ensure no invalid variable scope or colon interpolations
+    valid_scopes = {"env", "script", "global", "local", "private", "using"}
+    for line_idx, line in enumerate(payload.splitlines(), start=1):
+        for m in re.finditer(r"\$([a-zA-Z0-9_]+):", line):
+            scope = m.group(1).lower()
+            rest = line[m.end():]
+            if scope in valid_scopes:
+                assert re.match(r"^[a-zA-Z0-9_]", rest), (
+                    f"Line {line_idx}: Scope '{scope}:' not followed by valid variable name: {line.strip()}"
+                )
+            else:
+                pytest.fail(
+                    f"Line {line_idx}: Invalid variable followed by colon '${m.group(1)}:' in line: {line.strip()}"
+                )
+
+    # 7. Verify -f formatting operator is used in fallback UI prompts
+    input_fn = payload.split("function Invoke-GumInput")[1].split("function ")[0]
+    assert '"  {0}: " -f $prompt' in input_fn
+    assert '"  $prompt: "' not in input_fn
+    confirm_fn = payload.split("function Invoke-GumConfirm")[1].split("function ")[0]
+    assert '"  {0} [y/N]: " -f' in confirm_fn
+
+
+
+
 

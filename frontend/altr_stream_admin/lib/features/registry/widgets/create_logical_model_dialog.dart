@@ -14,7 +14,8 @@ class CreateLogicalModelDialog extends StatefulWidget {
   });
 
   @override
-  State<CreateLogicalModelDialog> createState() => _CreateLogicalModelDialogState();
+  State<CreateLogicalModelDialog> createState() =>
+      _CreateLogicalModelDialogState();
 }
 
 class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
@@ -46,8 +47,12 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
 
     try {
       final name = _nameController.text.trim();
-      final version = _versionController.text.trim().isEmpty ? '1.0.0' : _versionController.text.trim();
-      final description = _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim();
+      final version = _versionController.text.trim().isEmpty
+          ? '1.0.0'
+          : _versionController.text.trim();
+      final description = _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim();
 
       // 1. Create Logical Model
       final model = await widget.apiClient.createLogicalModel(
@@ -125,7 +130,11 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: HugeIcon(icon: HugeIcons.strokeRoundedStructure01, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedStructure01,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -142,14 +151,20 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                         ),
                         Text(
                           'Define a source-agnostic domain schema and entity contract.',
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 18,
+                    ),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -161,16 +176,25 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                   decoration: BoxDecoration(
                     color: colorScheme.errorContainer.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: colorScheme.error.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedAlertCircle,
+                        color: colorScheme.error,
+                        size: 18,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: TextStyle(color: colorScheme.error, fontSize: 12),
+                          style: TextStyle(
+                            color: colorScheme.error,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -190,8 +214,12 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                         hintText: 'e.g. CoreCommerce, UnifiedSchool',
                       ),
                       validator: (val) {
-                        if (val == null || val.trim().isEmpty) return 'Model name is required';
-                        if (!RegExp(r'^[a-zA-Z0-9_\-]+$').hasMatch(val.trim())) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Model name is required';
+                        }
+                        if (!RegExp(
+                          r'^[a-zA-Z0-9_\-]+$',
+                        ).hasMatch(val.trim())) {
                           return 'Alphanumeric, dashes, and underscores only';
                         }
                         return null;
@@ -217,7 +245,8 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                 maxLines: 2,
                 decoration: const InputDecoration(
                   labelText: 'Description (Optional)',
-                  hintText: 'Brief summary of what this logical domain represents...',
+                  hintText:
+                      'Brief summary of what this logical domain represents...',
                   alignLabelWithHint: true,
                 ),
               ),
@@ -227,7 +256,8 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Initial Entity (Optional)',
                   hintText: 'e.g. Customer, Order, Product',
-                  helperText: 'Creates starter entity with id (INTEGER PK) and name (STRING)',
+                  helperText:
+                      'Creates starter entity with id (INTEGER PK) and name (STRING)',
                 ),
               ),
               const SizedBox(height: 24),
@@ -235,8 +265,13 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(
@@ -247,7 +282,10 @@ class _CreateLogicalModelDialogState extends State<CreateLogicalModelDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
+                        : const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                            size: 16,
+                          ),
                     label: Text(_isSubmitting ? 'Creating...' : 'Create Model'),
                   ),
                 ],

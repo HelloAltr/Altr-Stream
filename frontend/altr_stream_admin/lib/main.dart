@@ -61,17 +61,17 @@ class _AltrStreamAdminAppState extends State<AltrStreamAdminApp> {
         return M3ETheme(
           data: M3EThemeData(
             colorScheme: materialTheme.colorScheme.toM3EColorScheme().copyWith(
-              tertiaryContainer: materialTheme.colorScheme.surfaceContainerHighest,
+              tertiaryContainer:
+                  materialTheme.colorScheme.surfaceContainerHighest,
               onTertiaryContainer: materialTheme.colorScheme.onSurface,
-              secondaryContainer: materialTheme.colorScheme.surfaceContainerHigh,
+              secondaryContainer:
+                  materialTheme.colorScheme.surfaceContainerHigh,
               onSecondaryContainer: materialTheme.colorScheme.onSurface,
             ),
             menuTheme: M3EMenuTheme(
               backgroundColor: materialTheme.colorScheme.surfaceContainerHigh,
             ),
-            navigationDrawerTheme: const M3ENavigationDrawerTheme(
-              width: 320,
-            ),
+            navigationDrawerTheme: const M3ENavigationDrawerTheme(width: 320),
           ),
           child: child ?? const SizedBox.shrink(),
         );
@@ -111,11 +111,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   LogicalModelModel? _selectedLogicalModel;
   String _nodeStatus = 'ACTIVE';
   UserProfile? _currentUser;
-  final GlobalKey<OverviewScreenState> _overviewKey = GlobalKey<OverviewScreenState>();
-  final GlobalKey<RegistryScreenState> _registryKey = GlobalKey<RegistryScreenState>();
-  final GlobalKey<SourcesScreenState> _sourcesKey = GlobalKey<SourcesScreenState>();
-  final GlobalKey<SourceDetailScreenState> _sourceDetailKey = GlobalKey<SourceDetailScreenState>();
-  final GlobalKey<LogicalModelDetailScreenState> _logicalModelDetailKey = GlobalKey<LogicalModelDetailScreenState>();
+  final GlobalKey<OverviewScreenState> _overviewKey =
+      GlobalKey<OverviewScreenState>();
+  final GlobalKey<RegistryScreenState> _registryKey =
+      GlobalKey<RegistryScreenState>();
+  final GlobalKey<SourcesScreenState> _sourcesKey =
+      GlobalKey<SourcesScreenState>();
+  final GlobalKey<SourceDetailScreenState> _sourceDetailKey =
+      GlobalKey<SourceDetailScreenState>();
+  final GlobalKey<LogicalModelDetailScreenState> _logicalModelDetailKey =
+      GlobalKey<LogicalModelDetailScreenState>();
 
   UsageMetricsModel? _usageMetrics;
   Timer? _usageTimer;
@@ -127,7 +132,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     _logActivity(
       type: ActivityType.nodeStart,
       title: 'Altr Stream Node Initialized',
-      description: 'Connected to local runtime metadata and PostgreSQL connector ready.',
+      description:
+          'Connected to local runtime metadata and PostgreSQL connector ready.',
     );
     _probeNodeHealth();
     _fetchSources(probe: true);
@@ -148,7 +154,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   Future<void> _fetchUsageMetrics() async {
     try {
-      final metrics = await _apiClient.getUsageMetrics(timeWindow: _usageTimeWindow);
+      final metrics = await _apiClient.getUsageMetrics(
+        timeWindow: _usageTimeWindow,
+      );
       if (mounted) {
         setState(() {
           _usageMetrics = metrics;
@@ -156,7 +164,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       }
     } catch (_) {}
   }
-
 
   void _logActivity({
     required ActivityType type,
@@ -253,7 +260,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           _logActivity(
             type: ActivityType.sourceRegistered,
             title: 'Source Registered',
-            description: 'Registered "${newSource.name}" (${newSource.type} on $endpointDesc)',
+            description:
+                'Registered "${newSource.name}" (${newSource.type} on $endpointDesc)',
             sourceId: newSource.id,
             sourceName: newSource.name,
           );
@@ -264,7 +272,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Data source "${newSource.name}" registered successfully!'),
+              content: Text(
+                'Data source "${newSource.name}" registered successfully!',
+              ),
               backgroundColor: AppTheme.getStatusColor('ACTIVE', context),
             ),
           );
@@ -299,30 +309,50 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (_activeRoute == '/registry/detail') {
       return _selectedLogicalModel?.name ?? 'Logical Model Details';
     }
-    if (_activeRoute == '/registry') return 'Logical Models';
-    if (_activeRoute == '/activity') return 'Activity';
-    if (_activeRoute == '/settings') return 'Settings';
-    if (_activeRoute == '/altrql' || _activeRoute == '/playground') return 'AltrQL Console';
+    if (_activeRoute == '/registry') {
+      return 'Logical Models';
+    }
+    if (_activeRoute == '/activity') {
+      return 'Activity';
+    }
+    if (_activeRoute == '/settings') {
+      return 'Settings';
+    }
+    if (_activeRoute == '/altrql' || _activeRoute == '/playground') {
+      return 'AltrQL Console';
+    }
     return 'Overview';
   }
 
   String _getPageSubtitle() {
-    if (_activeRoute == '/') return 'System overview, status & analytics';
+    if (_activeRoute == '/') {
+      return 'System overview, status & analytics';
+    }
     if (_activeRoute == '/sources/detail') {
       return _selectedSource != null
           ? '${_selectedSource!.type} • ${_selectedSource!.host ?? _selectedSource!.filePath ?? "Connected"}'
           : 'Inspect tables, schema & test connectivity';
     }
-    if (_activeRoute == '/sources') return 'Manage connected data sources and connections';
+    if (_activeRoute == '/sources') {
+      return 'Manage connected data sources and connections';
+    }
     if (_activeRoute == '/registry/detail') {
       return _selectedLogicalModel != null
           ? 'v${_selectedLogicalModel!.version} • ${_selectedLogicalModel!.entityCount} Entities • ${_selectedLogicalModel!.totalFieldCount} Fields'
           : 'Manage mappings, views & virtual schemas';
     }
-    if (_activeRoute == '/registry') return 'Define federated schemas and entity mappings';
-    if (_activeRoute == '/activity') return 'Real-time audit log and system events';
-    if (_activeRoute == '/settings') return 'Global configurations and engine parameters';
-    if (_activeRoute == '/altrql' || _activeRoute == '/playground') return 'Execute federated SQL queries across sources';
+    if (_activeRoute == '/registry') {
+      return 'Define federated schemas and entity mappings';
+    }
+    if (_activeRoute == '/activity') {
+      return 'Real-time audit log and system events';
+    }
+    if (_activeRoute == '/settings') {
+      return 'Global configurations and engine parameters';
+    }
+    if (_activeRoute == '/altrql' || _activeRoute == '/playground') {
+      return 'Execute federated SQL queries across sources';
+    }
     return 'System overview, status & analytics';
   }
 
@@ -419,7 +449,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final nameController = TextEditingController(text: 'Asher Developer');
     final emailController = TextEditingController(text: 'asher@altrstream.io');
-    final photoController = TextEditingController(text: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80');
+    final photoController = TextEditingController(
+      text:
+          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+    );
 
     showDialog(
       context: context,
@@ -427,7 +460,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         backgroundColor: colorScheme.surfaceContainerHigh,
         title: Row(
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedUserCircle, color: colorScheme.primary, size: 24),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedUserCircle,
+              color: colorScheme.primary,
+              size: 24,
+            ),
             const SizedBox(width: 10),
             const Text('Google Sign In'),
           ],
@@ -438,7 +475,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           children: [
             Text(
               'Sign in with your Google account to manage node configuration, schemas, and queries.',
-              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -453,14 +493,19 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: photoController,
-              decoration: const InputDecoration(labelText: 'Profile Picture URL (Optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Profile Picture URL (Optional)',
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
           ),
           M3EButton(
             onPressed: () {
@@ -481,12 +526,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 _logActivity(
                   type: ActivityType.nodeStart,
                   title: 'User Authenticated',
-                  description: 'Signed in as ${user.displayName} (${user.email})',
+                  description:
+                      'Signed in as ${user.displayName} (${user.email})',
                 );
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Welcome, ${user.displayName}! Signed in with Google.'),
+                    content: Text(
+                      'Welcome, ${user.displayName}! Signed in with Google.',
+                    ),
                     backgroundColor: colorScheme.primary,
                   ),
                 );
@@ -514,9 +562,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       );
     }
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Successfully signed out.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Successfully signed out.')));
     }
   }
 
@@ -534,7 +582,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         title: 'Delete Data Source?',
         content: Text(
           'Are you sure you want to delete "${source.name}" and all associated physical schema snapshots? This action cannot be undone.',
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.5,
+          ),
         ),
         actions: [
           M3EButton(
@@ -557,7 +609,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         _logActivity(
           type: ActivityType.sourceDeleted,
           title: 'Source Deleted',
-          description: 'Deleted data source "${source.name}" and its introspection metadata.',
+          description:
+              'Deleted data source "${source.name}" and its introspection metadata.',
           sourceId: source.id,
           sourceName: source.name,
         );
@@ -609,7 +662,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       );
     }
 
-    if (_activeRoute == '/sources' || (_activeRoute == '/sources/detail' && _selectedSource == null)) {
+    if (_activeRoute == '/sources' ||
+        (_activeRoute == '/sources/detail' && _selectedSource == null)) {
       return SourcesScreen(
         key: _sourcesKey,
         sources: _sources,
@@ -650,7 +704,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       );
     }
 
-    if (_activeRoute == '/docs' || _activeRoute == '/api-docs' || _activeRoute == '/api-explorer') {
+    if (_activeRoute == '/docs' ||
+        _activeRoute == '/api-docs' ||
+        _activeRoute == '/api-explorer') {
       return ApiDocsScreen(
         apiClient: _apiClient,
         sources: _sources,
@@ -658,7 +714,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         onNodeStatusTap: _showNodeStatusDialog,
         themeMode: widget.themeMode,
         onThemeModeChanged: widget.onThemeModeChanged,
-        onBackToAdmin: () => setState(() => _activeRoute = _previousRoute ?? '/'),
+        onBackToAdmin: () =>
+            setState(() => _activeRoute = _previousRoute ?? '/'),
       );
     }
 
@@ -681,7 +738,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       );
     }
 
-    if (_activeRoute == '/registry' || (_activeRoute == '/registry/detail' && _selectedLogicalModel == null)) {
+    if (_activeRoute == '/registry' ||
+        (_activeRoute == '/registry/detail' && _selectedLogicalModel == null)) {
       return RegistryScreen(
         key: _registryKey,
         apiClient: _apiClient,
@@ -742,7 +800,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             final colorScheme = Theme.of(context).colorScheme;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text('All monitored usage data successfully cleared.'),
+                content: const Text(
+                  'All monitored usage data successfully cleared.',
+                ),
                 backgroundColor: colorScheme.primary,
               ),
             );
@@ -771,10 +831,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
-    if (_activeRoute == '/api-explorer' || _activeRoute == '/api-docs' || _activeRoute == '/docs') {
+    if (_activeRoute == '/api-explorer' ||
+        _activeRoute == '/api-docs' ||
+        _activeRoute == '/docs') {
       return ApiDocsScreen(
         apiClient: _apiClient,
         sources: _sources,

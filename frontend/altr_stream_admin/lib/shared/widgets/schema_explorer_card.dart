@@ -8,25 +8,27 @@ class SchemaExplorerCard extends StatefulWidget {
   final bool isLoading;
   final String? errorMessage;
   final VoidCallback? onRefreshSchema;
-  
+
   /// Controls whether entity tiles expand to show fields (`true`),
   /// or act as selection tiles that trigger [onSelectEntity] (`false`).
   final bool isExpandable;
-  
+
   /// Currently selected namespace (for selection mode highlighting).
   final String? selectedNamespace;
-  
+
   /// Currently selected entity/table name (for selection mode highlighting).
   final String? selectedEntityName;
-  
+
   /// Callback when an entity tile is selected in non-expandable mode.
-  final void Function(EntitySchemaModel entity, String namespace)? onSelectEntity;
-  
+  final void Function(EntitySchemaModel entity, String namespace)?
+  onSelectEntity;
+
   /// Callback when inserting query template for an entity.
   final void Function(EntitySchemaModel entity)? onInsertTemplate;
-  
+
   /// Callback when a field inside an expanded entity is clicked.
-  final void Function(FieldSchemaModel field, EntitySchemaModel entity)? onSelectColumn;
+  final void Function(FieldSchemaModel field, EntitySchemaModel entity)?
+  onSelectColumn;
 
   const SchemaExplorerCard({
     super.key,
@@ -75,9 +77,13 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
 
     return widget.schema!.entities.where((entity) {
       final matchesTableName = entity.name.toLowerCase().contains(_searchQuery);
-      final matchesNamespace = entity.namespace.toLowerCase().contains(_searchQuery);
+      final matchesNamespace = entity.namespace.toLowerCase().contains(
+        _searchQuery,
+      );
       final matchesColumn = entity.fields.any(
-        (f) => f.name.toLowerCase().contains(_searchQuery) || f.dataType.toLowerCase().contains(_searchQuery),
+        (f) =>
+            f.name.toLowerCase().contains(_searchQuery) ||
+            f.dataType.toLowerCase().contains(_searchQuery),
       );
       return matchesTableName || matchesNamespace || matchesColumn;
     }).toList();
@@ -119,7 +125,9 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: isMongo ? 'Search collections...' : 'Search tables...',
+                hintText: isMongo
+                    ? 'Search collections...'
+                    : 'Search tables...',
                 hintStyle: TextStyle(
                   fontSize: 12,
                   color: colorScheme.onSurfaceVariant,
@@ -161,17 +169,13 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide(
-                    color: colorScheme.outlineVariant.withValues(
-                      alpha: 0.5,
-                    ),
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide(
-                    color: colorScheme.outlineVariant.withValues(
-                      alpha: 0.5,
-                    ),
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
@@ -188,7 +192,13 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
 
             // Content Area
             Expanded(
-              child: _buildBody(context, colorScheme, isMongo, filteredNamespaces, namespaceMap),
+              child: _buildBody(
+                context,
+                colorScheme,
+                isMongo,
+                filteredNamespaces,
+                namespaceMap,
+              ),
             ),
           ],
         ),
@@ -228,7 +238,10 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
               Text(
                 'Select a data source to explore its schema.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -244,12 +257,18 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
             SizedBox(
               width: 24,
               height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colorScheme.primary,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
               'Loading schema snapshot...',
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -263,25 +282,44 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, size: 24, color: colorScheme.error),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedAlertCircle,
+                size: 24,
+                color: colorScheme.error,
+              ),
               const SizedBox(height: 8),
               Text(
                 'Failed to Load Schema',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorScheme.error),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.error,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 widget.errorMessage!,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               if (widget.onRefreshSchema != null) ...[
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
                   onPressed: widget.onRefreshSchema,
-                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
-                  label: const Text('Retry Discovery', style: TextStyle(fontSize: 11)),
-                  style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedRefresh,
+                    size: 14,
+                  ),
+                  label: const Text(
+                    'Retry Discovery',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
               ],
             ],
@@ -315,15 +353,26 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
               Text(
                 'No schema snapshot found for this source.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               if (widget.onRefreshSchema != null) ...[
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: widget.onRefreshSchema,
-                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedSparkles, size: 14),
-                  label: const Text('Discover Schema', style: TextStyle(fontSize: 11)),
-                  style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedSparkles,
+                    size: 14,
+                  ),
+                  label: const Text(
+                    'Discover Schema',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
               ],
             ],
@@ -338,10 +387,7 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
           padding: const EdgeInsets.all(16),
           child: Text(
             isMongo ? 'No collections found' : 'No tables found',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
         ),
       );
@@ -378,7 +424,9 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
             return tables.asMap().entries.map((entry) {
               final index = entry.key;
               final entity = entry.value;
-              final isSelected = widget.selectedEntityName == entity.name && widget.selectedNamespace == ns;
+              final isSelected =
+                  widget.selectedEntityName == entity.name &&
+                  widget.selectedNamespace == ns;
 
               final BorderRadius borderRadius;
               if (totalCount <= 1) {
@@ -418,53 +466,112 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
                     ),
                     child: widget.isExpandable
                         ? Theme(
-                            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                            data: Theme.of(
+                              context,
+                            ).copyWith(dividerColor: Colors.transparent),
                             child: ExpansionTile(
                               dense: true,
-                              tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                              tilePadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 2,
+                              ),
                               childrenPadding: const EdgeInsets.only(bottom: 6),
-                              leading: _buildLeadingBadge(colorScheme, isMongo, entity, isSelected),
-                              title: _buildTitle(colorScheme, entity, isSelected),
-                              subtitle: _buildSubtitle(colorScheme, isMongo, entity, isSelected),
+                              leading: _buildLeadingBadge(
+                                colorScheme,
+                                isMongo,
+                                entity,
+                                isSelected,
+                              ),
+                              title: _buildTitle(
+                                colorScheme,
+                                entity,
+                                isSelected,
+                              ),
+                              subtitle: _buildSubtitle(
+                                colorScheme,
+                                isMongo,
+                                entity,
+                                isSelected,
+                              ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (widget.onInsertTemplate != null)
                                     IconButton(
-                                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedCode, size: 15),
-                                      tooltip: isMongo ? 'Query Collection (Insert Template)' : 'Query Table (Insert Template)',
+                                      icon: const HugeIcon(
+                                        icon: HugeIcons.strokeRoundedCode,
+                                        size: 15,
+                                      ),
+                                      tooltip: isMongo
+                                          ? 'Query Collection (Insert Template)'
+                                          : 'Query Table (Insert Template)',
                                       visualDensity: VisualDensity.compact,
                                       padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 26,
+                                        minHeight: 26,
+                                      ),
                                       color: colorScheme.primary,
-                                      onPressed: () => widget.onInsertTemplate?.call(entity),
+                                      onPressed: () =>
+                                          widget.onInsertTemplate?.call(entity),
                                     ),
-                                  const HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 16),
+                                  const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedArrowDown01,
+                                    size: 16,
+                                  ),
                                 ],
                               ),
                               children: entity.fields
-                                  .map((field) => _buildFieldRow(context, colorScheme, field, entity))
+                                  .map(
+                                    (field) => _buildFieldRow(
+                                      context,
+                                      colorScheme,
+                                      field,
+                                      entity,
+                                    ),
+                                  )
                                   .toList(),
                             ),
                           )
                         : InkWell(
                             borderRadius: borderRadius,
-                            hoverColor: colorScheme.primary.withValues(alpha: 0.08),
-                            onTap: () => widget.onSelectEntity?.call(entity, ns),
+                            hoverColor: colorScheme.primary.withValues(
+                              alpha: 0.08,
+                            ),
+                            onTap: () =>
+                                widget.onSelectEntity?.call(entity, ns),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 11,
+                              ),
                               child: Row(
                                 children: [
-                                  _buildLeadingBadge(colorScheme, isMongo, entity, isSelected),
+                                  _buildLeadingBadge(
+                                    colorScheme,
+                                    isMongo,
+                                    entity,
+                                    isSelected,
+                                  ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        _buildTitle(colorScheme, entity, isSelected),
+                                        _buildTitle(
+                                          colorScheme,
+                                          entity,
+                                          isSelected,
+                                        ),
                                         const SizedBox(height: 2),
-                                        _buildSubtitle(colorScheme, isMongo, entity, isSelected),
+                                        _buildSubtitle(
+                                          colorScheme,
+                                          isMongo,
+                                          entity,
+                                          isSelected,
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -474,7 +581,8 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
                                     size: 14,
                                     color: isSelected
                                         ? colorScheme.primary
-                                        : colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                                        : colorScheme.onSurfaceVariant
+                                              .withValues(alpha: 0.5),
                                   ),
                                 ],
                               ),
@@ -491,7 +599,12 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
     );
   }
 
-  Widget _buildLeadingBadge(ColorScheme colorScheme, bool isMongo, EntitySchemaModel entity, bool isSelected) {
+  Widget _buildLeadingBadge(
+    ColorScheme colorScheme,
+    bool isMongo,
+    EntitySchemaModel entity,
+    bool isSelected,
+  ) {
     return Container(
       padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
@@ -504,15 +617,19 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
         icon: entity.entityType.toUpperCase() == 'COLLECTION'
             ? HugeIcons.strokeRoundedFolderLibrary
             : (entity.entityType.toUpperCase() == 'VIEW'
-                ? HugeIcons.strokeRoundedView
-                : HugeIcons.strokeRoundedSheet),
+                  ? HugeIcons.strokeRoundedView
+                  : HugeIcons.strokeRoundedSheet),
         size: 16,
         color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
       ),
     );
   }
 
-  Widget _buildTitle(ColorScheme colorScheme, EntitySchemaModel entity, bool isSelected) {
+  Widget _buildTitle(
+    ColorScheme colorScheme,
+    EntitySchemaModel entity,
+    bool isSelected,
+  ) {
     return Text(
       entity.name,
       style: TextStyle(
@@ -525,7 +642,12 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
     );
   }
 
-  Widget _buildSubtitle(ColorScheme colorScheme, bool isMongo, EntitySchemaModel entity, bool isSelected) {
+  Widget _buildSubtitle(
+    ColorScheme colorScheme,
+    bool isMongo,
+    EntitySchemaModel entity,
+    bool isSelected,
+  ) {
     return Text(
       '${entity.fields.length} ${entity.fields.length == 1 ? "field" : "fields"}',
       style: TextStyle(
@@ -568,7 +690,11 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
             if (field.isPrimaryKey)
               Padding(
                 padding: const EdgeInsets.only(right: 6),
-                child: HugeIcon(icon: HugeIcons.strokeRoundedKey01, size: 12, color: Colors.amber.shade700),
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedKey01,
+                  size: 12,
+                  color: Colors.amber.shade700,
+                ),
               )
             else
               const SizedBox(width: 18),
@@ -577,7 +703,9 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
                 field.name,
                 style: TextStyle(
                   fontSize: 11,
-                  fontWeight: field.isPrimaryKey ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: field.isPrimaryKey
+                      ? FontWeight.bold
+                      : FontWeight.normal,
                   fontFamily: 'monospace',
                   color: colorScheme.onSurface,
                 ),
@@ -590,7 +718,9 @@ class _SchemaExplorerCardState extends State<SchemaExplorerCard> {
                 borderRadius: BorderRadius.circular(3),
               ),
               child: Text(
-                field.nativeDataType.isNotEmpty ? field.nativeDataType : field.dataType,
+                field.nativeDataType.isNotEmpty
+                    ? field.nativeDataType
+                    : field.dataType,
                 style: TextStyle(
                   fontSize: 9,
                   fontFamily: 'monospace',

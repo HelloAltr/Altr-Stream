@@ -76,7 +76,16 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    const dataTypes = ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'JSON', 'BINARY'];
+    const dataTypes = [
+      'STRING',
+      'INTEGER',
+      'FLOAT',
+      'BOOLEAN',
+      'DATE',
+      'TIMESTAMP',
+      'JSON',
+      'BINARY',
+    ];
 
     return Dialog(
       backgroundColor: colorScheme.surfaceContainerHigh,
@@ -98,7 +107,11 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: HugeIcon(icon: HugeIcons.strokeRoundedEdit02, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedEdit02,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -115,14 +128,20 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                         ),
                         Text(
                           'Update field name, standard type, or constraints.',
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 18,
+                    ),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -134,9 +153,14 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                   decoration: BoxDecoration(
                     color: colorScheme.errorContainer.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: colorScheme.error.withValues(alpha: 0.5),
+                    ),
                   ),
-                  child: Text(_errorMessage!, style: TextStyle(color: colorScheme.error, fontSize: 12)),
+                  child: Text(
+                    _errorMessage!,
+                    style: TextStyle(color: colorScheme.error, fontSize: 12),
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -147,7 +171,9 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                   hintText: 'e.g. email, total_amount, created_at',
                 ),
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Field name is required';
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Field name is required';
+                  }
                   if (!RegExp(r'^[a-zA-Z0-9_\-]+$').hasMatch(val.trim())) {
                     return 'Alphanumeric and underscores only';
                   }
@@ -156,9 +182,13 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                initialValue: dataTypes.contains(_dataType) ? _dataType : 'STRING',
+                initialValue: dataTypes.contains(_dataType)
+                    ? _dataType
+                    : 'STRING',
                 decoration: const InputDecoration(labelText: 'Data Type'),
-                items: dataTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                items: dataTypes
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                    .toList(),
                 onChanged: (val) {
                   if (val != null) setState(() => _dataType = val);
                 },
@@ -169,17 +199,25 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                   Expanded(
                     child: CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Primary Key', style: TextStyle(fontSize: 13)),
+                      title: const Text(
+                        'Primary Key',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       value: _isPrimaryKey,
-                      onChanged: (val) => setState(() => _isPrimaryKey = val ?? false),
+                      onChanged: (val) =>
+                          setState(() => _isPrimaryKey = val ?? false),
                     ),
                   ),
                   Expanded(
                     child: CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Nullable', style: TextStyle(fontSize: 13)),
+                      title: const Text(
+                        'Nullable',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       value: _nullable,
-                      onChanged: (val) => setState(() => _nullable = val ?? true),
+                      onChanged: (val) =>
+                          setState(() => _nullable = val ?? true),
                     ),
                   ),
                 ],
@@ -189,8 +227,13 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(
@@ -201,7 +244,10 @@ class _EditFieldDialogState extends State<EditFieldDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
+                        : const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                            size: 16,
+                          ),
                     label: Text(_isSubmitting ? 'Saving...' : 'Save Changes'),
                   ),
                 ],

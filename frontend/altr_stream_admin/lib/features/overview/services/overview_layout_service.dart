@@ -235,7 +235,10 @@ class BentoCollisionResolver {
 
   /// Resolves all collisions across items, pushing colliding items down the grid,
   /// and dynamically compacts empty rows upward.
-  static List<BentoCardConfig> resolve(List<BentoCardConfig> configs, {String? fixedId}) {
+  static List<BentoCardConfig> resolve(
+    List<BentoCardConfig> configs, {
+    String? fixedId,
+  }) {
     final list = List<BentoCardConfig>.from(configs);
 
     bool hasCollision = true;
@@ -349,14 +352,18 @@ class OverviewLayoutService {
       if (jsonStr != null && jsonStr.isNotEmpty) {
         final List<dynamic> rawList = jsonDecode(jsonStr);
         final loaded = rawList
-            .map((item) => BentoCardConfig.fromJson(item as Map<String, dynamic>))
+            .map(
+              (item) => BentoCardConfig.fromJson(item as Map<String, dynamic>),
+            )
             .toList();
 
         _cachedLayout = _ensureAllCards(loaded);
         return List.from(_cachedLayout!);
       }
     } catch (e) {
-      debugPrint('[OverviewLayoutService] Error loading saved bento layout: $e');
+      debugPrint(
+        '[OverviewLayoutService] Error loading saved bento layout: $e',
+      );
     }
     _cachedLayout = List.from(defaultLayout);
     return List.from(defaultLayout);

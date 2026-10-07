@@ -36,20 +36,33 @@ class ActivityScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               child: Column(
                 children: [
-                  HugeIcon(icon: HugeIcons.strokeRoundedClock01, size: 40, color: colorScheme.onSurfaceVariant),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedClock01,
+                    size: 40,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'No Activity Recorded Yet',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Operational events like connection tests and schema discoveries will appear here.',
-                    style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -143,26 +156,40 @@ class ActivityScreen extends StatelessWidget {
                   ),
                   Text(
                     dateFormat.format(act.timestamp),
-                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 3),
               Text(
                 act.description,
-                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, height: 1.4),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
               ),
               if (act.sourceName != null) ...[
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     'Source: ${act.sourceName}',
-                    style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],

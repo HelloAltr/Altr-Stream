@@ -47,7 +47,11 @@ class ApiParameterCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                HugeIcon(icon: HugeIcons.strokeRoundedSlidersVertical, size: 16, color: colorScheme.primary),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedSlidersVertical,
+                  size: 16,
+                  color: colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Parameters',

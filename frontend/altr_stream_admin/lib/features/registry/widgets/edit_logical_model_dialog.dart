@@ -33,7 +33,9 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
     super.initState();
     _nameController = TextEditingController(text: widget.model.name);
     _versionController = TextEditingController(text: widget.model.version);
-    _descriptionController = TextEditingController(text: widget.model.description ?? '');
+    _descriptionController = TextEditingController(
+      text: widget.model.description ?? '',
+    );
   }
 
   @override
@@ -56,8 +58,12 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
       final updated = await widget.apiClient.updateLogicalModel(
         modelId: widget.model.id,
         name: _nameController.text.trim(),
-        version: _versionController.text.trim().isEmpty ? '1.0.0' : _versionController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+        version: _versionController.text.trim().isEmpty
+            ? '1.0.0'
+            : _versionController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
       );
 
       if (mounted) {
@@ -102,7 +108,11 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: HugeIcon(icon: HugeIcons.strokeRoundedEdit02, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedEdit02,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -119,14 +129,20 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                         ),
                         Text(
                           'Update name, version, or description for this model.',
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 18,
+                    ),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -138,16 +154,25 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                   decoration: BoxDecoration(
                     color: colorScheme.errorContainer.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: colorScheme.error.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedAlertCircle,
+                        color: colorScheme.error,
+                        size: 18,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: TextStyle(color: colorScheme.error, fontSize: 12),
+                          style: TextStyle(
+                            color: colorScheme.error,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -165,11 +190,18 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Model Name *',
                         hintText: 'e.g. CoreCommerce, UnifiedSchool',
-                        prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTag01, size: 18),
+                        prefixIcon: HugeIcon(
+                          icon: HugeIcons.strokeRoundedTag01,
+                          size: 18,
+                        ),
                       ),
                       validator: (val) {
-                        if (val == null || val.trim().isEmpty) return 'Model name is required';
-                        if (!RegExp(r'^[a-zA-Z0-9_\-]+$').hasMatch(val.trim())) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Model name is required';
+                        }
+                        if (!RegExp(
+                          r'^[a-zA-Z0-9_\-]+$',
+                        ).hasMatch(val.trim())) {
                           return 'Alphanumeric, dashes, and underscores only';
                         }
                         return null;
@@ -184,7 +216,10 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                       decoration: const InputDecoration(
                         labelText: 'Version',
                         hintText: '1.0.0',
-                        prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedTag01, size: 18),
+                        prefixIcon: HugeIcon(
+                          icon: HugeIcons.strokeRoundedTag01,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ),
@@ -196,7 +231,8 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                 maxLines: 2,
                 decoration: const InputDecoration(
                   labelText: 'Description (Optional)',
-                  hintText: 'Brief summary of what this logical domain represents...',
+                  hintText:
+                      'Brief summary of what this logical domain represents...',
                   alignLabelWithHint: true,
                 ),
               ),
@@ -205,8 +241,13 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(
@@ -217,7 +258,10 @@ class _EditLogicalModelDialogState extends State<EditLogicalModelDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
+                        : const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                            size: 16,
+                          ),
                     label: Text(_isSubmitting ? 'Saving...' : 'Save Changes'),
                   ),
                 ],

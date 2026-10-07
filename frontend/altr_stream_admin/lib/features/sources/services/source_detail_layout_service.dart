@@ -84,7 +84,9 @@ class SourceDetailLayoutService {
       if (jsonStr != null && jsonStr.isNotEmpty) {
         final List<dynamic> rawList = jsonDecode(jsonStr);
         final loaded = rawList
-            .map((item) => BentoCardConfig.fromJson(item as Map<String, dynamic>))
+            .map(
+              (item) => BentoCardConfig.fromJson(item as Map<String, dynamic>),
+            )
             .toList();
 
         _cachedLayout = _ensureAllCards(loaded);

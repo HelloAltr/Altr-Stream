@@ -5,7 +5,6 @@ independent of physical database catalogs.
 """
 
 from datetime import datetime, timezone
-from typing import Any
 import uuid
 from pydantic import BaseModel, Field
 

@@ -34,7 +34,11 @@ class QueryMetadataBanner extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 14, color: colorScheme.primary),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                    size: 14,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Success',
@@ -47,7 +51,10 @@ class QueryMetadataBanner extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '·',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -61,7 +68,10 @@ class QueryMetadataBanner extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '·',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -76,7 +86,10 @@ class QueryMetadataBanner extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '·',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -94,17 +107,14 @@ class QueryMetadataBanner extends StatelessWidget {
             const SizedBox(width: 8),
             OutlinedButton.icon(
               onPressed: onCopyResults,
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 12),
-              label: const Text(
-                'Copy Results',
-                style: TextStyle(fontSize: 11),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedCopy01,
+                size: 12,
               ),
+              label: const Text('Copy Results', style: TextStyle(fontSize: 11)),
               style: OutlinedButton.styleFrom(
                 visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               ),
             ),
           ],

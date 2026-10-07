@@ -83,7 +83,11 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
           color: AppTheme.successBg(context),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: HugeIcon(icon: HugeIcons.strokeRoundedFlash, color: successColor, size: 20),
+        child: HugeIcon(
+          icon: HugeIcons.strokeRoundedFlash,
+          color: successColor,
+          size: 20,
+        ),
       ),
       topDivider: false,
       bottomDivider: false,
@@ -93,7 +97,6 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             const SizedBox(height: 12),
 
             // Telemetry Rows
@@ -101,26 +104,51 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               child: Column(
                 children: [
-                  _buildRow(context, 'Node Identifier', 'altr-stream-node-01', isMonospace: true),
+                  _buildRow(
+                    context,
+                    'Node Identifier',
+                    'altr-stream-node-01',
+                    isMonospace: true,
+                  ),
                   _buildDivider(context),
                   _buildRow(
                     context,
                     'Node Health',
-                    _error != null ? 'Unreachable' : (_healthInfo?['status'] ?? 'Healthy').toString(),
+                    _error != null
+                        ? 'Unreachable'
+                        : (_healthInfo?['status'] ?? 'Healthy').toString(),
                     customWidget: StatusBadge(
-                      status: _error != null ? 'UNREACHABLE' : (_healthInfo?['status'] ?? 'ACTIVE').toString(),
+                      status: _error != null
+                          ? 'UNREACHABLE'
+                          : (_healthInfo?['status'] ?? 'ACTIVE').toString(),
                     ),
                   ),
                   _buildDivider(context),
-                  _buildRow(context, 'Service Name', _healthInfo?['service'] ?? 'Altr Stream Service'),
+                  _buildRow(
+                    context,
+                    'Service Name',
+                    _healthInfo?['service'] ?? 'Altr Stream Service',
+                  ),
                   _buildDivider(context),
-                  _buildRow(context, 'Node Version', AppConfig.appVersion, isMonospace: true),
+                  _buildRow(
+                    context,
+                    'Node Version',
+                    AppConfig.appVersion,
+                    isMonospace: true,
+                  ),
                   _buildDivider(context),
-                  _buildRow(context, 'API Base URL', AppConfig.apiBaseUrl, isMonospace: true),
+                  _buildRow(
+                    context,
+                    'API Base URL',
+                    AppConfig.apiBaseUrl,
+                    isMonospace: true,
+                  ),
                   _buildDivider(context),
                   _buildRow(
                     context,
@@ -150,9 +178,16 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
               ? SizedBox(
                   width: 12,
                   height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colorScheme.primary,
+                  ),
                 )
-              : HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: colorScheme.onSecondaryContainer, size: 14),
+              : HugeIcon(
+                  icon: HugeIcons.strokeRoundedRefresh,
+                  color: colorScheme.onSecondaryContainer,
+                  size: 14,
+                ),
           label: Text(_isChecking ? 'Checking...' : 'Probe Node'),
         ),
         M3EButton(
@@ -164,7 +199,13 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
     );
   }
 
-  Widget _buildRow(BuildContext context, String label, String value, {bool isMonospace = false, Widget? customWidget}) {
+  Widget _buildRow(
+    BuildContext context,
+    String label,
+    String value, {
+    bool isMonospace = false,
+    Widget? customWidget,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
@@ -195,7 +236,9 @@ class _NodeStatusDialogState extends State<NodeStatusDialog> {
     return Divider(
       height: 1,
       thickness: 1,
-      color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+      color: Theme.of(
+        context,
+      ).colorScheme.outlineVariant.withValues(alpha: 0.5),
     );
   }
 }

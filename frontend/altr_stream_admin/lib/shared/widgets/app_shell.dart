@@ -10,6 +10,9 @@ import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/material_theme.dart';
 import '../../core/updates/update_controller.dart';
+import '../live_actions/live_actions_controller.dart';
+import '../live_actions/live_actions_bar.dart';
+import '../feedback/feedback_dialog.dart';
 
 class AppShell extends StatelessWidget {
   final Widget child;
@@ -33,6 +36,7 @@ class AppShell extends StatelessWidget {
   final int modelsCount;
   final ApiClient? apiClient;
   final UpdateController? updateController;
+  final LiveActionsController? liveActionsController;
 
   const AppShell({
     super.key,
@@ -57,6 +61,7 @@ class AppShell extends StatelessWidget {
     this.modelsCount = 0,
     this.apiClient,
     this.updateController,
+    this.liveActionsController,
   });
 
   UpdateController get _effectiveUpdateController =>
@@ -154,7 +159,8 @@ class AppShell extends StatelessWidget {
                   context,
                   icon: HugeIcons.strokeRoundedApi,
                   label: 'API Explorer',
-                  isActive: activeRoute == '/api-explorer' ||
+                  isActive:
+                      activeRoute == '/api-explorer' ||
                       activeRoute == '/docs' ||
                       activeRoute == '/api-docs',
                   onTap: () => onNavigate('/api-explorer'),
@@ -269,7 +275,10 @@ class AppShell extends StatelessWidget {
       ),
     ];
 
-    final totalHeight = _navTopPadding + items.length * _navItemHeight + (items.length - 1) * _navItemSpacing;
+    final totalHeight =
+        _navTopPadding +
+        items.length * _navItemHeight +
+        (items.length - 1) * _navItemSpacing;
 
     return SizedBox(
       height: totalHeight,
@@ -280,7 +289,8 @@ class AppShell extends StatelessWidget {
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeInOutCubicEmphasized,
             top: selectedIndex >= 0
-                ? _navTopPadding + selectedIndex * (_navItemHeight + _navItemSpacing)
+                ? _navTopPadding +
+                      selectedIndex * (_navItemHeight + _navItemSpacing)
                 : -100.0,
             left: 12.0,
             width: _desktopDrawerWidth - 24.0,
@@ -309,7 +319,8 @@ class AppShell extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 12.0),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        hoverColor: colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.5),
                         onTap: () => onNavigate(items[i].route),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12.0),
@@ -328,7 +339,8 @@ class AppShell extends StatelessWidget {
                                   duration: const Duration(milliseconds: 200),
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontFamily: theme.textTheme.bodyMedium?.fontFamily,
+                                    fontFamily:
+                                        theme.textTheme.bodyMedium?.fontFamily,
                                     fontWeight: selectedIndex == i
                                         ? FontWeight.w600
                                         : FontWeight.w500,
@@ -346,7 +358,10 @@ class AppShell extends StatelessWidget {
                               if (items[i].badgeCount != null) ...[
                                 const SizedBox(width: 6),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: selectedIndex == i
                                         ? colorScheme.primary
@@ -359,8 +374,8 @@ class AppShell extends StatelessWidget {
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                       color: selectedIndex == i
-                                        ? colorScheme.onPrimary
-                                        : colorScheme.onSurfaceVariant,
+                                          ? colorScheme.onPrimary
+                                          : colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                 ),
@@ -391,16 +406,15 @@ class AppShell extends StatelessWidget {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 2,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+          hoverColor: colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.6,
+          ),
           splashColor: colorScheme.primary.withValues(alpha: 0.08),
           highlightColor: colorScheme.primary.withValues(alpha: 0.05),
           onTap: onTap,
@@ -411,10 +425,7 @@ class AppShell extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   )
                 : null,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
                 HugeIcon(
@@ -485,7 +496,10 @@ class AppShell extends StatelessWidget {
                       IconButton(
                         icon: HugeIcon(
                           icon: HugeIcons.strokeRoundedApi,
-                          color: activeRoute == '/api-explorer' || activeRoute == '/docs' || activeRoute == '/api-docs'
+                          color:
+                              activeRoute == '/api-explorer' ||
+                                  activeRoute == '/docs' ||
+                                  activeRoute == '/api-docs'
                               ? colorScheme.primary
                               : colorScheme.primary.withValues(alpha: 0.7),
                           size: 18,
@@ -493,7 +507,8 @@ class AppShell extends StatelessWidget {
                         tooltip: 'API Explorer',
                         onPressed: () => onNavigate('/api-explorer'),
                         style: IconButton.styleFrom(
-                          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                          hoverColor: colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.6),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -506,14 +521,20 @@ class AppShell extends StatelessWidget {
                         tooltip: 'Documentation',
                         onPressed: () => _launchDocs(context),
                         style: IconButton.styleFrom(
-                          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                          hoverColor: colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.6),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         child: Divider(
-                          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -528,7 +549,8 @@ class AppShell extends StatelessWidget {
                         tooltip: 'Settings',
                         onPressed: () => onNavigate('/settings'),
                         style: IconButton.styleFrom(
-                          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                          hoverColor: colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.6),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -552,7 +574,7 @@ class AppShell extends StatelessWidget {
                   color: colorScheme.primary,
                   size: 20,
                 ),
-                 label: const Text('Overview', style: TextStyle(fontSize: 11)),
+                label: const Text('Overview', style: TextStyle(fontSize: 11)),
               ),
               NavigationRailDestination(
                 icon: HugeIcon(
@@ -590,7 +612,10 @@ class AppShell extends StatelessWidget {
                     size: 20,
                   ),
                 ),
-                label: const Text('Data Sources', style: TextStyle(fontSize: 11)),
+                label: const Text(
+                  'Data Sources',
+                  style: TextStyle(fontSize: 11),
+                ),
               ),
               NavigationRailDestination(
                 icon: Badge.count(
@@ -639,10 +664,7 @@ class AppShell extends StatelessWidget {
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 24,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: child,
             ),
           ),
@@ -674,18 +696,21 @@ class AppShell extends StatelessWidget {
           children: [
             _buildCompactLogo(context),
             const SizedBox(width: 8),
-            Text(
-              'Altr Stream',
-              style: GoogleFonts.anta(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
+            Flexible(
+              child: Text(
+                'Altr Stream',
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.anta(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
               ),
             ),
           ],
         ),
         actions: [
-          _buildUpdateChip(context),
+          _buildLiveActions(context, compact: true),
           _buildThemeToggleButton(context),
           const SizedBox(width: 8),
         ],
@@ -750,7 +775,8 @@ class AppShell extends StatelessWidget {
                 size: 20,
               ),
               title: const Text('AltrQL Console'),
-              selected: activeRoute == '/altrql' || activeRoute == '/playground',
+              selected:
+                  activeRoute == '/altrql' || activeRoute == '/playground',
               onTap: () {
                 Navigator.of(context).pop();
                 onNavigate('/altrql');
@@ -766,7 +792,9 @@ class AppShell extends StatelessWidget {
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: activeRoute == '/sources' || activeRoute.startsWith('/sources/')
+                  color:
+                      activeRoute == '/sources' ||
+                          activeRoute.startsWith('/sources/')
                       ? colorScheme.primary
                       : colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(10),
@@ -776,7 +804,9 @@ class AppShell extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: activeRoute == '/sources' || activeRoute.startsWith('/sources/')
+                    color:
+                        activeRoute == '/sources' ||
+                            activeRoute.startsWith('/sources/')
                         ? colorScheme.onPrimary
                         : colorScheme.onSurfaceVariant,
                   ),
@@ -800,7 +830,9 @@ class AppShell extends StatelessWidget {
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: activeRoute == '/registry' || activeRoute.startsWith('/registry/')
+                  color:
+                      activeRoute == '/registry' ||
+                          activeRoute.startsWith('/registry/')
                       ? colorScheme.primary
                       : colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(10),
@@ -810,7 +842,9 @@ class AppShell extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: activeRoute == '/registry' || activeRoute.startsWith('/registry/')
+                    color:
+                        activeRoute == '/registry' ||
+                            activeRoute.startsWith('/registry/')
                         ? colorScheme.onPrimary
                         : colorScheme.onSurfaceVariant,
                   ),
@@ -993,9 +1027,7 @@ class AppShell extends StatelessWidget {
                 children: [
                   _buildCompactLogo(context),
                   const SizedBox(width: 8),
-                  Flexible(
-                    child: _buildBrandMenuButton(context),
-                  ),
+                  Flexible(child: _buildBrandMenuButton(context)),
                 ],
               ),
             ),
@@ -1021,8 +1053,12 @@ class AppShell extends StatelessWidget {
               minimumSize: const Size(28, 28),
               maximumSize: const Size(28, 28),
               padding: EdgeInsets.zero,
-              hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              disabledForegroundColor: colorScheme.onSurface.withValues(alpha: 0.25),
+              hoverColor: colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.5,
+              ),
+              disabledForegroundColor: colorScheme.onSurface.withValues(
+                alpha: 0.25,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1064,7 +1100,7 @@ class AppShell extends StatelessWidget {
       safeArea: true,
       actions: [
         ...?pageActions,
-        _buildUpdateChip(context),
+        _buildLiveActions(context),
         const SizedBox(width: 16),
       ],
     );
@@ -1194,7 +1230,9 @@ class AppShell extends StatelessWidget {
         padding: const EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 16),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          hoverColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          hoverColor: colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.5,
+          ),
           onTap: () {
             if (onSignIn != null) {
               onSignIn!();
@@ -1270,8 +1308,6 @@ class AppShell extends StatelessWidget {
     );
   }
 
-
-
   Widget _buildInitialsAvatar(UserProfile user, ColorScheme colorScheme) {
     final initial = user.displayName.isNotEmpty
         ? user.displayName.substring(0, 1).toUpperCase()
@@ -1308,7 +1344,11 @@ class AppShell extends StatelessWidget {
         backgroundColor: colorScheme.surfaceContainerHigh,
         title: Row(
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedUserCircle, color: colorScheme.primary, size: 24),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedUserCircle,
+              color: colorScheme.primary,
+              size: 24,
+            ),
             const SizedBox(width: 10),
             const Text('Sign In'),
           ],
@@ -1364,8 +1404,6 @@ class AppShell extends StatelessWidget {
     );
   }
 
-
-
   void _showUpdateDialog(BuildContext context) {
     _effectiveUpdateController.init();
     M3EDialog.show<void>(
@@ -1375,10 +1413,27 @@ class AppShell extends StatelessWidget {
     );
   }
 
-  Widget _buildUpdateChip(BuildContext context) {
-    return _UpdateChipWidget(
-      controller: _effectiveUpdateController,
-      onOpenDialog: () => _showUpdateDialog(context),
+  void _showFeedbackDialog(BuildContext context) {
+    FeedbackDialog.show(context, apiClient: apiClient);
+  }
+
+  LiveActionsController _createEffectiveLiveActionsController(
+    BuildContext context,
+  ) {
+    if (liveActionsController != null) {
+      return liveActionsController!;
+    }
+    return LiveActionsController(
+      updateController: _effectiveUpdateController,
+      onOpenUpdateDialog: () => _showUpdateDialog(context),
+      onOpenFeedback: () => _showFeedbackDialog(context),
+    );
+  }
+
+  Widget _buildLiveActions(BuildContext context, {bool? compact}) {
+    return LiveActionsBar(
+      controller: _createEffectiveLiveActionsController(context),
+      compact: compact,
     );
   }
 
@@ -1447,7 +1502,11 @@ class AppShell extends StatelessWidget {
             ],
           ),
           child: Center(
-            child: HugeIcon(icon: HugeIcons.strokeRoundedFlash, color: colorScheme.onPrimary, size: 18),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedFlash,
+              color: colorScheme.onPrimary,
+              size: 18,
+            ),
           ),
         ),
         Positioned(
@@ -1483,194 +1542,6 @@ class AppShell extends StatelessWidget {
     );
 
     return Tooltip(message: 'Node: $nodeStatus', child: logoWidget);
-  }
-
-
-}
-
-class _UpdateChipWidget extends StatefulWidget {
-  final UpdateController controller;
-  final VoidCallback onOpenDialog;
-
-  const _UpdateChipWidget({
-    required this.controller,
-    required this.onOpenDialog,
-  });
-
-  @override
-  State<_UpdateChipWidget> createState() => _UpdateChipWidgetState();
-}
-
-class _UpdateChipWidgetState extends State<_UpdateChipWidget> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        widget.controller.init();
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.controller,
-      builder: (context, _) {
-        final colorScheme = Theme.of(context).colorScheme;
-        final chipState = widget.controller.chipState;
-
-        if (chipState == UpdateChipState.idle) {
-          return const SizedBox.shrink();
-        }
-
-        Widget iconWidget;
-        String labelText;
-        Color backgroundColor;
-        Color foregroundColor;
-        Color borderColor;
-        String tooltip;
-
-        switch (chipState) {
-          case UpdateChipState.updateAvailable:
-            iconWidget = HugeIcon(
-              icon: HugeIcons.strokeRoundedDownload04,
-              color: colorScheme.onPrimaryContainer,
-              size: 14,
-            );
-            labelText = 'Update Available';
-            backgroundColor = colorScheme.primaryContainer;
-            foregroundColor = colorScheme.onPrimaryContainer;
-            borderColor = colorScheme.primary.withValues(alpha: 0.3);
-            tooltip = 'Update v${widget.controller.targetVersion ?? ""} is available. Click to review.';
-            break;
-
-          case UpdateChipState.starting:
-            iconWidget = SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: colorScheme.primary,
-              ),
-            );
-            labelText = 'Starting update...';
-            backgroundColor = colorScheme.surfaceContainerHigh;
-            foregroundColor = colorScheme.onSurface;
-            borderColor = colorScheme.outlineVariant.withValues(alpha: 0.5);
-            tooltip = 'Preparing update workflow...';
-            break;
-
-          case UpdateChipState.updating:
-            final pct = widget.controller.progressPercent;
-            iconWidget = SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                value: pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null,
-                color: colorScheme.primary,
-              ),
-            );
-            labelText = 'Updating $pct%';
-            backgroundColor = colorScheme.surfaceContainerHigh;
-            foregroundColor = colorScheme.onSurface;
-            borderColor = colorScheme.primary.withValues(alpha: 0.4);
-            tooltip = widget.controller.statusMessage.isNotEmpty
-                ? widget.controller.statusMessage
-                : 'Applying update ($pct%)...';
-            break;
-
-          case UpdateChipState.rollingBack:
-            final pct = widget.controller.progressPercent;
-            iconWidget = SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                value: pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null,
-                color: colorScheme.error,
-              ),
-            );
-            labelText = pct > 0 ? 'Rolling back... ($pct%)' : 'Rolling back...';
-            backgroundColor = colorScheme.errorContainer.withValues(alpha: 0.5);
-            foregroundColor = colorScheme.onErrorContainer;
-            borderColor = colorScheme.error.withValues(alpha: 0.4);
-            tooltip = widget.controller.statusMessage.isNotEmpty
-                ? widget.controller.statusMessage
-                : 'Rolling back update to previous version...';
-            break;
-
-          case UpdateChipState.reloadRequired:
-            iconWidget = HugeIcon(
-              icon: HugeIcons.strokeRoundedRefresh,
-              color: colorScheme.onTertiaryContainer,
-              size: 14,
-            );
-            labelText = 'Reload required';
-            backgroundColor = colorScheme.tertiaryContainer;
-            foregroundColor = colorScheme.onTertiaryContainer;
-            borderColor = colorScheme.tertiary.withValues(alpha: 0.4);
-            tooltip = 'Update applied successfully. Click to reload application.';
-            break;
-
-          case UpdateChipState.error:
-            iconWidget = HugeIcon(
-              icon: HugeIcons.strokeRoundedAlertCircle,
-              color: colorScheme.error,
-              size: 14,
-            );
-            labelText = 'Update failed';
-            backgroundColor = colorScheme.errorContainer;
-            foregroundColor = colorScheme.onErrorContainer;
-            borderColor = colorScheme.error.withValues(alpha: 0.4);
-            tooltip = widget.controller.errorMessage ?? 'Update encountered an error. Click for details.';
-            break;
-
-          case UpdateChipState.idle:
-            return const SizedBox.shrink();
-        }
-
-        return Tooltip(
-          message: tooltip,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Material(
-              key: const ValueKey('app_bar_update_chip'),
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: widget.onOpenDialog,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      iconWidget,
-                      const SizedBox(width: 6),
-                      Text(
-                        labelText,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: foregroundColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 }
 
@@ -1712,6 +1583,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
       if (c.latestCheck != null &&
           c.latestCheck!.updateAvailable &&
           !_updateAvailableSnackbarShown &&
+          !c.isDismissedLaterThisSession &&
           c.isUpdateAvailable) {
         _updateAvailableSnackbarShown = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1735,7 +1607,8 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           if (mounted) {
             M3ESnackbar.show(
               context,
-              message: 'Your local node is on the latest version (v${AppConfig.appVersion}).',
+              message:
+                  'Your local node is on the latest version (v${AppConfig.appVersion}).',
             );
           }
         });
@@ -1745,7 +1618,8 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           if (mounted) {
             M3ESnackbar.show(
               context,
-              message: 'Altr Stream successfully updated to v${c.targetVersion}!',
+              message:
+                  'Altr Stream successfully updated to v${c.targetVersion}!',
             );
           }
         });
@@ -1813,7 +1687,9 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
     if (c.isActive) {
       final pct = c.progressPercent;
       final isIndeterminate = (c.isRequested && pct == 0) || c.isStartingUpdate;
-      final double? progressVal = isIndeterminate ? null : (pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null);
+      final double? progressVal = isIndeterminate
+          ? null
+          : (pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null);
       final title = isIndeterminate
           ? 'Starting Update v${c.targetVersion ?? ""}...'
           : 'Installing Update v${c.targetVersion ?? ""} ($pct%)';
@@ -1823,26 +1699,132 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           color: colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(8),
         ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: M3EProgressIndicator.circularWavy(
+                    value: progressVal,
+                    strokeWidth: 3,
+                    trackStrokeWidth: 2,
+                    wavelength: 12,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        c.statusMessage.isNotEmpty
+                            ? c.statusMessage
+                            : 'Applying updates...',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (c.isCritical)
+                  Expanded(
+                    child: Row(
+                      children: [
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedAlertCircle,
+                          color: Colors.amber.shade700,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Installation in progress. Cancellation is disabled to prevent corruption.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.amber.shade800,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: Text(
+                      'Download / preparation phase',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                M3EButton(
+                  key: const ValueKey('dialog_cancel_update_button'),
+                  size: M3EButtonSize.sm,
+                  style: M3EButtonStyle.outlined,
+                  shape: M3EButtonShape.round,
+                  onPressed: c.isCancellable && !c.isCancelling
+                      ? () => c.cancelUpdate()
+                      : null,
+                  child: Text(
+                    c.isCancelling ? 'Cancelling...' : 'Cancel Update',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (c.isCancelled) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
         child: Row(
           children: [
-            SizedBox(
-              width: 28,
-              height: 28,
-              child: M3EProgressIndicator.circularWavy(
-                value: progressVal,
-                strokeWidth: 3,
-                trackStrokeWidth: 2,
-                wavelength: 12,
-              ),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedAlertCircle,
+              color: colorScheme.onSurfaceVariant,
+              size: 20,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    title,
+                    'Update Cancelled',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -1851,7 +1833,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    c.statusMessage.isNotEmpty ? c.statusMessage : 'Applying updates...',
+                    'The update was cancelled before installation started. No changes were made.',
                     style: TextStyle(
                       fontSize: 11,
                       color: colorScheme.onSurfaceVariant,
@@ -1859,6 +1841,14 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(width: 8),
+            M3EButton(
+              size: M3EButtonSize.sm,
+              style: M3EButtonStyle.filled,
+              shape: M3EButtonShape.round,
+              onPressed: () => c.startUpdate(),
+              child: const Text('Update Now'),
             ),
           ],
         ),
@@ -1879,12 +1869,20 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           children: [
             Row(
               children: [
-                HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, color: colorScheme.primary, size: 20),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Your local node has been updated to v${c.targetVersion ?? c.currentStatus?.currentVersion ?? ""}.',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                 ),
               ],
@@ -1892,7 +1890,10 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
             const SizedBox(height: 8),
             Text(
               'A new version is ready. Reload when you\'re ready to activate it.',
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 10),
             Row(
@@ -1922,7 +1923,11 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
         ),
         child: Row(
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedAlertCircle,
+              color: colorScheme.error,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
@@ -1940,7 +1945,10 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                   const SizedBox(height: 2),
                   Text(
                     c.errorMessage ?? 'Update workflow failed or was rejected.',
-                    style: TextStyle(fontSize: 11, color: colorScheme.onErrorContainer),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onErrorContainer,
+                    ),
                   ),
                 ],
               ),
@@ -1966,12 +1974,19 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
         ),
         child: Row(
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedAlertCircle,
+              color: colorScheme.error,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 c.errorMessage!,
-                style: TextStyle(fontSize: 12, color: colorScheme.onErrorContainer),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onErrorContainer,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -1987,7 +2002,9 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
     }
 
     if (c.isUpdateAvailable) {
-      final releaseNotes = (c.latestCheck?.releaseName != null && c.latestCheck!.releaseName!.isNotEmpty)
+      final releaseNotes =
+          (c.latestCheck?.releaseName != null &&
+              c.latestCheck!.releaseName!.isNotEmpty)
           ? c.latestCheck!.releaseName
           : 'Includes engine improvements and fixes';
       return Container(
@@ -2041,8 +2058,10 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
       );
     }
 
-    if (!c.isCheckAvailable || (c.latestCheck != null && !c.latestCheck!.checkAvailable)) {
-      final msg = c.latestCheck?.message ?? 'Unable to check for updates right now.';
+    if (!c.isCheckAvailable ||
+        (c.latestCheck != null && !c.latestCheck!.checkAvailable)) {
+      final msg =
+          c.latestCheck?.message ?? 'Unable to check for updates right now.';
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -2051,12 +2070,19 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
         ),
         child: Row(
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedAlertCircle,
+              color: colorScheme.error,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 msg,
-                style: TextStyle(fontSize: 12, color: colorScheme.onErrorContainer),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onErrorContainer,
+                ),
               ),
             ),
           ],
@@ -2072,7 +2098,11 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
       ),
       child: Row(
         children: [
-          HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, color: colorScheme.primary, size: 18),
+          HugeIcon(
+            icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+            color: colorScheme.primary,
+            size: 18,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -2092,7 +2122,11 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
 
     return M3EDialog(
       title: 'Altr Stream Version Info',
-      icon: HugeIcon(icon: HugeIcons.strokeRoundedSystemUpdate01, color: colorScheme.primary, size: 24),
+      icon: HugeIcon(
+        icon: HugeIcons.strokeRoundedSystemUpdate01,
+        color: colorScheme.primary,
+        size: 24,
+      ),
       topDivider: false,
       bottomDivider: false,
       content: Column(
@@ -2126,9 +2160,17 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
       ),
       actions: <Widget>[
         M3EButton(
+          key: ValueKey(
+            c.isUpdateAvailable ? 'dialog_update_later' : 'dialog_update_close',
+          ),
           style: M3EButtonStyle.text,
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
+          onPressed: () {
+            if (c.isUpdateAvailable) {
+              c.dismissLater();
+            }
+            Navigator.of(context).pop();
+          },
+          child: Text(c.isUpdateAvailable ? 'Later' : 'Close'),
         ),
         M3EButton.icon(
           onPressed: (c.isChecking || c.isActive)
@@ -2143,7 +2185,11 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
                     color: colorScheme.onPrimary,
                   ),
                 )
-              : HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: colorScheme.onPrimary, size: 16),
+              : HugeIcon(
+                  icon: HugeIcons.strokeRoundedRefresh,
+                  color: colorScheme.onPrimary,
+                  size: 16,
+                ),
           label: Text(c.isChecking ? 'Checking...' : 'Check for Updates'),
         ),
       ],
@@ -2157,7 +2203,7 @@ class _DrawerProfilePopup extends StatelessWidget {
   final ColorScheme colorScheme;
   final VoidCallback? onSignOut;
   final Widget Function(UserProfile user, ColorScheme colorScheme)
-      buildInitialsAvatar;
+  buildInitialsAvatar;
   final bool isCompact;
 
   const _DrawerProfilePopup({
@@ -2188,8 +2234,9 @@ class _DrawerProfilePopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = colorScheme;
-    final displayName =
-        currentUser.displayName.isNotEmpty ? currentUser.displayName : 'User';
+    final displayName = currentUser.displayName.isNotEmpty
+        ? currentUser.displayName
+        : 'User';
 
     final customTheme = Theme.of(context).copyWith(
       colorScheme: cs.copyWith(
@@ -2205,9 +2252,7 @@ class _DrawerProfilePopup extends StatelessWidget {
         tertiaryContainer: cs.surfaceContainerHighest,
         onTertiaryContainer: cs.onSurface,
       ),
-      menuTheme: M3EMenuTheme(
-        backgroundColor: cs.surfaceContainerHigh,
-      ),
+      menuTheme: M3EMenuTheme(backgroundColor: cs.surfaceContainerHigh),
     );
 
     return Padding(
@@ -2245,19 +2290,16 @@ class _DrawerProfilePopup extends StatelessWidget {
               }
               return InkWell(
                 borderRadius: BorderRadius.circular(12),
-                hoverColor:
-                    cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                hoverColor: cs.surfaceContainerHighest.withValues(alpha: 0.5),
                 onTap: open,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: _buildAvatar(20),
-                      ),
+                      SizedBox(width: 20, height: 20, child: _buildAvatar(20)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -2326,11 +2368,7 @@ class _DrawerProfilePopup extends StatelessWidget {
       context,
       barrierDismissible: true,
       dialog: M3EDialog(
-        icon: SizedBox(
-          width: 56,
-          height: 56,
-          child: _buildAvatar(56),
-        ),
+        icon: SizedBox(width: 56, height: 56, child: _buildAvatar(56)),
         title: currentUser.displayName.isNotEmpty
             ? currentUser.displayName
             : 'User',
@@ -2382,10 +2420,7 @@ class _DrawerProfilePopup extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: cs.onSurfaceVariant,
-                  ),
+                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                 ),
                 Text(
                   value,

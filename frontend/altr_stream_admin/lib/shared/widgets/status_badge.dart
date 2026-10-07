@@ -49,7 +49,9 @@ class StatusBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: colorScheme.secondaryContainer.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: colorScheme.secondary.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: colorScheme.secondary.withValues(alpha: 0.3),
+          ),
         ),
         child: Text(
           status.toUpperCase(),
@@ -75,7 +77,9 @@ class StatusBadge extends StatelessWidget {
       case 'CONNECTING':
       case 'REFRESHING':
         dotColor = isDark ? Colors.orangeAccent : Colors.orange.shade800;
-        bgColor = isDark ? Colors.orange.withValues(alpha: 0.2) : Colors.orange.shade50;
+        bgColor = isDark
+            ? Colors.orange.withValues(alpha: 0.2)
+            : Colors.orange.shade50;
         textColor = dotColor;
         label = 'Pinging';
         isPinging = true;
@@ -89,13 +93,17 @@ class StatusBadge extends StatelessWidget {
         break;
       case 'VALIDATED':
         dotColor = isDark ? Colors.tealAccent : Colors.teal.shade700;
-        bgColor = isDark ? Colors.teal.withValues(alpha: 0.2) : Colors.teal.shade50;
+        bgColor = isDark
+            ? Colors.teal.withValues(alpha: 0.2)
+            : Colors.teal.shade50;
         textColor = dotColor;
         label = 'Validated';
         break;
       case 'DRAFT':
         dotColor = isDark ? Colors.amberAccent : Colors.amber.shade800;
-        bgColor = isDark ? Colors.amber.withValues(alpha: 0.15) : Colors.amber.shade50;
+        bgColor = isDark
+            ? Colors.amber.withValues(alpha: 0.15)
+            : Colors.amber.shade50;
         textColor = dotColor;
         label = 'Draft';
         break;
@@ -139,10 +147,7 @@ class StatusBadge extends StatelessWidget {
         : Container(
             width: isCompact ? 7 : 6,
             height: isCompact ? 7 : 6,
-            decoration: BoxDecoration(
-              color: dotColor,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           );
 
     if (isCompact) {
@@ -188,4 +193,3 @@ class StatusBadge extends StatelessWidget {
     );
   }
 }
-

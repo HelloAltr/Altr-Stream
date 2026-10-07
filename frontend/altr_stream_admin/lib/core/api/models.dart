@@ -38,8 +38,12 @@ class SourceModel {
       username: json['username']?.toString(),
       filePath: json['file_path']?.toString(),
       status: json['status']?.toString() ?? 'UNKNOWN',
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'].toString())
+          : DateTime.now(),
       passwordMasked: json['password_masked']?.toString() ?? '••••••••',
     );
   }
@@ -99,7 +103,8 @@ class SourceCapabilitiesModel {
       write: json['write'] as bool? ?? true,
       cdc: json['cdc'] as bool? ?? false,
       customQuery: json['custom_query'] as bool? ?? false,
-      supportedOperations: (json['supported_operations'] as List<dynamic>?)
+      supportedOperations:
+          (json['supported_operations'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
@@ -158,10 +163,17 @@ class ConstraintSchemaModel {
     return ConstraintSchemaModel(
       name: json['name']?.toString() ?? '',
       constraintType: json['constraint_type']?.toString() ?? '',
-      fields: (json['fields'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      fields:
+          (json['fields'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       referencedEntity: json['referenced_entity']?.toString(),
       referencedFields:
-          (json['referenced_fields'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+          (json['referenced_fields'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 }
@@ -188,14 +200,27 @@ class EntitySchemaModel {
       name: json['name']?.toString() ?? '',
       namespace: json['namespace']?.toString() ?? 'public',
       entityType: json['entity_type']?.toString() ?? 'TABLE',
-      fields: (json['fields'] as List<dynamic>?)
-              ?.map((e) => FieldSchemaModel.fromJson(Map<String, dynamic>.from(e as Map)))
+      fields:
+          (json['fields'] as List<dynamic>?)
+              ?.map(
+                (e) => FieldSchemaModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           [],
       primaryKey:
-          (json['primary_key'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      constraints: (json['constraints'] as List<dynamic>?)
-              ?.map((e) => ConstraintSchemaModel.fromJson(Map<String, dynamic>.from(e as Map)))
+          (json['primary_key'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      constraints:
+          (json['constraints'] as List<dynamic>?)
+              ?.map(
+                (e) => ConstraintSchemaModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           [],
     );
@@ -226,17 +251,27 @@ class SourceSchemaModel {
       sourceId: json['source_id']?.toString() ?? '',
       sourceName: json['source_name']?.toString() ?? '',
       version: json['version']?.toString() ?? '1.0.0',
-      discoveredAt: json['discovered_at'] != null ? DateTime.parse(json['discovered_at'].toString()) : DateTime.now(),
-      entities: (json['entities'] as List<dynamic>?)
-              ?.map((e) => EntitySchemaModel.fromJson(Map<String, dynamic>.from(e as Map)))
+      discoveredAt: json['discovered_at'] != null
+          ? DateTime.parse(json['discovered_at'].toString())
+          : DateTime.now(),
+      entities:
+          (json['entities'] as List<dynamic>?)
+              ?.map(
+                (e) => EntitySchemaModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           [],
-      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
+      metadata: (json['metadata'] is Map)
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : {},
     );
   }
 
   int get entityCount => entities.length;
-  int get totalFieldCount => entities.fold<int>(0, (prev, e) => prev + e.fields.length);
+  int get totalFieldCount =>
+      entities.fold<int>(0, (prev, e) => prev + e.fields.length);
 }
 
 enum ActivityType {
@@ -367,16 +402,28 @@ class QueryMetadataModel {
   });
 
   factory QueryMetadataModel.fromJson(Map<String, dynamic> json) {
-    final sourcesList = (json['sources'] as List<dynamic>?)
-            ?.map((e) => SourceExecutionInfoModel.fromJson(e as Map<String, dynamic>))
+    final sourcesList =
+        (json['sources'] as List<dynamic>?)
+            ?.map(
+              (e) =>
+                  SourceExecutionInfoModel.fromJson(e as Map<String, dynamic>),
+            )
             .toList() ??
         [];
-    final includedList = (json['included_sources'] as List<dynamic>?)
-            ?.map((e) => SourceExecutionInfoModel.fromJson(e as Map<String, dynamic>))
+    final includedList =
+        (json['included_sources'] as List<dynamic>?)
+            ?.map(
+              (e) =>
+                  SourceExecutionInfoModel.fromJson(e as Map<String, dynamic>),
+            )
             .toList() ??
         sourcesList;
-    final excludedList = (json['excluded_sources'] as List<dynamic>?)
-            ?.map((e) => SourceExclusionInfoModel.fromJson(e as Map<String, dynamic>))
+    final excludedList =
+        (json['excluded_sources'] as List<dynamic>?)
+            ?.map(
+              (e) =>
+                  SourceExclusionInfoModel.fromJson(e as Map<String, dynamic>),
+            )
             .toList() ??
         [];
     return QueryMetadataModel(
@@ -389,7 +436,9 @@ class QueryMetadataModel {
       executionMode: json['execution_mode'] as String? ?? 'single_source',
       normalized: json['normalized'] as bool? ?? false,
       isEphemeral: json['is_ephemeral'] as bool? ?? false,
-      sourceCount: (json['source_count'] as num?)?.toInt() ?? (includedList.isNotEmpty ? includedList.length : 1),
+      sourceCount:
+          (json['source_count'] as num?)?.toInt() ??
+          (includedList.isNotEmpty ? includedList.length : 1),
       sources: sourcesList,
       includedSources: includedList,
       excludedSources: excludedList,
@@ -437,8 +486,13 @@ class QueryExecuteResponseModel {
   });
 
   factory QueryExecuteResponseModel.fromJson(Map<String, dynamic> json) {
-    final rawColumns = (json['columns'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-    final rawRows = (json['rows'] as List<dynamic>?)
+    final rawColumns =
+        (json['columns'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    final rawRows =
+        (json['rows'] as List<dynamic>?)
             ?.map((e) => Map<String, dynamic>.from(e as Map))
             .toList() ??
         [];
@@ -446,7 +500,9 @@ class QueryExecuteResponseModel {
       success: json['success'] as bool? ?? true,
       columns: rawColumns,
       rows: rawRows,
-      metadata: QueryMetadataModel.fromJson(json['metadata'] as Map<String, dynamic>? ?? {}),
+      metadata: QueryMetadataModel.fromJson(
+        json['metadata'] as Map<String, dynamic>? ?? {},
+      ),
     );
   }
 
@@ -493,18 +549,16 @@ class AltrQLParseResponseModel {
   final Map<String, dynamic>? ir;
   final AltrQLErrorDetailModel? error;
 
-  AltrQLParseResponseModel({
-    required this.success,
-    this.ir,
-    this.error,
-  });
+  AltrQLParseResponseModel({required this.success, this.ir, this.error});
 
   factory AltrQLParseResponseModel.fromJson(Map<String, dynamic> json) {
     return AltrQLParseResponseModel(
       success: json['success'] as bool? ?? false,
       ir: json['ir'] as Map<String, dynamic>?,
       error: json['error'] != null
-          ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
+          ? AltrQLErrorDetailModel.fromJson(
+              json['error'] as Map<String, dynamic>,
+            )
           : null,
     );
   }
@@ -539,14 +593,18 @@ class AltrQLBindResponseModel {
       ir: json['ir'] as Map<String, dynamic>?,
       boundIr: json['bound_ir'] as Map<String, dynamic>?,
       classification: json['classification'] != null
-          ? MutationClassificationModel.fromJson(json['classification'] as Map<String, dynamic>)
+          ? MutationClassificationModel.fromJson(
+              json['classification'] as Map<String, dynamic>,
+            )
           : null,
       executionMode: json['execution_mode'] as String? ?? 'single',
       isEphemeral: json['is_ephemeral'] as bool? ?? false,
       selectedSourceId: json['selected_source_id'] as String?,
       selectedMappingId: json['selected_mapping_id'] as String?,
       error: json['error'] != null
-          ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
+          ? AltrQLErrorDetailModel.fromJson(
+              json['error'] as Map<String, dynamic>,
+            )
           : null,
     );
   }
@@ -612,7 +670,8 @@ class AltrQLExecuteResponseModel {
   });
 
   factory AltrQLExecuteResponseModel.fromJson(Map<String, dynamic> json) {
-    final physicalQueriesList = (json['physical_queries'] as List<dynamic>?)
+    final physicalQueriesList =
+        (json['physical_queries'] as List<dynamic>?)
             ?.map((e) => PhysicalQueryModel.fromJson(e as Map<String, dynamic>))
             .toList() ??
         [];
@@ -622,29 +681,43 @@ class AltrQLExecuteResponseModel {
       ir: json['ir'] as Map<String, dynamic>?,
       boundIr: json['bound_ir'] as Map<String, dynamic>?,
       classification: json['classification'] != null
-          ? MutationClassificationModel.fromJson(json['classification'] as Map<String, dynamic>)
+          ? MutationClassificationModel.fromJson(
+              json['classification'] as Map<String, dynamic>,
+            )
           : null,
       physicalQuery: json['physical_query'] != null
-          ? PhysicalQueryModel.fromJson(json['physical_query'] as Map<String, dynamic>)
+          ? PhysicalQueryModel.fromJson(
+              json['physical_query'] as Map<String, dynamic>,
+            )
           : null,
       physicalQueries: physicalQueriesList,
-      columns: (json['columns'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      rows: (json['rows'] as List<dynamic>?)
+      columns:
+          (json['columns'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      rows:
+          (json['rows'] as List<dynamic>?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??
           [],
       metadata: json['metadata'] != null
-          ? QueryMetadataModel.fromJson(json['metadata'] as Map<String, dynamic>)
+          ? QueryMetadataModel.fromJson(
+              json['metadata'] as Map<String, dynamic>,
+            )
           : null,
       executionMode: json['execution_mode'] as String? ?? 'single',
-      sourcesExecuted: (json['sources_executed'] as List<dynamic>?)
+      sourcesExecuted:
+          (json['sources_executed'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
       selectedSourceId: json['selected_source_id'] as String?,
       selectedMappingId: json['selected_mapping_id'] as String?,
       error: json['error'] != null
-          ? AltrQLErrorDetailModel.fromJson(json['error'] as Map<String, dynamic>)
+          ? AltrQLErrorDetailModel.fromJson(
+              json['error'] as Map<String, dynamic>,
+            )
           : null,
     );
   }
@@ -688,21 +761,27 @@ class LogicalFieldModel {
       nullable: json['nullable'] as bool? ?? true,
       isPrimaryKey: json['is_primary_key'] as bool? ?? false,
       description: json['description']?.toString(),
-      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+      metadata: (json['metadata'] is Map)
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : {},
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'].toString())
+          : DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'data_type': dataType,
-        'nullable': nullable,
-        'is_primary_key': isPrimaryKey,
-        'description': description,
-        'metadata': metadata,
-      };
+    'id': id,
+    'name': name,
+    'data_type': dataType,
+    'nullable': nullable,
+    'is_primary_key': isPrimaryKey,
+    'description': description,
+    'metadata': metadata,
+  };
 }
 
 class LogicalEntityModel {
@@ -732,25 +811,36 @@ class LogicalEntityModel {
       logicalModelId: json['logical_model_id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       description: json['description']?.toString(),
-      fields: (json['fields'] as List<dynamic>?)
-              ?.map((e) => LogicalFieldModel.fromJson(Map<String, dynamic>.from(e as Map)))
+      fields:
+          (json['fields'] as List<dynamic>?)
+              ?.map(
+                (e) => LogicalFieldModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           [],
-      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+      metadata: (json['metadata'] is Map)
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : {},
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'].toString())
+          : DateTime.now(),
     );
   }
 
   int get fieldCount => fields.length;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'fields': fields.map((f) => f.toJson()).toList(),
-        'metadata': metadata,
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'fields': fields.map((f) => f.toJson()).toList(),
+    'metadata': metadata,
+  };
 }
 
 class LogicalModelModel {
@@ -780,18 +870,30 @@ class LogicalModelModel {
       name: json['name']?.toString() ?? '',
       version: json['version']?.toString() ?? '1.0.0',
       description: json['description']?.toString(),
-      entities: (json['entities'] as List<dynamic>?)
-              ?.map((e) => LogicalEntityModel.fromJson(Map<String, dynamic>.from(e as Map)))
+      entities:
+          (json['entities'] as List<dynamic>?)
+              ?.map(
+                (e) => LogicalEntityModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           [],
-      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+      metadata: (json['metadata'] is Map)
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : {},
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'].toString())
+          : DateTime.now(),
     );
   }
 
   int get entityCount => entities.length;
-  int get totalFieldCount => entities.fold<int>(0, (prev, e) => prev + e.fields.length);
+  int get totalFieldCount =>
+      entities.fold<int>(0, (prev, e) => prev + e.fields.length);
 }
 
 class FieldMappingModel {
@@ -825,20 +927,26 @@ class FieldMappingModel {
       logicalFieldName: json['logical_field_name']?.toString() ?? '',
       physicalFieldName: json['physical_field_name']?.toString() ?? '',
       transformationRule: json['transformation_rule']?.toString(),
-      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+      metadata: (json['metadata'] is Map)
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : {},
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'].toString())
+          : DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'logical_field_id': logicalFieldId,
-        'logical_field_name': logicalFieldName,
-        'physical_field_name': physicalFieldName,
-        'transformation_rule': transformationRule,
-        'metadata': metadata,
-      };
+    'id': id,
+    'logical_field_id': logicalFieldId,
+    'logical_field_name': logicalFieldName,
+    'physical_field_name': physicalFieldName,
+    'transformation_rule': transformationRule,
+    'metadata': metadata,
+  };
 }
 
 class EntityMappingModel {
@@ -874,27 +982,38 @@ class EntityMappingModel {
       logicalEntityName: json['logical_entity_name']?.toString() ?? '',
       physicalEntityName: json['physical_entity_name']?.toString() ?? '',
       physicalNamespace: json['physical_namespace']?.toString() ?? 'public',
-      fieldMappings: (json['field_mappings'] as List<dynamic>?)
-              ?.map((e) => FieldMappingModel.fromJson(Map<String, dynamic>.from(e as Map)))
+      fieldMappings:
+          (json['field_mappings'] as List<dynamic>?)
+              ?.map(
+                (e) => FieldMappingModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           [],
-      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+      metadata: (json['metadata'] is Map)
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : {},
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'].toString())
+          : DateTime.now(),
     );
   }
 
   int get fieldMappingCount => fieldMappings.length;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'logical_entity_id': logicalEntityId,
-        'logical_entity_name': logicalEntityName,
-        'physical_entity_name': physicalEntityName,
-        'physical_namespace': physicalNamespace,
-        'field_mappings': fieldMappings.map((f) => f.toJson()).toList(),
-        'metadata': metadata,
-      };
+    'id': id,
+    'logical_entity_id': logicalEntityId,
+    'logical_entity_name': logicalEntityName,
+    'physical_entity_name': physicalEntityName,
+    'physical_namespace': physicalNamespace,
+    'field_mappings': fieldMappings.map((f) => f.toJson()).toList(),
+    'metadata': metadata,
+  };
 }
 
 class SourceMappingModel {
@@ -929,7 +1048,8 @@ class SourceMappingModel {
     if (json['validation_errors'] is List) {
       errs.addAll((json['validation_errors'] as List).map((e) => e.toString()));
     }
-    if (json['error_message'] != null && json['error_message'].toString().isNotEmpty) {
+    if (json['error_message'] != null &&
+        json['error_message'].toString().isNotEmpty) {
       final msg = json['error_message'].toString();
       if (!errs.contains(msg)) {
         errs.add(msg);
@@ -944,13 +1064,24 @@ class SourceMappingModel {
       status: json['status']?.toString() ?? 'DRAFT',
       provenance: json['provenance']?.toString() ?? 'USER',
       validationErrors: errs,
-      entityMappings: (json['entity_mappings'] as List<dynamic>?)
-              ?.map((e) => EntityMappingModel.fromJson(Map<String, dynamic>.from(e as Map)))
+      entityMappings:
+          (json['entity_mappings'] as List<dynamic>?)
+              ?.map(
+                (e) => EntityMappingModel.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
               .toList() ??
           [],
-      metadata: (json['metadata'] is Map) ? Map<String, dynamic>.from(json['metadata'] as Map) : {},
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'].toString()) : DateTime.now(),
+      metadata: (json['metadata'] is Map)
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
+          : {},
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'].toString())
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'].toString())
+          : DateTime.now(),
     );
   }
 
@@ -987,20 +1118,61 @@ class RegistrySummaryModel {
       totalModels: (json['total_models'] as num?)?.toInt() ?? 0,
       totalEntities: (json['total_entities'] as num?)?.toInt() ?? 0,
       totalLogicalFields: (json['total_logical_fields'] as num?)?.toInt() ?? 0,
-      totalSourceMappings: (json['total_source_mappings'] as num?)?.toInt() ?? 0,
-      activeSourceMappings: (json['active_source_mappings'] as num?)?.toInt() ?? 0,
-      draftSourceMappings: (json['draft_source_mappings'] as num?)?.toInt() ?? 0,
-      validatedSourceMappings: (json['validated_source_mappings'] as num?)?.toInt() ?? 0,
-      errorSourceMappings: (json['error_source_mappings'] as num?)?.toInt() ?? 0,
+      totalSourceMappings:
+          (json['total_source_mappings'] as num?)?.toInt() ?? 0,
+      activeSourceMappings:
+          (json['active_source_mappings'] as num?)?.toInt() ?? 0,
+      draftSourceMappings:
+          (json['draft_source_mappings'] as num?)?.toInt() ?? 0,
+      validatedSourceMappings:
+          (json['validated_source_mappings'] as num?)?.toInt() ?? 0,
+      errorSourceMappings:
+          (json['error_source_mappings'] as num?)?.toInt() ?? 0,
     );
   }
 }
 
-const Set<String> _kIntegerTypes = {'INTEGER', 'BIGINT', 'SMALLINT', 'INT', 'INT2', 'INT4', 'INT8', 'SERIAL', 'BIGSERIAL', 'SMALLSERIAL'};
-const Set<String> _kFloatTypes = {'FLOAT', 'DECIMAL', 'REAL', 'DOUBLE', 'NUMERIC', 'FLOAT4', 'FLOAT8', 'DOUBLE PRECISION'};
-const Set<String> _kStringTypes = {'STRING', 'VARCHAR', 'TEXT', 'CHAR', 'CHARACTER', 'CHARACTER VARYING', 'CITEXT', 'UUID'};
+const Set<String> _kIntegerTypes = {
+  'INTEGER',
+  'BIGINT',
+  'SMALLINT',
+  'INT',
+  'INT2',
+  'INT4',
+  'INT8',
+  'SERIAL',
+  'BIGSERIAL',
+  'SMALLSERIAL',
+};
+const Set<String> _kFloatTypes = {
+  'FLOAT',
+  'DECIMAL',
+  'REAL',
+  'DOUBLE',
+  'NUMERIC',
+  'FLOAT4',
+  'FLOAT8',
+  'DOUBLE PRECISION',
+};
+const Set<String> _kStringTypes = {
+  'STRING',
+  'VARCHAR',
+  'TEXT',
+  'CHAR',
+  'CHARACTER',
+  'CHARACTER VARYING',
+  'CITEXT',
+  'UUID',
+};
 const Set<String> _kBooleanTypes = {'BOOLEAN', 'BOOL'};
-const Set<String> _kTemporalTypes = {'DATE', 'TIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'TIMETZ', 'DATETIME'};
+const Set<String> _kTemporalTypes = {
+  'DATE',
+  'TIME',
+  'TIMESTAMP',
+  'TIMESTAMPTZ',
+  'TIMETZ',
+  'DATETIME',
+};
 const Set<String> _kJsonTypes = {'JSON', 'JSONB'};
 const Set<String> _kBinaryTypes = {'BINARY', 'BYTEA', 'BLOB'};
 const Set<String> _kArrayTypes = {'ARRAY'};
@@ -1094,9 +1266,13 @@ class UserProfile {
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       id: json['id']?.toString() ?? '',
-      displayName: json['displayName']?.toString() ?? json['name']?.toString() ?? '',
+      displayName:
+          json['displayName']?.toString() ?? json['name']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
-      photoUrl: json['photoUrl']?.toString() ?? json['picture']?.toString() ?? json['avatar_url']?.toString(),
+      photoUrl:
+          json['photoUrl']?.toString() ??
+          json['picture']?.toString() ??
+          json['avatar_url']?.toString(),
       provider: json['provider']?.toString() ?? 'google.com',
     );
   }
@@ -1147,14 +1323,28 @@ class UsageMetricsModel {
       readPercentage: (json['read_percentage'] as num?)?.toDouble() ?? 0.0,
       writePercentage: (json['write_percentage'] as num?)?.toDouble() ?? 0.0,
       timeWindow: json['time_window']?.toString() ?? '30m',
-      timestamps: (json['timestamps'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
-      rawReads: (json['raw_reads'] as List<dynamic>?)?.map((e) => (e as num).toInt()).toList() ?? const [],
-      rawWrites: (json['raw_writes'] as List<dynamic>?)?.map((e) => (e as num).toInt()).toList() ?? const [],
-      readHistory: (json['read_history'] as List<dynamic>?)
+      timestamps:
+          (json['timestamps'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      rawReads:
+          (json['raw_reads'] as List<dynamic>?)
+              ?.map((e) => (e as num).toInt())
+              .toList() ??
+          const [],
+      rawWrites:
+          (json['raw_writes'] as List<dynamic>?)
+              ?.map((e) => (e as num).toInt())
+              .toList() ??
+          const [],
+      readHistory:
+          (json['read_history'] as List<dynamic>?)
               ?.map((e) => (e as num).toDouble())
               .toList() ??
           const [],
-      writeHistory: (json['write_history'] as List<dynamic>?)
+      writeHistory:
+          (json['write_history'] as List<dynamic>?)
               ?.map((e) => (e as num).toDouble())
               .toList() ??
           const [],
@@ -1163,19 +1353,19 @@ class UsageMetricsModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'total_reads': totalReads,
-        'total_writes': totalWrites,
-        'ops_per_minute': opsPerMinute,
-        'read_percentage': readPercentage,
-        'write_percentage': writePercentage,
-        'time_window': timeWindow,
-        'timestamps': timestamps,
-        'raw_reads': rawReads,
-        'raw_writes': rawWrites,
-        'read_history': readHistory,
-        'write_history': writeHistory,
-        'y_max': yMax,
-      };
+    'total_reads': totalReads,
+    'total_writes': totalWrites,
+    'ops_per_minute': opsPerMinute,
+    'read_percentage': readPercentage,
+    'write_percentage': writePercentage,
+    'time_window': timeWindow,
+    'timestamps': timestamps,
+    'raw_reads': rawReads,
+    'raw_writes': rawWrites,
+    'read_history': readHistory,
+    'write_history': writeHistory,
+    'y_max': yMax,
+  };
 
   String get formattedOpsPerMinute {
     if (opsPerMinute >= 1000) {
@@ -1282,10 +1472,13 @@ class UpdateStatusResponse {
   bool get isHealthCheck => state == 'health_check';
   bool get isCompleted => state == 'completed';
   bool get isFailed => state == 'failed';
+  bool get isCancelled => state == 'cancelled';
   bool get isRollingBack => state == 'rolling_back';
   bool get isRolledBack => state == 'rolled_back';
 
-  bool get isActive => isRequested || isStaging || isApplying || isHealthCheck || isRollingBack;
+  bool get isCancellable => isRequested || isStaging;
+  bool get isCritical => isApplying || isHealthCheck || isRollingBack;
+
+  bool get isActive =>
+      isRequested || isStaging || isApplying || isHealthCheck || isRollingBack;
 }
-
-

@@ -113,7 +113,9 @@ class RegistryScreenState extends State<RegistryScreen> {
         onModelUpdated: (_) {
           fetchRegistry();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logical model updated successfully.')),
+            const SnackBar(
+              content: Text('Logical model updated successfully.'),
+            ),
           );
         },
       ),
@@ -134,7 +136,11 @@ class RegistryScreenState extends State<RegistryScreen> {
         title: 'Delete Logical Model?',
         content: Text(
           'Are you sure you want to delete "${model.name}" and all its entities and source mappings? This action cannot be undone.',
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.5,
+          ),
         ),
         actions: [
           M3EButton(
@@ -163,15 +169,23 @@ class RegistryScreenState extends State<RegistryScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete model: $e'), backgroundColor: colorScheme.error),
+            SnackBar(
+              content: Text('Failed to delete model: $e'),
+              backgroundColor: colorScheme.error,
+            ),
           );
         }
       }
     }
   }
 
-  void _showContextMenu(BuildContext context, Offset position, LogicalModelModel model) async {
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+  void _showContextMenu(
+    BuildContext context,
+    Offset position,
+    LogicalModelModel model,
+  ) async {
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final colorScheme = Theme.of(context).colorScheme;
 
     final selected = await showMenu<String>(
@@ -251,8 +265,13 @@ class RegistryScreenState extends State<RegistryScreen> {
                   color: colorScheme.primary,
                   size: 20,
                 ),
-                title: Text(model.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text('v${model.version} • ${model.entityCount} entities'),
+                title: Text(
+                  model.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  'v${model.version} • ${model.entityCount} entities',
+                ),
                 trailing: HugeIcon(
                   icon: HugeIcons.strokeRoundedDelete02,
                   color: colorScheme.error,
@@ -286,7 +305,9 @@ class RegistryScreenState extends State<RegistryScreen> {
       final nameMatches = m.name.toLowerCase().contains(q);
       final descMatches = m.description?.toLowerCase().contains(q) ?? false;
       final versionMatches = m.version.toLowerCase().contains(q);
-      final entityMatches = m.entities.any((e) => e.name.toLowerCase().contains(q));
+      final entityMatches = m.entities.any(
+        (e) => e.name.toLowerCase().contains(q),
+      );
       return nameMatches || descMatches || versionMatches || entityMatches;
     }).toList();
 
@@ -303,7 +324,8 @@ class RegistryScreenState extends State<RegistryScreen> {
               Expanded(
                 child: M3ESearchBar(
                   controller: _searchController,
-                  hintText: 'Search logical models by name, entity, or description...',
+                  hintText:
+                      'Search logical models by name, entity, or description...',
                   enabled: true,
                   leading: HugeIcon(
                     icon: HugeIcons.strokeRoundedSearch01,
@@ -347,23 +369,44 @@ class RegistryScreenState extends State<RegistryScreen> {
               decoration: BoxDecoration(
                 color: colorScheme.errorContainer.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: colorScheme.error.withValues(alpha: 0.5),
+                ),
               ),
               child: Row(
                 children: [
-                  HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 24),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedAlertCircle,
+                    color: colorScheme.error,
+                    size: 24,
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Error loading registry', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.error)),
+                        Text(
+                          'Error loading registry',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.error,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text(_error!, style: TextStyle(fontSize: 12, color: colorScheme.error)),
+                        Text(
+                          _error!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.error,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  ElevatedButton(onPressed: fetchRegistry, child: const Text('Retry')),
+                  ElevatedButton(
+                    onPressed: fetchRegistry,
+                    child: const Text('Retry'),
+                  ),
                 ],
               ),
             )
@@ -396,7 +439,9 @@ class RegistryScreenState extends State<RegistryScreen> {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         children: [
@@ -406,23 +451,39 @@ class RegistryScreenState extends State<RegistryScreen> {
               color: colorScheme.primaryContainer.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
-            child: HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 36, color: colorScheme.primary),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedStructure01,
+              size: 36,
+              color: colorScheme.primary,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             'No Logical Models Defined',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Create a logical model to define your source-agnostic domain entities\nand map them to your PostgreSQL or SQLite data sources.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant, height: 1.5),
+            style: TextStyle(
+              fontSize: 13,
+              color: colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: _showCreateModelDialog,
-            icon: HugeIcon(icon: HugeIcons.strokeRoundedPlusSign, size: 16, color: colorScheme.onPrimary),
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedPlusSign,
+              size: 16,
+              color: colorScheme.onPrimary,
+            ),
             label: const Text('Create Logical Model'),
           ),
         ],
@@ -439,15 +500,25 @@ class RegistryScreenState extends State<RegistryScreen> {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         children: [
-          HugeIcon(icon: HugeIcons.strokeRoundedSearchRemove, size: 32, color: colorScheme.onSurfaceVariant),
+          HugeIcon(
+            icon: HugeIcons.strokeRoundedSearchRemove,
+            size: 32,
+            color: colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(height: 12),
           Text(
             'No matching logical models',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -511,7 +582,8 @@ class RegistryScreenState extends State<RegistryScreen> {
       borderRadius = BorderRadius.circular(6);
     }
 
-    final subtext = model.description != null && model.description!.trim().isNotEmpty
+    final subtext =
+        model.description != null && model.description!.trim().isNotEmpty
         ? '${model.entityCount} Entities • ${model.totalFieldCount} Fields • ${model.description}'
         : '${model.entityCount} Entities • ${model.totalFieldCount} Fields • Updated ${DateFormat.yMMMd().format(model.updatedAt)}';
 
@@ -572,14 +644,20 @@ class RegistryScreenState extends State<RegistryScreen> {
                         ),
                         const SizedBox(width: 10),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             'v${model.version}',
-                            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],
@@ -589,7 +667,9 @@ class RegistryScreenState extends State<RegistryScreen> {
                       subtext,
                       style: textTheme.bodySmall?.copyWith(
                         fontSize: 12.5,
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.85,
+                        ),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),

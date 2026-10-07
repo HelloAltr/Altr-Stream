@@ -4,11 +4,13 @@ class AppConfig {
   static const String appName = 'Altr Stream Admin';
 
   /// Canonical fallback application/node version when `--dart-define=ALTR_APP_VERSION` is omitted.
-  static const String defaultAppVersion = '0.13.7-alpha';
+  static const String defaultAppVersion = '1.0.0-beta';
 
   /// Build-time injected version override via `--dart-define=ALTR_APP_VERSION=...`.
   /// This serves as a compile-time transport mechanism, not an independent version authority.
-  static const String _buildTimeVersion = String.fromEnvironment('ALTR_APP_VERSION');
+  static const String _buildTimeVersion = String.fromEnvironment(
+    'ALTR_APP_VERSION',
+  );
 
   /// Runtime node version observed from the connected backend `/health` endpoint.
   static String? _runtimeNodeVersion;
@@ -26,6 +28,25 @@ class AppConfig {
     _runtimeNodeVersion = null;
   }
 
+  /// Development/Test only: Simulate an update being available (1.0.0-beta -> 1.1.0).
+  ///
+  /// Disabled by default in production paths.
+  /// To explicitly enable for manual or automated testing:
+  /// - Web URL: Append `?simulate_update=true` in the browser.
+  /// - Programmatically: Set [simulateUpdateAvailable] to `true` (e.g. in test fixtures).
+  static bool simulateUpdateAvailable = false;
+
+  static bool get isUpdateSimulationEnabled {
+    try {
+      if (kIsWeb) {
+        final queryParam = Uri.base.queryParameters['simulate_update'];
+        if (queryParam == 'true' || queryParam == '1') return true;
+        if (queryParam == 'false' || queryParam == '0') return false;
+      }
+    } catch (_) {}
+    return simulateUpdateAvailable;
+  }
+
   /// Returns whether a custom build-time override was supplied via `--dart-define`.
   static bool get hasBuildTimeOverride => _buildTimeVersion.isNotEmpty;
 
@@ -34,7 +55,7 @@ class AppConfig {
   /// Priority:
   /// 1. Runtime backend version from connected node `/health` endpoint (live node authority).
   /// 2. Build-time override if provided via `--dart-define=ALTR_APP_VERSION=...` (compile-time transport fallback).
-  /// 3. Canonical default fallback [defaultAppVersion] (`0.13.7-alpha`).
+  /// 3. Canonical default fallback [defaultAppVersion] (`1.0.0-beta`).
   static String get appVersion {
     if (_runtimeNodeVersion != null && _runtimeNodeVersion!.isNotEmpty) {
       return _runtimeNodeVersion!;
@@ -45,7 +66,7 @@ class AppConfig {
     return defaultAppVersion;
   }
 
-  /// Returns the formatted version string prefixed with 'v' if needed (e.g. `v0.13.7-alpha`).
+  /// Returns the formatted version string prefixed with 'v' if needed (e.g. `v1.0.0-beta`).
   static String get formattedAppVersion {
     final v = appVersion;
     return v.startsWith('v') ? v : 'v$v';

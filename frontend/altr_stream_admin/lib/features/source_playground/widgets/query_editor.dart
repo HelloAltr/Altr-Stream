@@ -196,7 +196,9 @@ class QueryEditor extends StatelessWidget {
                       color: colorScheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                        color: colorScheme.primaryContainer.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                     child: DropdownButtonHideUnderline(
@@ -241,7 +243,11 @@ class QueryEditor extends StatelessWidget {
                   size: M3EButtonSize.sm,
                   decoration: M3EButtonDecoration(
                     side: WidgetStatePropertyAll(
-                      BorderSide(color: colorScheme.primaryContainer.withValues(alpha: 0.5),),
+                      BorderSide(
+                        color: colorScheme.primaryContainer.withValues(
+                          alpha: 0.5,
+                        ),
+                      ),
                     ),
                   ),
                   icon: const HugeIcon(
@@ -266,9 +272,7 @@ class QueryEditor extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainerLowest,
                 borderRadius: BorderRadius.zero,
-                border: BoxBorder.all(
-                  color: colorScheme.surfaceContainerLow
-                ),
+                border: BoxBorder.all(color: colorScheme.surfaceContainerLow),
               ),
               child: CallbackShortcuts(
                 bindings: <ShortcutActivator, VoidCallback>{

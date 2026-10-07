@@ -73,8 +73,13 @@ class SourcesScreenState extends State<SourcesScreen> {
     }
   }
 
-  void _showContextMenu(BuildContext context, Offset position, SourceModel source) async {
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+  void _showContextMenu(
+    BuildContext context,
+    Offset position,
+    SourceModel source,
+  ) async {
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final colorScheme = Theme.of(context).colorScheme;
 
     final selected = await showMenu<String>(
@@ -131,14 +136,19 @@ class SourcesScreenState extends State<SourcesScreen> {
 
     // Filter sources
     final filteredSources = widget.sources.where((s) {
-      final matchesQuery = _searchQuery.isEmpty ||
+      final matchesQuery =
+          _searchQuery.isEmpty ||
           s.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (s.host?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
-          (s.databaseName?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
-          (s.filePath?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
+          (s.host?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
+              false) ||
+          (s.databaseName?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
+              false) ||
+          (s.filePath?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
+              false) ||
           s.type.toLowerCase().contains(_searchQuery.toLowerCase());
 
-      final matchesStatus = _filterStatus == 'ALL' ||
+      final matchesStatus =
+          _filterStatus == 'ALL' ||
           (_filterStatus == 'ACTIVE' && s.isActive) ||
           (_filterStatus == 'UNREACHABLE' && s.isUnreachable);
 
@@ -201,8 +211,8 @@ class SourcesScreenState extends State<SourcesScreen> {
                   final labelText = _filterStatus == 'ALL'
                       ? 'All Statuses'
                       : _filterStatus == 'ACTIVE'
-                          ? 'Active Only'
-                          : 'Unreachable Only';
+                      ? 'Active Only'
+                      : 'Unreachable Only';
                   return SizedBox(
                     height: 56,
                     child: M3EButton.icon(
@@ -275,7 +285,9 @@ class SourcesScreenState extends State<SourcesScreen> {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         children: [
@@ -285,7 +297,11 @@ class SourcesScreenState extends State<SourcesScreen> {
               color: colorScheme.primaryContainer.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
-            child: HugeIcon(icon: HugeIcons.strokeRoundedDatabase, color: colorScheme.primary, size: 36),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedDatabase,
+              color: colorScheme.primary,
+              size: 36,
+            ),
           ),
           const SizedBox(height: 16),
           Text(
@@ -305,7 +321,11 @@ class SourcesScreenState extends State<SourcesScreen> {
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: widget.onAddSource,
-            icon: HugeIcon(icon: HugeIcons.strokeRoundedPlusSign, size: 16, color: colorScheme.onPrimary),
+            icon: HugeIcon(
+              icon: HugeIcons.strokeRoundedPlusSign,
+              size: 16,
+              color: colorScheme.onPrimary,
+            ),
             label: const Text('Add Data Source'),
           ),
         ],
@@ -322,15 +342,25 @@ class SourcesScreenState extends State<SourcesScreen> {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         children: [
-          HugeIcon(icon: HugeIcons.strokeRoundedSearchRemove, size: 32, color: colorScheme.onSurfaceVariant),
+          HugeIcon(
+            icon: HugeIcons.strokeRoundedSearchRemove,
+            size: 32,
+            color: colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(height: 12),
           Text(
             'No matching data sources',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -462,7 +492,9 @@ class SourcesScreenState extends State<SourcesScreen> {
                       subtext,
                       style: textTheme.bodySmall?.copyWith(
                         fontSize: 12.5,
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.85,
+                        ),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -495,7 +527,9 @@ class SourcesScreenState extends State<SourcesScreen> {
               ] else ...[
                 // Status Chip & Right Arrow (Right)
                 StatusBadge(
-                  status: (_isRefreshing || (widget.isLoading && source.isUnreachable))
+                  status:
+                      (_isRefreshing ||
+                          (widget.isLoading && source.isUnreachable))
                       ? 'PINGING'
                       : source.status,
                 ),

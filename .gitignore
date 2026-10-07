@@ -478,6 +478,11 @@ data/
 *.sqlite3
 *.db
 
+# Swift & Go build artifacts
+.build/
+packaging/engine/altr-installer-engine
+packaging/engine/altr-installer-engine.exe
+
 # FVM Version Cache
 .fvm/
 

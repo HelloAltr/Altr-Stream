@@ -27,13 +27,19 @@ class ApiEndpointList extends StatelessWidget {
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
         ),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              HugeIcon(icon: HugeIcons.strokeRoundedSearchRemove, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedSearchRemove,
+                size: 48,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
               const SizedBox(height: 12),
               Text(
                 'No matching API endpoints found',
@@ -46,11 +52,17 @@ class ApiEndpointList extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 'Try adjusting your search terms, method, or tag filters.',
-                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 16),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedRefresh,
+                  size: 16,
+                ),
                 label: const Text('Clear Filters'),
                 onPressed: onClearFilters,
               ),
@@ -76,17 +88,26 @@ class ApiEndpointList extends StatelessWidget {
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Group Header
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
-                      HugeIcon(icon: HugeIcons.strokeRoundedFolder01, size: 16, color: colorScheme.primary),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedFolder01,
+                        size: 16,
+                        color: colorScheme.primary,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         tags[i],
@@ -98,7 +119,10 @@ class ApiEndpointList extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(10),
@@ -115,10 +139,16 @@ class ApiEndpointList extends StatelessWidget {
                     ],
                   ),
                 ),
-                Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                ),
 
                 // Endpoint items
-                ...grouped[tags[i]]!.map((ep) => _buildEndpointRow(context, ep)),
+                ...grouped[tags[i]]!.map(
+                  (ep) => _buildEndpointRow(context, ep),
+                ),
               ],
             ),
           ),
@@ -130,7 +160,9 @@ class ApiEndpointList extends StatelessWidget {
   Widget _buildEndpointRow(BuildContext context, ApiEndpoint ep) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isSelected = selectedEndpoint?.path == ep.path && selectedEndpoint?.method == ep.method;
+    final isSelected =
+        selectedEndpoint?.path == ep.path &&
+        selectedEndpoint?.method == ep.method;
     final methodColor = _getMethodColor(ep.method, context);
 
     return InkWell(
@@ -140,13 +172,17 @@ class ApiEndpointList extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? colorScheme.primaryContainer.withValues(alpha: 0.4) : Colors.transparent,
+          color: isSelected
+              ? colorScheme.primaryContainer.withValues(alpha: 0.4)
+              : Colors.transparent,
           border: Border(
             left: BorderSide(
               color: isSelected ? colorScheme.primary : Colors.transparent,
               width: 3.5,
             ),
-            bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.2)),
+            bottom: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+            ),
           ),
         ),
         child: Row(
@@ -185,8 +221,12 @@ class ApiEndpointList extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
                     ),
                   ),
                   if (ep.summary.isNotEmpty) ...[
@@ -209,7 +249,9 @@ class ApiEndpointList extends StatelessWidget {
             HugeIcon(
               icon: HugeIcons.strokeRoundedArrowRight01,
               size: 14,
-              color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
           ],
         ),

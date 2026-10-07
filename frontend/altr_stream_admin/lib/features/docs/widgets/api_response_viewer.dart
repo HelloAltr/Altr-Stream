@@ -23,11 +23,7 @@ class ApiResponseViewer extends StatefulWidget {
   final ApiExecutionResult result;
   final VoidCallback? onClear;
 
-  const ApiResponseViewer({
-    super.key,
-    required this.result,
-    this.onClear,
-  });
+  const ApiResponseViewer({super.key, required this.result, this.onClear});
 
   @override
   State<ApiResponseViewer> createState() => _ApiResponseViewerState();
@@ -115,16 +111,21 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
           }
         }
 
-        String locationContext = contextParts.isNotEmpty ? contextParts.join(' > ') : 'Request Body';
+        String locationContext = contextParts.isNotEmpty
+            ? contextParts.join(' > ')
+            : 'Request Body';
 
         String userMessage = msg;
-        if (type == 'string_too_short' || msg.contains('at least 1 character')) {
+        if (type == 'string_too_short' ||
+            msg.contains('at least 1 character')) {
           userMessage = 'This field cannot be empty.';
         } else if (type == 'missing' || msg.contains('Field required')) {
           userMessage = 'This field is required.';
         } else if (type == 'string_type') {
           userMessage = 'Expected a valid string value.';
-        } else if (type == 'number_type' || type == 'float_type' || type == 'int_type') {
+        } else if (type == 'number_type' ||
+            type == 'float_type' ||
+            type == 'int_type') {
           userMessage = 'Expected a valid numeric value.';
         }
 
@@ -146,7 +147,9 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isSuccess = widget.result.isSuccess;
-    final statusColor = isSuccess ? const Color(0xFF38A169) : const Color(0xFFE53E3E);
+    final statusColor = isSuccess
+        ? const Color(0xFF38A169)
+        : const Color(0xFFE53E3E);
     final formattedBody = _formatResponseBody(widget.result.responseBody);
     final curlCommand = ApiCurlGenerator.generate(
       method: widget.result.requestMethod,
@@ -179,9 +182,13 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
               color: isSuccess
                   ? colorScheme.surfaceContainer
                   : statusColor.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               border: Border(
-                bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                bottom: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                ),
               ),
             ),
             child: Wrap(
@@ -202,11 +209,16 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
 
                 // 2. Status Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -234,7 +246,10 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
 
                 // 3. Duration Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(6),
@@ -271,9 +286,16 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                         size: 16,
                       ),
                       tooltip: 'Copy cURL Command',
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                       padding: const EdgeInsets.all(4),
-                      onPressed: () => _copyToClipboard(context, curlCommand, 'cURL command'),
+                      onPressed: () => _copyToClipboard(
+                        context,
+                        curlCommand,
+                        'cURL command',
+                      ),
                     ),
                     IconButton(
                       icon: const HugeIcon(
@@ -281,9 +303,16 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                         size: 16,
                       ),
                       tooltip: 'Copy Request URL',
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                       padding: const EdgeInsets.all(4),
-                      onPressed: () => _copyToClipboard(context, widget.result.requestUrl, 'Request URL'),
+                      onPressed: () => _copyToClipboard(
+                        context,
+                        widget.result.requestUrl,
+                        'Request URL',
+                      ),
                     ),
                     IconButton(
                       icon: const HugeIcon(
@@ -291,9 +320,16 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                         size: 16,
                       ),
                       tooltip: 'Copy Response Body',
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                       padding: const EdgeInsets.all(4),
-                      onPressed: () => _copyToClipboard(context, formattedBody, 'Response body'),
+                      onPressed: () => _copyToClipboard(
+                        context,
+                        formattedBody,
+                        'Response body',
+                      ),
                     ),
                     if (widget.onClear != null)
                       IconButton(
@@ -302,7 +338,10 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                           size: 16,
                         ),
                         tooltip: 'Clear Response',
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                         padding: const EdgeInsets.all(4),
                         onPressed: widget.onClear,
                       ),
@@ -313,7 +352,10 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
           ),
 
           // Error banner if any generic error message
-          if (!isSuccess && widget.result.errorMessage != null && widget.result.errorMessage!.isNotEmpty && !hasValidationErrors)
+          if (!isSuccess &&
+              widget.result.errorMessage != null &&
+              widget.result.errorMessage!.isNotEmpty &&
+              !hasValidationErrors)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -351,7 +393,9 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
               decoration: BoxDecoration(
                 color: colorScheme.errorContainer.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: colorScheme.error.withValues(alpha: 0.4)),
+                border: Border.all(
+                  color: colorScheme.error.withValues(alpha: 0.4),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,7 +419,10 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: colorScheme.error.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
@@ -402,7 +449,11 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                       decoration: BoxDecoration(
                         color: colorScheme.surface,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,9 +461,14 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: colorScheme.error.withValues(alpha: 0.1),
+                                  color: colorScheme.error.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -485,7 +541,10 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                     key: const Key('api_toggle_raw_response_button'),
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                     ),
                     icon: HugeIcon(
                       icon: _showRawResponse
@@ -494,8 +553,13 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
                       size: 14,
                     ),
                     label: Text(
-                      _showRawResponse ? 'Hide Raw Response' : 'View Raw Response',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      _showRawResponse
+                          ? 'Hide Raw Response'
+                          : 'View Raw Response',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     onPressed: () {
                       setState(() {
@@ -514,12 +578,17 @@ class _ApiResponseViewerState extends State<ApiResponseViewer> {
               child: Container(
                 key: const Key('api_raw_response_container'),
                 width: double.infinity,
-                constraints: const BoxConstraints(minHeight: 100, maxHeight: 380),
+                constraints: const BoxConstraints(
+                  minHeight: 100,
+                  maxHeight: 380,
+                ),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: SingleChildScrollView(
                   child: SelectableText(

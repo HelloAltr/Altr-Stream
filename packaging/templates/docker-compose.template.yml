@@ -5,12 +5,17 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    labels:
+      - "com.helloaltr.altr-stream.managed-by=installer"
+      - "com.helloaltr.altr-stream.environment=production"
     environment:
       - ALTR_STREAM_HOST=0.0.0.0
       - ALTR_STREAM_PORT=8000
       - ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:////app/data/altr_stream.db
       - ALTR_STREAM_STATIC_DIR=/app/static
       - ALTR_STREAM_DEBUG=false
+      - ALTR_STREAM_FEEDBACK_SERVICE_URL=${ALTR_STREAM_FEEDBACK_SERVICE_URL:-https://altr-feedback.onrender.com}
+      - ALTR_FEEDBACK_API_KEY=${ALTR_FEEDBACK_API_KEY:-}
     volumes:
       - altr_stream_data:/app/data
       - ./data/updates:/app/data/updates

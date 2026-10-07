@@ -138,28 +138,41 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
     try {
       final schema = await widget.apiClient.getLatestSchema(sourceId);
       if (mounted) {
-        final source = widget.sources.where((s) => s.id == sourceId).firstOrNull;
+        final source = widget.sources
+            .where((s) => s.id == sourceId)
+            .firstOrNull;
         String defaultNamespace = '';
-        if (source != null && source.type.toUpperCase() == 'MONGODB' && source.databaseName != null && source.databaseName!.isNotEmpty) {
+        if (source != null &&
+            source.type.toUpperCase() == 'MONGODB' &&
+            source.databaseName != null &&
+            source.databaseName!.isNotEmpty) {
           defaultNamespace = source.databaseName!;
-        } else if (schema != null && schema.entities.isNotEmpty && schema.entities.first.namespace.isNotEmpty) {
+        } else if (schema != null &&
+            schema.entities.isNotEmpty &&
+            schema.entities.first.namespace.isNotEmpty) {
           defaultNamespace = schema.entities.first.namespace;
-        } else if (source != null && source.databaseName != null && source.databaseName!.isNotEmpty) {
+        } else if (source != null &&
+            source.databaseName != null &&
+            source.databaseName!.isNotEmpty) {
           defaultNamespace = source.databaseName!;
         }
 
         setState(() {
           _alignDiscoveredSchema = schema;
           _isLoadingDiscoveredSchema = false;
-          if (_alignNamespaceController.text.isEmpty && defaultNamespace.isNotEmpty) {
+          if (_alignNamespaceController.text.isEmpty &&
+              defaultNamespace.isNotEmpty) {
             _alignNamespaceController.text = defaultNamespace;
           }
           if (schema != null && schema.entities.isNotEmpty) {
             _selectedAlignPhysicalEntityName = schema.entities.first.name;
-            _alignPhysicalEntityInputController.text = schema.entities.first.name;
+            _alignPhysicalEntityInputController.text =
+                schema.entities.first.name;
             if (schema.entities.first.fields.isNotEmpty) {
-              _selectedAlignPhysicalFieldName = schema.entities.first.fields.first.name;
-              _alignPhysicalFieldInputController.text = schema.entities.first.fields.first.name;
+              _selectedAlignPhysicalFieldName =
+                  schema.entities.first.fields.first.name;
+              _alignPhysicalFieldInputController.text =
+                  schema.entities.first.fields.first.name;
             }
           }
         });
@@ -174,24 +187,40 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
   }
 
   void _applyAlignSuggestionToBody() {
-    final modelId = _selectedAlignModelId ?? (widget.logicalModels.isNotEmpty ? widget.logicalModels.first.id : '');
-    final sourceId = _selectedAlignSourceId ?? (widget.sources.isNotEmpty ? widget.sources.first.id : '');
+    final modelId =
+        _selectedAlignModelId ??
+        (widget.logicalModels.isNotEmpty ? widget.logicalModels.first.id : '');
+    final sourceId =
+        _selectedAlignSourceId ??
+        (widget.sources.isNotEmpty ? widget.sources.first.id : '');
 
-    final model = widget.logicalModels.where((m) => m.id == modelId).firstOrNull;
-    final entity = model?.entities.where((e) => e.id == _selectedAlignEntityId).firstOrNull ?? model?.entities.firstOrNull;
-    final field = entity?.fields.where((f) => f.id == _selectedAlignFieldId).firstOrNull ?? entity?.fields.firstOrNull;
+    final model = widget.logicalModels
+        .where((m) => m.id == modelId)
+        .firstOrNull;
+    final entity =
+        model?.entities
+            .where((e) => e.id == _selectedAlignEntityId)
+            .firstOrNull ??
+        model?.entities.firstOrNull;
+    final field =
+        entity?.fields
+            .where((f) => f.id == _selectedAlignFieldId)
+            .firstOrNull ??
+        entity?.fields.firstOrNull;
 
-    final physicalEntityName = _selectedAlignPhysicalEntityName?.trim().isNotEmpty == true
+    final physicalEntityName =
+        _selectedAlignPhysicalEntityName?.trim().isNotEmpty == true
         ? _selectedAlignPhysicalEntityName!.trim()
         : (_alignPhysicalEntityInputController.text.trim().isNotEmpty
-            ? _alignPhysicalEntityInputController.text.trim()
-            : (entity?.name ?? ''));
+              ? _alignPhysicalEntityInputController.text.trim()
+              : (entity?.name ?? ''));
 
-    final physicalFieldName = _selectedAlignPhysicalFieldName?.trim().isNotEmpty == true
+    final physicalFieldName =
+        _selectedAlignPhysicalFieldName?.trim().isNotEmpty == true
         ? _selectedAlignPhysicalFieldName!.trim()
         : (_alignPhysicalFieldInputController.text.trim().isNotEmpty
-            ? _alignPhysicalFieldInputController.text.trim()
-            : (field?.name ?? ''));
+              ? _alignPhysicalFieldInputController.text.trim()
+              : (field?.name ?? ''));
 
     final namespace = _alignNamespaceController.text.trim();
 
@@ -213,7 +242,7 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
           'physical_field_name': physicalFieldName,
           'transformation_rule': null,
           'confidence': confidence,
-        }
+        },
       ],
       'confidence': confidence,
     };
@@ -320,7 +349,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
         if (q.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Please enter an AltrQL query in the request body.'),
+              content: const Text(
+                'Please enter an AltrQL query in the request body.',
+              ),
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
@@ -329,7 +360,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
         if (sid.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Please select or enter a valid source_id in the request body.'),
+              content: const Text(
+                'Please select or enter a valid source_id in the request body.',
+              ),
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
@@ -397,7 +430,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,11 +442,16 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: methodColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: methodColor.withValues(alpha: 0.5)),
+                      border: Border.all(
+                        color: methodColor.withValues(alpha: 0.5),
+                      ),
                     ),
                     child: Text(
                       ep.method,
@@ -477,7 +517,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 children: ep.tags.map((t) {
                   return Chip(
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 0,
+                    ),
                     label: Text(t, style: const TextStyle(fontSize: 11)),
                     backgroundColor: colorScheme.surfaceContainerHighest,
                     side: BorderSide.none,
@@ -510,14 +553,19 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
             style: ElevatedButton.styleFrom(
               backgroundColor: colorScheme.primary,
               foregroundColor: colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               elevation: 2,
             ),
             icon: _isExecuting
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const HugeIcon(icon: HugeIcons.strokeRoundedPlay, size: 20),
             label: Text(
@@ -561,7 +609,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,7 +648,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               ),
             ),
             const SizedBox(height: 8),
-            ...ep.pathParameters.map((p) => _buildParameterInputRow(context, p)),
+            ...ep.pathParameters.map(
+              (p) => _buildParameterInputRow(context, p),
+            ),
             const SizedBox(height: 12),
           ],
 
@@ -614,7 +666,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               ),
             ),
             const SizedBox(height: 8),
-            ...ep.queryParameters.map((p) => _buildParameterInputRow(context, p)),
+            ...ep.queryParameters.map(
+              (p) => _buildParameterInputRow(context, p),
+            ),
           ],
         ],
       ),
@@ -626,9 +680,14 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
     final controller = _paramControllers[param.name];
 
     // Check if Altr Stream aware helpers apply (model_id, source_id, or mapping_id)
-    final isModelIdParam = param.name == 'model_id' || param.name == 'modelId' || param.name == 'logical_model_id';
-    final isSourceIdParam = param.name == 'source_id' || param.name == 'sourceId';
-    final isMappingIdParam = param.name == 'mapping_id' || param.name == 'mappingId';
+    final isModelIdParam =
+        param.name == 'model_id' ||
+        param.name == 'modelId' ||
+        param.name == 'logical_model_id';
+    final isSourceIdParam =
+        param.name == 'source_id' || param.name == 'sourceId';
+    final isMappingIdParam =
+        param.name == 'mapping_id' || param.name == 'mappingId';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -655,13 +714,19 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 ),
                 child: Text(
                   param.schemaType,
-                  style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               if (param.required) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.error.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
@@ -682,7 +747,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
             const SizedBox(height: 4),
             Text(
               param.description,
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
           const SizedBox(height: 6),
@@ -695,7 +763,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               decoration: BoxDecoration(
                 color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: colorScheme.primary.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
@@ -705,17 +775,33 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                     color: colorScheme.primary,
                   ),
                   const SizedBox(width: 8),
-                  Text('Logical Model:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                  Text(
+                    'Logical Model:',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         key: const Key('api_param_model_selector'),
                         isDense: true,
-                        value: widget.logicalModels.any((m) => m.id == _selectedParamValues[param.name])
+                        value:
+                            widget.logicalModels.any(
+                              (m) => m.id == _selectedParamValues[param.name],
+                            )
                             ? _selectedParamValues[param.name]
-                            : (widget.logicalModels.any((m) => m.id == controller?.text) ? controller?.text : null),
-                        hint: const Text('Select Logical Model...', style: TextStyle(fontSize: 11)),
+                            : (widget.logicalModels.any(
+                                    (m) => m.id == controller?.text,
+                                  )
+                                  ? controller?.text
+                                  : null),
+                        hint: const Text(
+                          'Select Logical Model...',
+                          style: TextStyle(fontSize: 11),
+                        ),
                         items: widget.logicalModels.map((m) {
                           return DropdownMenuItem<String>(
                             value: m.id,
@@ -750,7 +836,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               decoration: BoxDecoration(
                 color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: colorScheme.primary.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
@@ -760,17 +848,33 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                     color: colorScheme.primary,
                   ),
                   const SizedBox(width: 8),
-                  Text('Physical Source:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                  Text(
+                    'Physical Source:',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         key: const Key('api_param_source_selector'),
                         isDense: true,
-                        value: widget.sources.any((s) => s.id == _selectedParamValues[param.name])
+                        value:
+                            widget.sources.any(
+                              (s) => s.id == _selectedParamValues[param.name],
+                            )
                             ? _selectedParamValues[param.name]
-                            : (widget.sources.any((s) => s.id == controller?.text) ? controller?.text : null),
-                        hint: const Text('Select Physical Source...', style: TextStyle(fontSize: 11)),
+                            : (widget.sources.any(
+                                    (s) => s.id == controller?.text,
+                                  )
+                                  ? controller?.text
+                                  : null),
+                        hint: const Text(
+                          'Select Physical Source...',
+                          style: TextStyle(fontSize: 11),
+                        ),
                         items: widget.sources.map((s) {
                           return DropdownMenuItem<String>(
                             value: s.id,
@@ -806,7 +910,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               decoration: BoxDecoration(
                 color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: colorScheme.primary.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
@@ -816,19 +922,38 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                     color: colorScheme.primary,
                   ),
                   const SizedBox(width: 8),
-                  Text('Source Mapping:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                  Text(
+                    'Source Mapping:',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         key: const Key('api_param_mapping_selector'),
                         isDense: true,
-                        value: widget.sourceMappings.any((m) => m.id == _selectedParamValues[param.name])
+                        value:
+                            widget.sourceMappings.any(
+                              (m) => m.id == _selectedParamValues[param.name],
+                            )
                             ? _selectedParamValues[param.name]
-                            : (widget.sourceMappings.any((m) => m.id == controller?.text) ? controller?.text : null),
-                        hint: const Text('Select Source Mapping...', style: TextStyle(fontSize: 11)),
+                            : (widget.sourceMappings.any(
+                                    (m) => m.id == controller?.text,
+                                  )
+                                  ? controller?.text
+                                  : null),
+                        hint: const Text(
+                          'Select Source Mapping...',
+                          style: TextStyle(fontSize: 11),
+                        ),
                         items: widget.sourceMappings.map((m) {
-                          final shortId = m.id.substring(0, m.id.length > 8 ? 8 : m.id.length);
+                          final shortId = m.id.substring(
+                            0,
+                            m.id.length > 8 ? 8 : m.id.length,
+                          );
                           return DropdownMenuItem<String>(
                             value: m.id,
                             child: Text(
@@ -859,17 +984,27 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
             controller: controller,
             decoration: InputDecoration(
               hintText: 'Enter ${param.name}...',
-              hintStyle: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+              hintStyle: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
               filled: true,
               fillColor: colorScheme.surface,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -911,7 +1046,8 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
       setState(() {
         _bodyController.text = encoder.convert(jsonMap);
         _jsonFormatError = null;
-        if (targetKeys.contains('logical_model_id') || targetKeys.contains('model_id')) {
+        if (targetKeys.contains('logical_model_id') ||
+            targetKeys.contains('model_id')) {
           _selectedBodyModelId = value;
           _selectedAlignModelId = value;
         }
@@ -939,30 +1075,36 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
 
     final isAlignEndpoint = widget.endpoint.path.contains('/align/suggestions');
 
-    final hasModelId = sampleJson.contains('"model_id"') ||
+    final hasModelId =
+        sampleJson.contains('"model_id"') ||
         sampleJson.contains('"logical_model_id"') ||
         sampleJson.contains('"modelId"') ||
         bodyText.contains('"model_id"') ||
         bodyText.contains('"logical_model_id"');
 
-    final hasSourceId = sampleJson.contains('"source_id"') ||
+    final hasSourceId =
+        sampleJson.contains('"source_id"') ||
         sampleJson.contains('"sourceId"') ||
         bodyText.contains('"source_id"') ||
         bodyText.contains('"sourceId"');
 
-    final hasMappingId = sampleJson.contains('"mapping_id"') ||
+    final hasMappingId =
+        sampleJson.contains('"mapping_id"') ||
         sampleJson.contains('"mappingId"') ||
         bodyText.contains('"mapping_id"') ||
         bodyText.contains('"mappingId"');
 
-    final showContextualHelpers = hasModelId || hasSourceId || hasMappingId || isAlignEndpoint;
+    final showContextualHelpers =
+        hasModelId || hasSourceId || hasMappingId || isAlignEndpoint;
 
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -992,7 +1134,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 ),
                 child: Text(
                   rb?.contentType ?? 'application/json',
-                  style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -1002,13 +1147,19 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 key: const Key('api_format_json_button'),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                 ),
                 icon: const HugeIcon(
                   icon: HugeIcons.strokeRoundedMagicWand01,
                   size: 14,
                 ),
-                label: const Text('Format JSON', style: TextStyle(fontSize: 12)),
+                label: const Text(
+                  'Format JSON',
+                  style: TextStyle(fontSize: 12),
+                ),
                 onPressed: _formatJsonBody,
               ),
 
@@ -1017,13 +1168,19 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 key: const Key('api_reset_template_button'),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                 ),
                 icon: const HugeIcon(
                   icon: HugeIcons.strokeRoundedReload,
                   size: 14,
                 ),
-                label: const Text('Reset Template', style: TextStyle(fontSize: 12)),
+                label: const Text(
+                  'Reset Template',
+                  style: TextStyle(fontSize: 12),
+                ),
                 onPressed: _resetJsonBody,
               ),
             ],
@@ -1033,7 +1190,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
             const SizedBox(height: 6),
             Text(
               rb.description,
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
 
@@ -1041,7 +1201,12 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
           if (isAlignEndpoint)
             _buildAlignSuggestionBuilderCard(context)
           else if (showContextualHelpers)
-            _buildGenericContextualHelpersCard(context, hasModelId: hasModelId, hasSourceId: hasSourceId, hasMappingId: hasMappingId),
+            _buildGenericContextualHelpersCard(
+              context,
+              hasModelId: hasModelId,
+              hasSourceId: hasSourceId,
+              hasMappingId: hasMappingId,
+            ),
 
           if (_jsonFormatError != null) ...[
             const SizedBox(height: 8),
@@ -1073,11 +1238,15 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               contentPadding: const EdgeInsets.all(12),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -1100,16 +1269,27 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
   Widget _buildAlignSuggestionBuilderCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final selectedModel = widget.logicalModels.where((m) => m.id == _selectedAlignModelId).firstOrNull ??
+    final selectedModel =
+        widget.logicalModels
+            .where((m) => m.id == _selectedAlignModelId)
+            .firstOrNull ??
         (widget.logicalModels.isNotEmpty ? widget.logicalModels.first : null);
     final availableEntities = selectedModel?.entities ?? [];
-    final selectedEntity = availableEntities.where((e) => e.id == _selectedAlignEntityId).firstOrNull ??
+    final selectedEntity =
+        availableEntities
+            .where((e) => e.id == _selectedAlignEntityId)
+            .firstOrNull ??
         (availableEntities.isNotEmpty ? availableEntities.first : null);
     final availableFields = selectedEntity?.fields ?? [];
 
     final availablePhysicalEntities = _alignDiscoveredSchema?.entities ?? [];
-    final selectedPhysicalEntity = availablePhysicalEntities.where((e) => e.name == _selectedAlignPhysicalEntityName).firstOrNull ??
-        (availablePhysicalEntities.isNotEmpty ? availablePhysicalEntities.first : null);
+    final selectedPhysicalEntity =
+        availablePhysicalEntities
+            .where((e) => e.name == _selectedAlignPhysicalEntityName)
+            .firstOrNull ??
+        (availablePhysicalEntities.isNotEmpty
+            ? availablePhysicalEntities.first
+            : null);
     final availablePhysicalFields = selectedPhysicalEntity?.fields ?? [];
 
     return Container(
@@ -1144,7 +1324,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               Flexible(
                 child: Text(
                   '(Build valid suggestion payload from dynamic registry & source schema)',
-                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -1160,27 +1343,52 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Logical Model:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Logical Model:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           key: const Key('api_body_model_selector'),
                           isDense: true,
-                          value: widget.logicalModels.any((m) => m.id == _selectedAlignModelId)
+                          value:
+                              widget.logicalModels.any(
+                                (m) => m.id == _selectedAlignModelId,
+                              )
                               ? _selectedAlignModelId
-                              : (widget.logicalModels.isNotEmpty ? widget.logicalModels.first.id : null),
-                          hint: const Text('Select Logical Model...', style: TextStyle(fontSize: 11)),
+                              : (widget.logicalModels.isNotEmpty
+                                    ? widget.logicalModels.first.id
+                                    : null),
+                          hint: const Text(
+                            'Select Logical Model...',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           items: widget.logicalModels.map((m) {
                             return DropdownMenuItem<String>(
                               value: m.id,
-                              child: Text('${m.name} (${m.id.substring(0, m.id.length > 8 ? 8 : m.id.length)}...)', style: const TextStyle(fontSize: 11)),
+                              child: Text(
+                                '${m.name} (${m.id.substring(0, m.id.length > 8 ? 8 : m.id.length)}...)',
+                                style: const TextStyle(fontSize: 11),
+                              ),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -1188,11 +1396,14 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                               setState(() {
                                 _selectedAlignModelId = val;
                                 _selectedBodyModelId = val;
-                                final m = widget.logicalModels.where((x) => x.id == val).firstOrNull;
+                                final m = widget.logicalModels
+                                    .where((x) => x.id == val)
+                                    .firstOrNull;
                                 if (m != null && m.entities.isNotEmpty) {
                                   _selectedAlignEntityId = m.entities.first.id;
                                   if (m.entities.first.fields.isNotEmpty) {
-                                    _selectedAlignFieldId = m.entities.first.fields.first.id;
+                                    _selectedAlignFieldId =
+                                        m.entities.first.fields.first.id;
                                   }
                                 }
                               });
@@ -1211,27 +1422,52 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Physical Source:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Physical Source:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           key: const Key('api_body_source_selector'),
                           isDense: true,
-                          value: widget.sources.any((s) => s.id == _selectedAlignSourceId)
+                          value:
+                              widget.sources.any(
+                                (s) => s.id == _selectedAlignSourceId,
+                              )
                               ? _selectedAlignSourceId
-                              : (widget.sources.isNotEmpty ? widget.sources.first.id : null),
-                          hint: const Text('Select Physical Source...', style: TextStyle(fontSize: 11)),
+                              : (widget.sources.isNotEmpty
+                                    ? widget.sources.first.id
+                                    : null),
+                          hint: const Text(
+                            'Select Physical Source...',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           items: widget.sources.map((s) {
                             return DropdownMenuItem<String>(
                               value: s.id,
-                              child: Text('${s.name} (${s.type})', style: const TextStyle(fontSize: 11)),
+                              child: Text(
+                                '${s.name} (${s.type})',
+                                style: const TextStyle(fontSize: 11),
+                              ),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -1261,34 +1497,61 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Logical Entity:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Logical Entity:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           key: const Key('api_align_entity_selector'),
                           isDense: true,
-                          value: availableEntities.any((e) => e.id == _selectedAlignEntityId)
+                          value:
+                              availableEntities.any(
+                                (e) => e.id == _selectedAlignEntityId,
+                              )
                               ? _selectedAlignEntityId
-                              : (availableEntities.isNotEmpty ? availableEntities.first.id : null),
-                          hint: const Text('Select Logical Entity...', style: TextStyle(fontSize: 11)),
+                              : (availableEntities.isNotEmpty
+                                    ? availableEntities.first.id
+                                    : null),
+                          hint: const Text(
+                            'Select Logical Entity...',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           items: availableEntities.map((e) {
                             return DropdownMenuItem<String>(
                               value: e.id,
-                              child: Text(e.name, style: const TextStyle(fontSize: 11)),
+                              child: Text(
+                                e.name,
+                                style: const TextStyle(fontSize: 11),
+                              ),
                             );
                           }).toList(),
                           onChanged: (val) {
                             if (val != null) {
                               setState(() {
                                 _selectedAlignEntityId = val;
-                                final ent = availableEntities.where((x) => x.id == val).firstOrNull;
+                                final ent = availableEntities
+                                    .where((x) => x.id == val)
+                                    .firstOrNull;
                                 if (ent != null && ent.fields.isNotEmpty) {
                                   _selectedAlignFieldId = ent.fields.first.id;
                                 }
@@ -1310,44 +1573,77 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                   children: [
                     Row(
                       children: [
-                        Text('Physical Entity:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant)),
+                        Text(
+                          'Physical Entity:',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                         if (_isLoadingDiscoveredSchema) ...[
                           const SizedBox(width: 6),
-                          const SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 2)),
+                          const SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 4),
                     if (availablePhysicalEntities.isNotEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                          border: Border.all(
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.5,
+                            ),
+                          ),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            key: const Key('api_align_physical_entity_selector'),
+                            key: const Key(
+                              'api_align_physical_entity_selector',
+                            ),
                             isDense: true,
-                            value: availablePhysicalEntities.any((e) => e.name == _selectedAlignPhysicalEntityName)
+                            value:
+                                availablePhysicalEntities.any(
+                                  (e) =>
+                                      e.name ==
+                                      _selectedAlignPhysicalEntityName,
+                                )
                                 ? _selectedAlignPhysicalEntityName
                                 : availablePhysicalEntities.first.name,
                             items: availablePhysicalEntities.map((e) {
                               return DropdownMenuItem<String>(
                                 value: e.name,
-                                child: Text(e.name, style: const TextStyle(fontSize: 11)),
+                                child: Text(
+                                  e.name,
+                                  style: const TextStyle(fontSize: 11),
+                                ),
                               );
                             }).toList(),
                             onChanged: (val) {
                               if (val != null) {
                                 setState(() {
                                   _selectedAlignPhysicalEntityName = val;
-                                  _alignPhysicalEntityInputController.text = val;
-                                  final pEnt = availablePhysicalEntities.where((x) => x.name == val).firstOrNull;
+                                  _alignPhysicalEntityInputController.text =
+                                      val;
+                                  final pEnt = availablePhysicalEntities
+                                      .where((x) => x.name == val)
+                                      .firstOrNull;
                                   if (pEnt != null && pEnt.fields.isNotEmpty) {
-                                    _selectedAlignPhysicalFieldName = pEnt.fields.first.name;
-                                    _alignPhysicalFieldInputController.text = pEnt.fields.first.name;
+                                    _selectedAlignPhysicalFieldName =
+                                        pEnt.fields.first.name;
+                                    _alignPhysicalFieldInputController.text =
+                                        pEnt.fields.first.name;
                                   }
                                 });
                               }
@@ -1361,14 +1657,30 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                         controller: _alignPhysicalEntityInputController,
                         decoration: InputDecoration(
                           hintText: 'Enter physical entity/table/collection...',
-                          hintStyle: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                          hintStyle: TextStyle(
+                            fontSize: 11,
+                            color: colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
                           filled: true,
                           fillColor: colorScheme.surfaceContainerLow,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: BorderSide(
+                              color: colorScheme.outlineVariant.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
+                          ),
                         ),
                         style: const TextStyle(fontSize: 11),
-                        onChanged: (val) => _selectedAlignPhysicalEntityName = val,
+                        onChanged: (val) =>
+                            _selectedAlignPhysicalEntityName = val,
                       ),
                   ],
                 ),
@@ -1385,27 +1697,52 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Logical Field:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Logical Field:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           key: const Key('api_align_field_selector'),
                           isDense: true,
-                          value: availableFields.any((f) => f.id == _selectedAlignFieldId)
+                          value:
+                              availableFields.any(
+                                (f) => f.id == _selectedAlignFieldId,
+                              )
                               ? _selectedAlignFieldId
-                              : (availableFields.isNotEmpty ? availableFields.first.id : null),
-                          hint: const Text('Select Logical Field...', style: TextStyle(fontSize: 11)),
+                              : (availableFields.isNotEmpty
+                                    ? availableFields.first.id
+                                    : null),
+                          hint: const Text(
+                            'Select Logical Field...',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           items: availableFields.map((f) {
                             return DropdownMenuItem<String>(
                               value: f.id,
-                              child: Text('${f.name} (${f.dataType})', style: const TextStyle(fontSize: 11)),
+                              child: Text(
+                                '${f.name} (${f.dataType})',
+                                style: const TextStyle(fontSize: 11),
+                              ),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -1428,27 +1765,48 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Physical Field:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Physical Field:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     if (availablePhysicalFields.isNotEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                          border: Border.all(
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.5,
+                            ),
+                          ),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             key: const Key('api_align_physical_field_selector'),
                             isDense: true,
-                            value: availablePhysicalFields.any((f) => f.name == _selectedAlignPhysicalFieldName)
+                            value:
+                                availablePhysicalFields.any(
+                                  (f) =>
+                                      f.name == _selectedAlignPhysicalFieldName,
+                                )
                                 ? _selectedAlignPhysicalFieldName
                                 : availablePhysicalFields.first.name,
                             items: availablePhysicalFields.map((f) {
                               return DropdownMenuItem<String>(
                                 value: f.name,
-                                child: Text('${f.name} (${f.dataType})', style: const TextStyle(fontSize: 11)),
+                                child: Text(
+                                  '${f.name} (${f.dataType})',
+                                  style: const TextStyle(fontSize: 11),
+                                ),
                               );
                             }).toList(),
                             onChanged: (val) {
@@ -1468,14 +1826,30 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                         controller: _alignPhysicalFieldInputController,
                         decoration: InputDecoration(
                           hintText: 'Enter physical field/column name...',
-                          hintStyle: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                          hintStyle: TextStyle(
+                            fontSize: 11,
+                            color: colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
                           filled: true,
                           fillColor: colorScheme.surfaceContainerLow,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: BorderSide(
+                              color: colorScheme.outlineVariant.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
+                          ),
                         ),
                         style: const TextStyle(fontSize: 11),
-                        onChanged: (val) => _selectedAlignPhysicalFieldName = val,
+                        onChanged: (val) =>
+                            _selectedAlignPhysicalFieldName = val,
                       ),
                   ],
                 ),
@@ -1492,18 +1866,40 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Physical Namespace / Database:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Physical Namespace / Database:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     TextField(
                       key: const Key('api_align_namespace_input'),
                       controller: _alignNamespaceController,
                       decoration: InputDecoration(
                         hintText: 'e.g. public, altr_test_db...',
-                        hintStyle: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                        hintStyle: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
+                        ),
                         filled: true,
                         fillColor: colorScheme.surfaceContainerLow,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          borderSide: BorderSide(
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.5,
+                            ),
+                          ),
+                        ),
                       ),
                       style: const TextStyle(fontSize: 11),
                     ),
@@ -1517,19 +1913,43 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Confidence Score (0.0 - 1.0):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Confidence Score (0.0 - 1.0):',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     TextField(
                       key: const Key('api_align_confidence_input'),
                       controller: _alignConfidenceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         hintText: 'e.g. 0.95',
-                        hintStyle: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                        hintStyle: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
+                        ),
                         filled: true,
                         fillColor: colorScheme.surfaceContainerLow,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          borderSide: BorderSide(
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.5,
+                            ),
+                          ),
+                        ),
                       ),
                       style: const TextStyle(fontSize: 11),
                     ),
@@ -1548,14 +1968,22 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: colorScheme.primary,
                 foregroundColor: colorScheme.onPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
               icon: const HugeIcon(
                 icon: HugeIcons.strokeRoundedCheckmarkCircle02,
                 size: 16,
               ),
-              label: const Text('Apply Align Suggestion to Request Body', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              label: const Text(
+                'Apply Align Suggestion to Request Body',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
               onPressed: _applyAlignSuggestionToBody,
             ),
           ),
@@ -1580,7 +2008,9 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1604,7 +2034,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
               const SizedBox(width: 8),
               Text(
                 '(Auto-fills UUIDs into JSON body)',
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -1623,17 +2056,29 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                       color: colorScheme.primary,
                     ),
                     const SizedBox(width: 6),
-                    Text('Logical Model:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Logical Model:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           key: const Key('api_body_model_selector'),
                           isDense: true,
-                          value: widget.logicalModels.any((m) => m.id == _selectedBodyModelId)
+                          value:
+                              widget.logicalModels.any(
+                                (m) => m.id == _selectedBodyModelId,
+                              )
                               ? _selectedBodyModelId
                               : null,
-                          hint: const Text('Select Logical Model...', style: TextStyle(fontSize: 11)),
+                          hint: const Text(
+                            'Select Logical Model...',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           items: widget.logicalModels.map((m) {
                             return DropdownMenuItem<String>(
                               value: m.id,
@@ -1645,7 +2090,11 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                           }).toList(),
                           onChanged: (val) {
                             if (val != null) {
-                              _updateBodyJsonField(['logical_model_id', 'model_id', 'modelId'], val);
+                              _updateBodyJsonField([
+                                'logical_model_id',
+                                'model_id',
+                                'modelId',
+                              ], val);
                             }
                           },
                         ),
@@ -1659,7 +2108,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
                   'No logical models registered yet. Enter UUID in editor.',
-                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
           ],
@@ -1677,17 +2129,29 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                       color: colorScheme.primary,
                     ),
                     const SizedBox(width: 6),
-                    Text('Physical Source:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Physical Source:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           key: const Key('api_body_source_selector'),
                           isDense: true,
-                          value: widget.sources.any((s) => s.id == _selectedBodySourceId)
+                          value:
+                              widget.sources.any(
+                                (s) => s.id == _selectedBodySourceId,
+                              )
                               ? _selectedBodySourceId
                               : null,
-                          hint: const Text('Select Physical Source...', style: TextStyle(fontSize: 11)),
+                          hint: const Text(
+                            'Select Physical Source...',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           items: widget.sources.map((s) {
                             return DropdownMenuItem<String>(
                               value: s.id,
@@ -1699,7 +2163,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                           }).toList(),
                           onChanged: (val) {
                             if (val != null) {
-                              _updateBodyJsonField(['source_id', 'sourceId'], val);
+                              _updateBodyJsonField([
+                                'source_id',
+                                'sourceId',
+                              ], val);
                             }
                           },
                         ),
@@ -1713,7 +2180,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
                   'No physical data sources registered yet. Enter source_id in editor.',
-                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
           ],
@@ -1731,19 +2201,34 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                       color: colorScheme.primary,
                     ),
                     const SizedBox(width: 6),
-                    Text('Source Mapping:', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                    Text(
+                      'Source Mapping:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           key: const Key('api_body_mapping_selector'),
                           isDense: true,
-                          value: widget.sourceMappings.any((m) => m.id == _selectedBodyMappingId)
+                          value:
+                              widget.sourceMappings.any(
+                                (m) => m.id == _selectedBodyMappingId,
+                              )
                               ? _selectedBodyMappingId
                               : null,
-                          hint: const Text('Select Source Mapping...', style: TextStyle(fontSize: 11)),
+                          hint: const Text(
+                            'Select Source Mapping...',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           items: widget.sourceMappings.map((m) {
-                            final shortId = m.id.substring(0, m.id.length > 8 ? 8 : m.id.length);
+                            final shortId = m.id.substring(
+                              0,
+                              m.id.length > 8 ? 8 : m.id.length,
+                            );
                             return DropdownMenuItem<String>(
                               value: m.id,
                               child: Text(
@@ -1754,7 +2239,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                           }).toList(),
                           onChanged: (val) {
                             if (val != null) {
-                              _updateBodyJsonField(['mapping_id', 'mappingId'], val);
+                              _updateBodyJsonField([
+                                'mapping_id',
+                                'mappingId',
+                              ], val);
                             }
                           },
                         ),
@@ -1768,7 +2256,10 @@ class _ApiEndpointDetailPanelState extends State<ApiEndpointDetailPanel> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
                   'No source mappings registered yet. Enter mapping_id in editor if needed.',
-                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
           ],

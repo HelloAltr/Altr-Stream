@@ -16,7 +16,10 @@ String extractLeadingKeyword(String sql) {
 
   while (pos < length) {
     // Skip whitespace
-    if (clean[pos] == ' ' || clean[pos] == '\t' || clean[pos] == '\n' || clean[pos] == '\r') {
+    if (clean[pos] == ' ' ||
+        clean[pos] == '\t' ||
+        clean[pos] == '\n' ||
+        clean[pos] == '\r') {
       pos++;
       continue;
     }
@@ -33,7 +36,8 @@ String extractLeadingKeyword(String sql) {
     // Skip multi-line comment: /* ... */
     if (pos + 1 < length && clean[pos] == '/' && clean[pos + 1] == '*') {
       pos += 2;
-      while (pos + 1 < length && !(clean[pos] == '*' && clean[pos + 1] == '/')) {
+      while (pos + 1 < length &&
+          !(clean[pos] == '*' && clean[pos + 1] == '/')) {
         pos++;
       }
       pos += 2;
@@ -59,10 +63,7 @@ bool isDestructiveQuery(String sql) {
 class DestructiveQueryDialog extends StatelessWidget {
   final String query;
 
-  const DestructiveQueryDialog({
-    super.key,
-    required this.query,
-  });
+  const DestructiveQueryDialog({super.key, required this.query});
 
   static Future<bool> show(BuildContext context, String query) async {
     final result = await showDialog<bool>(
@@ -90,7 +91,11 @@ class DestructiveQueryDialog extends StatelessWidget {
               color: colorScheme.errorContainer,
               shape: BoxShape.circle,
             ),
-            child: HugeIcon(icon: HugeIcons.strokeRoundedAlert02, size: 20, color: colorScheme.error),
+            child: HugeIcon(
+              icon: HugeIcons.strokeRoundedAlert02,
+              size: 20,
+              color: colorScheme.error,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -113,7 +118,10 @@ class DestructiveQueryDialog extends StatelessWidget {
           children: [
             Text(
               'You are about to execute a database modification command containing "$keyword". This operation may alter or permanently remove data or schemas.',
-              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             Container(
@@ -122,7 +130,9 @@ class DestructiveQueryDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainerLowest,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               child: Text(
                 query.length > 200 ? '${query.substring(0, 200)}...' : query,
@@ -136,7 +146,11 @@ class DestructiveQueryDialog extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Are you sure you want to proceed with execution against the live database?',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+              ),
             ),
           ],
         ),
@@ -144,7 +158,10 @@ class DestructiveQueryDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+          child: Text(
+            'Cancel',
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
+          ),
         ),
         FilledButton(
           style: FilledButton.styleFrom(

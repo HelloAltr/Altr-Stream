@@ -157,7 +157,10 @@ class ApiRequestBodyCard extends StatelessWidget {
                     // Format JSON Action
                     TextButton.icon(
                       key: const Key('api_format_json_button'),
-                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedMagicWand01, size: 13),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedMagicWand01,
+                        size: 13,
+                      ),
                       label: const Text(
                         'Format',
                         style: TextStyle(fontSize: 11),
@@ -176,7 +179,10 @@ class ApiRequestBodyCard extends StatelessWidget {
                     // Reset Action
                     TextButton.icon(
                       key: const Key('api_reset_template_button'),
-                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedReload, size: 13),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedReload,
+                        size: 13,
+                      ),
                       label: const Text(
                         'Reset',
                         style: TextStyle(fontSize: 11),

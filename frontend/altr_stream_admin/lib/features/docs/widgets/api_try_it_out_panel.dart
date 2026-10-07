@@ -479,7 +479,10 @@ class _ApiTryItOutPanelState extends State<ApiTryItOutPanel> {
                           color: colorScheme.onPrimary,
                         ),
                       )
-                    : const HugeIcon(icon: HugeIcons.strokeRoundedSent, size: 14),
+                    : const HugeIcon(
+                        icon: HugeIcons.strokeRoundedSent,
+                        size: 14,
+                      ),
                 label: Text(
                   _isExecuting ? 'Executing...' : 'Execute Request',
                   style: const TextStyle(

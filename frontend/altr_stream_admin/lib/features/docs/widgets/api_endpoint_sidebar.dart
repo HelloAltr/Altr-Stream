@@ -346,7 +346,9 @@ class _ApiEndpointSidebarState extends State<ApiEndpointSidebar> {
             child: Row(
               children: [
                 HugeIcon(
-                  icon: isCollapsed ? HugeIcons.strokeRoundedArrowRight01 : HugeIcons.strokeRoundedArrowDown01,
+                  icon: isCollapsed
+                      ? HugeIcons.strokeRoundedArrowRight01
+                      : HugeIcons.strokeRoundedArrowDown01,
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),

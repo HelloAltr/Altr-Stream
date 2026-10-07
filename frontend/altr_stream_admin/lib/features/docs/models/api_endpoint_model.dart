@@ -4,7 +4,8 @@ class ApiParameter {
   final String inLocation; // 'path', 'query', 'header', 'cookie'
   final bool required;
   final String description;
-  final String schemaType; // 'string', 'integer', 'boolean', 'array', 'object', etc.
+  final String
+  schemaType; // 'string', 'integer', 'boolean', 'array', 'object', etc.
   final dynamic defaultValue;
   final List<String> enumOptions;
   final Map<String, dynamic>? schema;
@@ -24,7 +25,10 @@ class ApiParameter {
   bool get isQuery => inLocation == 'query';
   bool get isHeader => inLocation == 'header';
 
-  factory ApiParameter.fromJson(Map<String, dynamic> json, {Map<String, dynamic>? rootSchemas}) {
+  factory ApiParameter.fromJson(
+    Map<String, dynamic> json, {
+    Map<String, dynamic>? rootSchemas,
+  }) {
     final name = json['name']?.toString() ?? '';
     final inLoc = json['in']?.toString() ?? 'query';
     final isReq = json['required'] == true || inLoc == 'path';
@@ -122,7 +126,10 @@ class ApiResponseDefinition {
     this.schema,
   });
 
-  factory ApiResponseDefinition.fromJson(String statusCode, Map<String, dynamic> json) {
+  factory ApiResponseDefinition.fromJson(
+    String statusCode,
+    Map<String, dynamic> json,
+  ) {
     Map<String, dynamic>? schemaMap;
     if (json['content'] is Map) {
       final content = json['content'] as Map;
@@ -169,16 +176,20 @@ class ApiEndpoint {
   String get primaryTag => tags.isNotEmpty ? tags.first : 'General';
 
   /// Path parameters
-  List<ApiParameter> get pathParameters => parameters.where((p) => p.isPath).toList();
+  List<ApiParameter> get pathParameters =>
+      parameters.where((p) => p.isPath).toList();
 
   /// Query parameters
-  List<ApiParameter> get queryParameters => parameters.where((p) => p.isQuery).toList();
+  List<ApiParameter> get queryParameters =>
+      parameters.where((p) => p.isQuery).toList();
 
   /// Header parameters
-  List<ApiParameter> get headerParameters => parameters.where((p) => p.isHeader).toList();
+  List<ApiParameter> get headerParameters =>
+      parameters.where((p) => p.isHeader).toList();
 
   /// Whether endpoint expects request body
-  bool get hasRequestBody => requestBody != null && method != 'GET' && method != 'HEAD';
+  bool get hasRequestBody =>
+      requestBody != null && method != 'GET' && method != 'HEAD';
 
   /// Case-insensitive search across method, path, summary, description, tags, and parameter names
   bool matchesSearch(String query) {
@@ -204,7 +215,8 @@ class ApiEndpoint {
 
     // Check parameter names and descriptions
     for (final p in parameters) {
-      if (p.name.toLowerCase().contains(q) || p.description.toLowerCase().contains(q)) {
+      if (p.name.toLowerCase().contains(q) ||
+          p.description.toLowerCase().contains(q)) {
         return true;
       }
     }
@@ -214,25 +226,58 @@ class ApiEndpoint {
 
   /// Whether this endpoint accepts a logical model ID (for Altr Stream smart selector)
   bool get isModelAware {
-    if (parameters.any((p) => p.name == 'model_id' || p.name == 'modelId' || p.name == 'logical_model_id')) return true;
-    if (path.contains('{model_id}') || path.contains('{modelId}') || path.contains('{logical_model_id}')) return true;
-    if (requestBody != null && (requestBody!.sampleJson.contains('"model_id"') || requestBody!.sampleJson.contains('"logical_model_id"'))) return true;
+    if (parameters.any(
+      (p) =>
+          p.name == 'model_id' ||
+          p.name == 'modelId' ||
+          p.name == 'logical_model_id',
+    )) {
+      return true;
+    }
+    if (path.contains('{model_id}') ||
+        path.contains('{modelId}') ||
+        path.contains('{logical_model_id}')) {
+      return true;
+    }
+    if (requestBody != null &&
+        (requestBody!.sampleJson.contains('"model_id"') ||
+            requestBody!.sampleJson.contains('"logical_model_id"'))) {
+      return true;
+    }
     return false;
   }
 
   /// Whether this endpoint accepts a physical source ID (for Altr Stream smart selector)
   bool get isSourceAware {
-    if (parameters.any((p) => p.name == 'source_id' || p.name == 'sourceId')) return true;
-    if (path.contains('{source_id}') || path.contains('{sourceId}')) return true;
-    if (requestBody != null && (requestBody!.sampleJson.contains('"source_id"') || requestBody!.sampleJson.contains('"sourceId"'))) return true;
+    if (parameters.any((p) => p.name == 'source_id' || p.name == 'sourceId')) {
+      return true;
+    }
+    if (path.contains('{source_id}') || path.contains('{sourceId}')) {
+      return true;
+    }
+    if (requestBody != null &&
+        (requestBody!.sampleJson.contains('"source_id"') ||
+            requestBody!.sampleJson.contains('"sourceId"'))) {
+      return true;
+    }
     return false;
   }
 
   /// Whether this endpoint accepts a source mapping ID (for Altr Stream smart selector)
   bool get isMappingAware {
-    if (parameters.any((p) => p.name == 'mapping_id' || p.name == 'mappingId')) return true;
-    if (path.contains('{mapping_id}') || path.contains('{mappingId}')) return true;
-    if (requestBody != null && (requestBody!.sampleJson.contains('"mapping_id"') || requestBody!.sampleJson.contains('"mappingId"'))) return true;
+    if (parameters.any(
+      (p) => p.name == 'mapping_id' || p.name == 'mappingId',
+    )) {
+      return true;
+    }
+    if (path.contains('{mapping_id}') || path.contains('{mappingId}')) {
+      return true;
+    }
+    if (requestBody != null &&
+        (requestBody!.sampleJson.contains('"mapping_id"') ||
+            requestBody!.sampleJson.contains('"mappingId"'))) {
+      return true;
+    }
     return false;
   }
 }

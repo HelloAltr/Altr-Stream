@@ -21,10 +21,10 @@ This document defines the formal Batch 1 manual validation protocol for Altr Str
   1. Launch installer:
      - **macOS**: Double-click `Altr-Stream_macOS_Installer.command` in Finder (or run `./Altr-Stream_macOS_Installer.command`).
      - **Linux**: Execute `./Altr-Stream_Linux_Installer.sh` in terminal.
-     - **Windows**: Right-click `Altr-Stream_Windows_Installer.ps1` -> *Run with PowerShell* (or `powershell -ExecutionPolicy Bypass -File .\Altr-Stream_Windows_Installer.ps1`).
+     - **Windows**: Double-click `Altr-Stream_Windows_Installer.bat` in File Explorer (or run `Altr-Stream_Windows_Installer.bat` in terminal).
   2. In the interactive TUI menu, select `Install Altr Stream` (Option 1).
   3. Accept the default installation directory.
-  4. Allow the installer to prepare runtime files, pull the pinned `ghcr.io/helloaltr/altr-stream:0.13.7-alpha` image, and start the container.
+  4. Allow the installer to prepare runtime files, pull the pinned `ghcr.io/helloaltr/altr-stream:1.0.0-beta` image, and start the container.
 - **Expected Result**:
   - Menu navigation works cleanly with arrow keys and Enter (or numeric shortcuts).
   - All prerequisite checkmarks appear green: Docker installed, Docker daemon running, Docker Compose available.
@@ -119,7 +119,7 @@ This document defines the formal Batch 1 manual validation protocol for Altr Str
   2. Select `Installation Status` (Option 4).
 - **Expected Result**:
   - Terminal displays a structured overview:
-    - Configured / Image Version (`0.13.7-alpha`)
+    - Configured / Image Version (`1.0.0-beta`)
     - Installation Path
     - Docker daemon state (`Running`)
     - Container status (`Running` or `Stopped`)
@@ -215,7 +215,7 @@ This document defines the formal Batch 1 manual validation protocol for Altr Str
 - **Expected Result**:
   - `/api/v1/health` returns HTTP 200 with JSON payload:
     - `"status": "healthy"`
-    - `"version": "0.13.7-alpha"`
+    - `"version": "1.0.0-beta"`
   - Browser loads Flutter Web Admin UI directly on port 8000.
   - Navigation between Sources, Query, and Settings works without 404s.
 - **Pass / Fail**: [ ] Pass &nbsp;&nbsp;&nbsp;&nbsp; [ ] Fail

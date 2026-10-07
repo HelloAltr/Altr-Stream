@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from altr_stream.presentation.api.routes import (
     altrql,
+    feedback,
     health,
     metrics,
     queries,
@@ -17,6 +18,7 @@ api_v1_router.include_router(queries.router)
 api_v1_router.include_router(altrql.router)
 api_v1_router.include_router(registry.router)
 api_v1_router.include_router(updates.router)
+api_v1_router.include_router(feedback.router)
 
 
 

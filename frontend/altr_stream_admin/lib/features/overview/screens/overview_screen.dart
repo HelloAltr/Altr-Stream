@@ -43,7 +43,6 @@ class OverviewScreen extends StatefulWidget {
     this.onClearUsageData,
   });
 
-
   @override
   State<OverviewScreen> createState() => OverviewScreenState();
 }
@@ -116,11 +115,8 @@ class OverviewScreenState extends State<OverviewScreen> {
               configs: _cardConfigs,
               isEditMode: _isEditMode,
               onLayoutChanged: _onLayoutChanged,
-              cardBuilder: (context, config) => _buildCardContent(
-                context,
-                config,
-                activeCount,
-              ),
+              cardBuilder: (context, config) =>
+                  _buildCardContent(context, config, activeCount),
             ),
             const SizedBox(height: 12),
             _buildBottomEditToolbar(context),
@@ -350,7 +346,10 @@ class OverviewScreenState extends State<OverviewScreen> {
               ),
               label: const Text('Done'),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -471,8 +470,12 @@ class OverviewScreenState extends State<OverviewScreen> {
   ) {
     final metrics = widget.usageMetrics;
     final opsText = metrics?.formattedOpsPerMinute ?? '0.0 ops/m';
-    final readsCountText = metrics != null ? _formatCount(metrics.totalReads) : '0';
-    final writesCountText = metrics != null ? _formatCount(metrics.totalWrites) : '0';
+    final readsCountText = metrics != null
+        ? _formatCount(metrics.totalReads)
+        : '0';
+    final writesCountText = metrics != null
+        ? _formatCount(metrics.totalWrites)
+        : '0';
     final currentWindow = widget.selectedTimeWindow;
 
     final readPoints = (metrics != null && metrics.readHistory.isNotEmpty)
@@ -487,7 +490,8 @@ class OverviewScreenState extends State<OverviewScreen> {
     final yMax = metrics?.yMax ?? 10;
 
     return GestureDetector(
-      onSecondaryTapUp: (details) => _showUsageCardContextMenu(context, details.globalPosition),
+      onSecondaryTapUp: (details) =>
+          _showUsageCardContextMenu(context, details.globalPosition),
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(22),
@@ -534,22 +538,24 @@ class OverviewScreenState extends State<OverviewScreen> {
                         closeOnSelect: true,
                         selectedValue: currentWindow,
                         onSelected: (Object? value) {
-                          if (value != null && widget.onTimeWindowChanged != null) {
+                          if (value != null &&
+                              widget.onTimeWindowChanged != null) {
                             widget.onTimeWindowChanged!(value.toString());
                           }
                         },
-                        anchorBuilder: (BuildContext context, VoidCallback open) {
-                          return M3EButton.icon(
-                            style: M3EButtonStyle.tonal,
-                            icon: HugeIcon(
-                              icon: HugeIcons.strokeRoundedArrowDown01,
-                              size: 14,
-                              color: colorScheme.primary,
-                            ),
-                            label: Text(currentWindow),
-                            onPressed: open,
-                          );
-                        },
+                        anchorBuilder:
+                            (BuildContext context, VoidCallback open) {
+                              return M3EButton.icon(
+                                style: M3EButtonStyle.tonal,
+                                icon: HugeIcon(
+                                  icon: HugeIcons.strokeRoundedArrowDown01,
+                                  size: 14,
+                                  color: colorScheme.primary,
+                                ),
+                                label: Text(currentWindow),
+                                onPressed: open,
+                              );
+                            },
                         children: <M3EMenuNode>[
                           M3EMenuSelectable(
                             label: '30m',
@@ -627,8 +633,12 @@ class OverviewScreenState extends State<OverviewScreen> {
                       painter: UsageLineChartPainter(
                         readColor: colorScheme.primary,
                         writeColor: colorScheme.tertiary,
-                        gridColor: colorScheme.outlineVariant.withValues(alpha: 0.3),
-                        textColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                        gridColor: colorScheme.outlineVariant.withValues(
+                          alpha: 0.3,
+                        ),
+                        textColor: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.8,
+                        ),
                         readPoints: readPoints,
                         writePoints: writePoints,
                         timestamps: timestamps,
@@ -648,8 +658,16 @@ class OverviewScreenState extends State<OverviewScreen> {
                 spacing: 16,
                 runSpacing: 4,
                 children: [
-                  _buildLegendItem(context, 'Reads ($readsCountText)', colorScheme.primary),
-                  _buildLegendItem(context, 'Writes ($writesCountText)', colorScheme.tertiary),
+                  _buildLegendItem(
+                    context,
+                    'Reads ($readsCountText)',
+                    colorScheme.primary,
+                  ),
+                  _buildLegendItem(
+                    context,
+                    'Writes ($writesCountText)',
+                    colorScheme.tertiary,
+                  ),
                 ],
               ),
             ],
@@ -661,7 +679,8 @@ class OverviewScreenState extends State<OverviewScreen> {
 
   void _showUsageCardContextMenu(BuildContext context, Offset globalPosition) {
     final colorScheme = Theme.of(context).colorScheme;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
 
     showMenu<String>(
@@ -715,7 +734,11 @@ class OverviewScreenState extends State<OverviewScreen> {
         title: 'Clear Monitored Usage Data?',
         content: Text(
           'Are you sure you want to clear all monitored read/write operation logs and reset cumulative counters to 0? This action cannot be undone.',
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.5,
+          ),
         ),
         actions: [
           M3EButton(
@@ -735,7 +758,6 @@ class OverviewScreenState extends State<OverviewScreen> {
       ),
     );
   }
-
 
   String _formatCount(int count) {
     if (count >= 1000000) {
@@ -1113,7 +1135,9 @@ class OverviewScreenState extends State<OverviewScreen> {
               ),
               const SizedBox(width: 14),
               StatusBadge(
-                status: (_isRefreshing || (widget.isLoading && source.isUnreachable))
+                status:
+                    (_isRefreshing ||
+                        (widget.isLoading && source.isUnreachable))
                     ? 'PINGING'
                     : source.status,
               ),
@@ -1198,25 +1222,13 @@ class UsageLineChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     // Draw horizontal grid lines & Y-axis labels
-    final yTicks = [
-      (yMax).toString(),
-      (yMax / 2).round().toString(),
-      '0',
-    ];
+    final yTicks = [(yMax).toString(), (yMax / 2).round().toString(), '0'];
 
-    final yPositions = [
-      4.0,
-      chartHeight / 2,
-      chartHeight - 4.0,
-    ];
+    final yPositions = [4.0, chartHeight / 2, chartHeight - 4.0];
 
     for (int i = 0; i < yTicks.length; i++) {
       final y = yPositions[i];
-      canvas.drawLine(
-        Offset(leftMargin, y),
-        Offset(size.width, y),
-        gridPaint,
-      );
+      canvas.drawLine(Offset(leftMargin, y), Offset(size.width, y), gridPaint);
 
       final tp = TextPainter(
         text: TextSpan(
@@ -1240,7 +1252,9 @@ class UsageLineChartPainter extends CustomPainter {
       for (int i = 0; i < sampleCount; i++) {
         final index = (i * step).round().clamp(0, timestamps.length - 1);
         final label = timestamps[index];
-        final xRatio = timestamps.length > 1 ? index / (timestamps.length - 1) : 0.5;
+        final xRatio = timestamps.length > 1
+            ? index / (timestamps.length - 1)
+            : 0.5;
         final x = leftMargin + (xRatio * chartWidth);
 
         final tp = TextPainter(
@@ -1272,18 +1286,29 @@ class UsageLineChartPainter extends CustomPainter {
     _drawSmoothCurve(canvas, innerSize, writePoints, writeColor, false);
 
     // Draw hover guide line & peak activity tooltip
-    if (hoverOffset != null && timestamps.isNotEmpty && hoverOffset!.dx >= leftMargin) {
+    if (hoverOffset != null &&
+        timestamps.isNotEmpty &&
+        hoverOffset!.dx >= leftMargin) {
       final xInChart = (hoverOffset!.dx - leftMargin).clamp(0.0, chartWidth);
       final index = timestamps.length > 1
-          ? ((xInChart / chartWidth) * (timestamps.length - 1)).round().clamp(0, timestamps.length - 1)
+          ? ((xInChart / chartWidth) * (timestamps.length - 1)).round().clamp(
+              0,
+              timestamps.length - 1,
+            )
           : 0;
 
-      final xPos = timestamps.length > 1 ? (index / (timestamps.length - 1)) * chartWidth : (chartWidth / 2);
+      final xPos = timestamps.length > 1
+          ? (index / (timestamps.length - 1)) * chartWidth
+          : (chartWidth / 2);
       final paddingY = chartHeight * 0.08;
       final usableHeight = chartHeight - (paddingY * 2);
 
-      final rVal = index < readPoints.length ? readPoints[index].clamp(0.0, 1.0) : 0.0;
-      final wVal = index < writePoints.length ? writePoints[index].clamp(0.0, 1.0) : 0.0;
+      final rVal = index < readPoints.length
+          ? readPoints[index].clamp(0.0, 1.0)
+          : 0.0;
+      final wVal = index < writePoints.length
+          ? writePoints[index].clamp(0.0, 1.0)
+          : 0.0;
 
       final rY = chartHeight - paddingY - (rVal * usableHeight);
       final wY = chartHeight - paddingY - (wVal * usableHeight);
@@ -1357,7 +1382,8 @@ class UsageLineChartPainter extends CustomPainter {
         const Radius.circular(6),
       );
 
-      final bgPaint = Paint()..color = const Color(0xFF1E1E2E).withValues(alpha: 0.94);
+      final bgPaint = Paint()
+        ..color = const Color(0xFF1E1E2E).withValues(alpha: 0.94);
       final borderPaint = Paint()
         ..color = Colors.white.withValues(alpha: 0.25)
         ..strokeWidth = 1
@@ -1365,7 +1391,10 @@ class UsageLineChartPainter extends CustomPainter {
 
       canvas.drawRRect(tooltipRect, bgPaint);
       canvas.drawRRect(tooltipRect, borderPaint);
-      tp.paint(canvas, Offset(tooltipX + tooltipPadding.left, tooltipY + tooltipPadding.top));
+      tp.paint(
+        canvas,
+        Offset(tooltipX + tooltipPadding.left, tooltipY + tooltipPadding.top),
+      );
     }
 
     canvas.restore();
@@ -1445,4 +1474,3 @@ class UsageLineChartPainter extends CustomPainter {
       oldDelegate.rawWrites != rawWrites ||
       oldDelegate.hoverOffset != hoverOffset;
 }
-

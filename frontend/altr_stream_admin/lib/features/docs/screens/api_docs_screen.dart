@@ -131,7 +131,8 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
   List<ApiEndpoint> get _filteredEndpoints {
     return _specData.endpoints.where((ep) {
       // Method filter
-      if (_selectedMethod != null && ep.method.toUpperCase() != _selectedMethod!.toUpperCase()) {
+      if (_selectedMethod != null &&
+          ep.method.toUpperCase() != _selectedMethod!.toUpperCase()) {
         return false;
       }
       // Tag filter
@@ -157,7 +158,10 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
   Future<void> _openUrl(BuildContext context, String url) async {
     final uri = Uri.parse(url);
     try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!launched && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -185,14 +189,16 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
     final filtered = _filteredEndpoints;
 
     // Ensure active endpoint selection is valid within filtered results
-    final effectiveEndpoint = (_selectedEndpoint != null && filtered.contains(_selectedEndpoint))
+    final effectiveEndpoint =
+        (_selectedEndpoint != null && filtered.contains(_selectedEndpoint))
         ? _selectedEndpoint
         : (filtered.isNotEmpty ? filtered.first : _selectedEndpoint);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktopWide = constraints.maxWidth >= 1100;
-        final isTablet = constraints.maxWidth >= 720 && constraints.maxWidth < 1100;
+        final isTablet =
+            constraints.maxWidth >= 720 && constraints.maxWidth < 1100;
         final hasBoundedHeight = constraints.hasBoundedHeight;
 
         Widget content;
@@ -226,7 +232,8 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
         final header = ApiConsoleHeader(
           searchQuery: _searchQuery,
           onSearchChanged: (q) => setState(() => _searchQuery = q),
-          onBackToAdmin: widget.onBackToAdmin ?? () => Navigator.of(context).maybePop(),
+          onBackToAdmin:
+              widget.onBackToAdmin ?? () => Navigator.of(context).maybePop(),
           onRefreshSpec: _loadOpenApiSpec,
           isLoading: _isLoading,
           nodeStatus: widget.nodeStatus,
@@ -254,10 +261,7 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: [
-                header,
-                content,
-              ],
+              children: [header, content],
             ),
           );
         }
@@ -275,7 +279,9 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
-      crossAxisAlignment: hasBoundedHeight ? CrossAxisAlignment.stretch : CrossAxisAlignment.start,
+      crossAxisAlignment: hasBoundedHeight
+          ? CrossAxisAlignment.stretch
+          : CrossAxisAlignment.start,
       children: [
         // Region 1 (Left): Endpoint Navigation Sidebar (tag grouped + filters)
         SizedBox(
@@ -366,7 +372,9 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
     ];
 
     return Row(
-      crossAxisAlignment: hasBoundedHeight ? CrossAxisAlignment.stretch : CrossAxisAlignment.start,
+      crossAxisAlignment: hasBoundedHeight
+          ? CrossAxisAlignment.stretch
+          : CrossAxisAlignment.start,
       children: [
         // Left: Endpoint Navigation Sidebar
         SizedBox(
@@ -399,7 +407,9 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
               ? DefaultTabController(
                   length: 2,
                   child: Column(
-                    mainAxisSize: hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
+                    mainAxisSize: hasBoundedHeight
+                        ? MainAxisSize.max
+                        : MainAxisSize.min,
                     children: [
                       TabBar(
                         tabs: const [
@@ -422,7 +432,10 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
                       if (hasBoundedHeight)
                         Expanded(child: TabBarView(children: tabViews))
                       else
-                        SizedBox(height: 700, child: TabBarView(children: tabViews)),
+                        SizedBox(
+                          height: 700,
+                          child: TabBarView(children: tabViews),
+                        ),
                     ],
                   ),
                 )
@@ -484,10 +497,7 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
           const TabBar(
             tabs: [
               Tab(
-                icon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedListView,
-                  size: 16,
-                ),
+                icon: HugeIcon(icon: HugeIcons.strokeRoundedListView, size: 16),
                 text: 'Endpoints',
               ),
               Tab(
@@ -498,10 +508,7 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
                 text: 'Docs',
               ),
               Tab(
-                icon: HugeIcon(
-                  icon: HugeIcons.strokeRoundedPlay,
-                  size: 16,
-                ),
+                icon: HugeIcon(icon: HugeIcons.strokeRoundedPlay, size: 16),
                 text: 'Try It',
               ),
             ],
@@ -525,7 +532,9 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -595,7 +604,8 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              _errorMessage ?? 'Unknown error occurred while parsing OpenAPI specification.',
+              _errorMessage ??
+                  'Unknown error occurred while parsing OpenAPI specification.',
               style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
             ),
             const SizedBox(height: 18),
@@ -635,12 +645,19 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
             const SizedBox(height: 12),
             Text(
               'No Endpoint Selected',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Select an endpoint from the left navigation panel to view its documentation.',
-              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -666,12 +683,19 @@ class _ApiDocsScreenState extends State<ApiDocsScreen> {
             const SizedBox(height: 12),
             Text(
               'Try It Out Console',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Select an endpoint from the left to test execution with interactive parameters and live responses.',
-              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ],

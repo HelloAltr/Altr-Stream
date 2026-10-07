@@ -30,7 +30,9 @@ class ApiSearchFilterBar extends StatelessWidget {
   });
 
   bool get _hasActiveFilters =>
-      searchQuery.trim().isNotEmpty || selectedMethod != null || selectedTag != null;
+      searchQuery.trim().isNotEmpty ||
+      selectedMethod != null ||
+      selectedTag != null;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +44,9 @@ class ApiSearchFilterBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,26 +55,44 @@ class ApiSearchFilterBar extends StatelessWidget {
           TextField(
             key: const Key('api_search_input'),
             decoration: InputDecoration(
-              hintText: 'Search APIs (path, method, summary, tags, parameters)...',
-              hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 13),
-              prefixIcon: HugeIcon(icon: HugeIcons.strokeRoundedSearch01, size: 20, color: colorScheme.primary),
+              hintText:
+                  'Search APIs (path, method, summary, tags, parameters)...',
+              hintStyle: TextStyle(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                fontSize: 13,
+              ),
+              prefixIcon: HugeIcon(
+                icon: HugeIcons.strokeRoundedSearch01,
+                size: 20,
+                color: colorScheme.primary,
+              ),
               suffixIcon: searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedCancel01,
+                        size: 18,
+                      ),
                       tooltip: 'Clear search',
                       onPressed: () => onSearchChanged(''),
                     )
                   : null,
               filled: true,
               fillColor: colorScheme.surface,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -99,22 +121,37 @@ class ApiSearchFilterBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String?>(
                     key: const Key('api_method_filter_dropdown'),
                     value: selectedMethod,
                     isDense: true,
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 18),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedArrowDown01,
+                      size: 18,
+                    ),
                     hint: Text(
                       'All Methods',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                     items: [
                       const DropdownMenuItem<String?>(
                         value: null,
-                        child: Text('All Methods', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        child: Text(
+                          'All Methods',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                       ...availableMethods.map((m) {
                         return DropdownMenuItem<String?>(
@@ -141,29 +178,47 @@ class ApiSearchFilterBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String?>(
                     key: const Key('api_tag_filter_dropdown'),
                     value: selectedTag,
                     isDense: true,
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedArrowDown01, size: 18),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedArrowDown01,
+                      size: 18,
+                    ),
                     hint: Text(
                       'All Tags',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                     items: [
                       const DropdownMenuItem<String?>(
                         value: null,
-                        child: Text('All Tags', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        child: Text(
+                          'All Tags',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                       ...availableTags.map((t) {
                         return DropdownMenuItem<String?>(
                           value: t,
                           child: Text(
                             t,
-                            style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurface,
+                            ),
                           ),
                         );
                       }),
@@ -175,7 +230,10 @@ class ApiSearchFilterBar extends StatelessWidget {
 
               // Endpoints Count Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: colorScheme.primaryContainer.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(6),
@@ -196,11 +254,20 @@ class ApiSearchFilterBar extends StatelessWidget {
               if (_hasActiveFilters)
                 TextButton.icon(
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     visualDensity: VisualDensity.compact,
                   ),
-                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedFilterRemove, size: 14),
-                  label: const Text('Reset Filters', style: TextStyle(fontSize: 12)),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedFilterRemove,
+                    size: 14,
+                  ),
+                  label: const Text(
+                    'Reset Filters',
+                    style: TextStyle(fontSize: 12),
+                  ),
                   onPressed: onClearAll,
                 ),
             ],

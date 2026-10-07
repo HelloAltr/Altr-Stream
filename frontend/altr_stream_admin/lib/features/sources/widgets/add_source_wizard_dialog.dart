@@ -26,7 +26,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
 
   String _selectedType = 'POSTGRESQL';
   final _nameController = TextEditingController();
-  final _filePathController = TextEditingController(text: '/app/data/manual_test.db');
+  final _filePathController = TextEditingController(
+    text: '/app/data/manual_test.db',
+  );
   final _hostController = TextEditingController(text: 'localhost');
   final _portController = TextEditingController(text: '5432');
   final _databaseController = TextEditingController(text: 'altr_test_db');
@@ -175,7 +177,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               children: [
                 Text(
                   _getStepSubtitle(),
-                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -234,7 +239,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
 
     Color bg = colorScheme.surfaceContainer;
     Color fg = colorScheme.onSurfaceVariant;
-    BorderSide border = BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5));
+    BorderSide border = BorderSide(
+      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+    );
 
     if (isCurrent) {
       bg = colorScheme.primaryContainer;
@@ -271,7 +278,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     return Expanded(
       child: Container(
         height: 1,
-        color: isPast ? statusActiveColor : colorScheme.outlineVariant.withValues(alpha: 0.5),
+        color: isPast
+            ? statusActiveColor
+            : colorScheme.outlineVariant.withValues(alpha: 0.5),
       ),
     );
   }
@@ -298,14 +307,19 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
       children: [
         Text(
           'What type of database would you like to connect?',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 16),
         _buildConnectorOption(
           context: context,
           type: 'POSTGRESQL',
           title: 'PostgreSQL',
-          description: 'Supported connector with native introspection, SSL, and schema discovery.',
+          description:
+              'Supported connector with native introspection, SSL, and schema discovery.',
           icon: AppTheme.getSourceTypeIcon('POSTGRESQL'),
           isSupported: true,
           index: 0,
@@ -316,7 +330,8 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           context: context,
           type: 'SQLITE',
           title: 'SQLite',
-          description: 'Supported file-based database connector with direct file introspection.',
+          description:
+              'Supported file-based database connector with direct file introspection.',
           icon: AppTheme.getSourceTypeIcon('SQLITE'),
           isSupported: true,
           index: 1,
@@ -327,7 +342,8 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           context: context,
           type: 'MYSQL',
           title: 'MySQL',
-          description: 'Supported relational connector with connection pooling, schema discovery, and AltrQL execution.',
+          description:
+              'Supported relational connector with connection pooling, schema discovery, and AltrQL execution.',
           icon: AppTheme.getSourceTypeIcon('MYSQL'),
           isSupported: true,
           index: 2,
@@ -338,7 +354,8 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           context: context,
           type: 'MONGODB',
           title: 'MongoDB',
-          description: 'Supported document connector with collection reachability, ping, and connection lifecycle testing.',
+          description:
+              'Supported document connector with collection reachability, ping, and connection lifecycle testing.',
           icon: AppTheme.getSourceTypeIcon('MONGODB'),
           isSupported: true,
           index: 3,
@@ -440,13 +457,17 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 decoration: BoxDecoration(
                   color: isSelected
                       ? colorScheme.primary.withValues(alpha: 0.15)
-                      : colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                      : colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.6,
+                        ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: HugeIcon(
                   icon: icon,
                   color: isSupported
-                      ? (isSelected ? colorScheme.primary : colorScheme.onSurface)
+                      ? (isSelected
+                            ? colorScheme.primary
+                            : colorScheme.onSurface)
                       : colorScheme.onSurfaceVariant,
                   size: 20,
                 ),
@@ -463,20 +484,34 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                           style: TextStyle(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w600,
-                            color: isSupported ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
+                            color: isSupported
+                                ? colorScheme.onSurface
+                                : colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(width: 8),
                         if (!isSupported)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1,
+                            ),
                             decoration: BoxDecoration(
-                              color: AppTheme.getStatusColor('DISCOVERING', context).withValues(alpha: 0.15),
+                              color: AppTheme.getStatusColor(
+                                'DISCOVERING',
+                                context,
+                              ).withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               'Future Milestone',
-                              style: TextStyle(fontSize: 10, color: AppTheme.getStatusColor('DISCOVERING', context)),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppTheme.getStatusColor(
+                                  'DISCOVERING',
+                                  context,
+                                ),
+                              ),
                             ),
                           ),
                       ],
@@ -484,7 +519,12 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                     const SizedBox(height: 3),
                     Text(
                       description,
-                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.85)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.85,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -518,9 +558,13 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
             controller: _nameController,
             decoration: InputDecoration(
               labelText: 'Source Name *',
-              hintText: _selectedType == 'SQLITE' ? 'e.g. Manual SQLite Test' : 'e.g. College ERP Database',
+              hintText: _selectedType == 'SQLITE'
+                  ? 'e.g. Manual SQLite Test'
+                  : 'e.g. College ERP Database',
             ),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter a source name' : null,
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Please enter a source name'
+                : null,
           ),
           const SizedBox(height: 16),
           if (_selectedType == 'SQLITE') ...[
@@ -530,7 +574,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 labelText: 'Database File Path *',
                 hintText: 'e.g. /app/data/manual_test.db',
               ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Database file path is required' : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Database file path is required'
+                  : null,
             ),
             const SizedBox(height: 12),
             Container(
@@ -538,17 +584,27 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  HugeIcon(icon: HugeIcons.strokeRoundedInformationCircle, size: 16, color: colorScheme.primary),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedInformationCircle,
+                    size: 16,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Provide the absolute path to the SQLite file accessible by the Altr Stream node.\nFor Docker environments, use container paths like /app/data/manual_test.db.',
-                      style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, height: 1.4),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
@@ -565,9 +621,13 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                       labelText: 'Host / IP *',
                       hintText: _selectedType == 'MYSQL'
                           ? 'e.g. localhost or mysql-test'
-                          : (_selectedType == 'MONGODB' ? 'e.g. localhost or mongodb-test' : 'e.g. localhost or postgres-test'),
+                          : (_selectedType == 'MONGODB'
+                                ? 'e.g. localhost or mongodb-test'
+                                : 'e.g. localhost or postgres-test'),
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Host is required' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Host is required'
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -577,7 +637,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                     controller: _portController,
                     decoration: const InputDecoration(labelText: 'Port *'),
                     keyboardType: TextInputType.number,
-                    validator: (v) => (v == null || int.tryParse(v.trim()) == null) ? 'Port required' : null,
+                    validator: (v) =>
+                        (v == null || int.tryParse(v.trim()) == null)
+                        ? 'Port required'
+                        : null,
                   ),
                 ),
               ],
@@ -589,7 +652,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 labelText: 'Database Name *',
                 hintText: 'e.g. college_erp',
               ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Database name is required' : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Database name is required'
+                  : null,
             ),
             const SizedBox(height: 16),
             Row(
@@ -598,7 +663,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                   child: TextFormField(
                     controller: _usernameController,
                     decoration: const InputDecoration(labelText: 'Username *'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Username required' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Username required'
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -610,14 +677,19 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                       labelText: 'Password *',
                       suffixIcon: IconButton(
                         icon: HugeIcon(
-                          icon: _obscurePassword ? HugeIcons.strokeRoundedViewOffSlash : HugeIcons.strokeRoundedView,
+                          icon: _obscurePassword
+                              ? HugeIcons.strokeRoundedViewOffSlash
+                              : HugeIcons.strokeRoundedView,
                           size: 16,
                           color: colorScheme.onSurfaceVariant,
                         ),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                       ),
                     ),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Password required' : null,
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Password required' : null,
                   ),
                 ),
               ],
@@ -629,14 +701,22 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   HugeIcon(
-                    icon: _showAdvanced ? HugeIcons.strokeRoundedArrowUp01 : HugeIcons.strokeRoundedArrowDown01,
+                    icon: _showAdvanced
+                        ? HugeIcons.strokeRoundedArrowUp01
+                        : HugeIcons.strokeRoundedArrowDown01,
                     size: 16,
                     color: colorScheme.primary,
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    _showAdvanced ? 'Hide Advanced Configuration' : 'Show Advanced Configuration',
-                    style: TextStyle(fontSize: 12, color: colorScheme.primary, fontWeight: FontWeight.w600),
+                    _showAdvanced
+                        ? 'Hide Advanced Configuration'
+                        : 'Show Advanced Configuration',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -648,11 +728,17 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainer,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: Text(
                   'SSL Mode: Prefer • Connection Pool: 5 • Connection Timeout: 10s\n(Defaults automatically managed by Altr Stream driver)',
-                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant, height: 1.4),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
                 ),
               ),
             ],
@@ -677,7 +763,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                   children: [
                     Text('Continue to Test'),
                     SizedBox(width: 6),
-                    HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedArrowRight01,
+                      size: 14,
+                    ),
                   ],
                 ),
               ),
@@ -706,14 +795,21 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 const SizedBox(height: 16),
                 Text(
                   'Validating physical connection...',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _selectedType == 'SQLITE'
                       ? 'Verifying SQLite database file access and readability'
                       : 'Pinging database host and verifying credentials',
-                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -723,10 +819,14 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _testResult!.success ? statusActiveColor.withValues(alpha: 0.12) : colorScheme.errorContainer.withValues(alpha: 0.2),
+              color: _testResult!.success
+                  ? statusActiveColor.withValues(alpha: 0.12)
+                  : colorScheme.errorContainer.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: _testResult!.success ? statusActiveColor : colorScheme.error,
+                color: _testResult!.success
+                    ? statusActiveColor
+                    : colorScheme.error,
               ),
             ),
             child: Column(
@@ -735,17 +835,25 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                 Row(
                   children: [
                     HugeIcon(
-                      icon: _testResult!.success ? HugeIcons.strokeRoundedCheckmarkCircle02 : HugeIcons.strokeRoundedAlertCircle,
-                      color: _testResult!.success ? statusActiveColor : colorScheme.error,
+                      icon: _testResult!.success
+                          ? HugeIcons.strokeRoundedCheckmarkCircle02
+                          : HugeIcons.strokeRoundedAlertCircle,
+                      color: _testResult!.success
+                          ? statusActiveColor
+                          : colorScheme.error,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      _testResult!.success ? '✓ Successfully Connected' : 'Connection Failed',
+                      _testResult!.success
+                          ? '✓ Successfully Connected'
+                          : 'Connection Failed',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: _testResult!.success ? statusActiveColor : colorScheme.error,
+                        color: _testResult!.success
+                            ? statusActiveColor
+                            : colorScheme.error,
                       ),
                     ),
                   ],
@@ -759,14 +867,20 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                   const SizedBox(height: 6),
                   Text(
                     'Server Version: ${_testResult!.serverVersion}',
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
                 if (_testResult!.latencyMs != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     'Latency: ${_testResult!.latencyMs!.toStringAsFixed(1)} ms',
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
                 if (_testResult!.errorDetails != null) ...[
@@ -808,7 +922,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
               children: [
                 OutlinedButton.icon(
                   onPressed: _isTesting ? null : _runConnectionTest,
-                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 14),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedRefresh,
+                    size: 14,
+                  ),
                   label: const Text('Retry Test'),
                 ),
                 const SizedBox(width: 8),
@@ -821,7 +938,10 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                     children: [
                       Text('Continue'),
                       SizedBox(width: 4),
-                      HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 14),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedArrowRight01,
+                        size: 14,
+                      ),
                     ],
                   ),
                 ),
@@ -842,7 +962,11 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
       children: [
         Text(
           'Review Source Registration',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 12),
         Container(
@@ -850,22 +974,44 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainer,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
           ),
           child: Column(
             children: [
-              _buildReviewRow(context, 'Source Name', _nameController.text.trim()),
+              _buildReviewRow(
+                context,
+                'Source Name',
+                _nameController.text.trim(),
+              ),
               _buildReviewDivider(context),
               _buildReviewRow(context, 'Database Type', _selectedType),
               _buildReviewDivider(context),
               if (_selectedType == 'SQLITE') ...[
-                _buildReviewRow(context, 'Database File Path', _filePathController.text.trim()),
+                _buildReviewRow(
+                  context,
+                  'Database File Path',
+                  _filePathController.text.trim(),
+                ),
               ] else ...[
-                _buildReviewRow(context, 'Connection Endpoint', '${_hostController.text.trim()}:${_portController.text.trim()}'),
+                _buildReviewRow(
+                  context,
+                  'Connection Endpoint',
+                  '${_hostController.text.trim()}:${_portController.text.trim()}',
+                ),
                 _buildReviewDivider(context),
-                _buildReviewRow(context, 'Database Name', _databaseController.text.trim()),
+                _buildReviewRow(
+                  context,
+                  'Database Name',
+                  _databaseController.text.trim(),
+                ),
                 _buildReviewDivider(context),
-                _buildReviewRow(context, 'Username', _usernameController.text.trim()),
+                _buildReviewRow(
+                  context,
+                  'Username',
+                  _usernameController.text.trim(),
+                ),
               ],
             ],
           ),
@@ -899,9 +1045,15 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
                   ? SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colorScheme.onPrimary,
+                      ),
                     )
-                  : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
+                  : const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                      size: 16,
+                    ),
               label: Text(_isSaving ? 'Registering...' : 'Register Source'),
             ),
           ],
@@ -916,14 +1068,21 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+        ),
         const SizedBox(width: 12),
         Flexible(
           child: Text(
             value,
             textAlign: TextAlign.end,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
           ),
         ),
       ],
@@ -932,6 +1091,9 @@ class _AddSourceWizardDialogState extends State<AddSourceWizardDialog> {
 
   Widget _buildReviewDivider(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Divider(height: 16, color: colorScheme.outlineVariant.withValues(alpha: 0.5));
+    return Divider(
+      height: 16,
+      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+    );
   }
 }

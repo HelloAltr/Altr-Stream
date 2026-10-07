@@ -5,7 +5,7 @@ Generates OS-specific automated installers, bundled Gum setup archives,
 the manual Docker Compose deployment bundle, and cryptographic checksums for a given release tag/version.
 
 Usage:
-    python3 scripts/package_release.py [--version 0.13.7-alpha] [--tag v0.13.7-alpha] [--output-dir dist]
+    python3 scripts/package_release.py [--version 1.0.0-beta] [--tag v1.0.0-beta] [--output-dir dist]
 """
 
 from __future__ import annotations
@@ -23,14 +23,14 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-# Add src to pythonpath to resolve canonical version if not specified
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
+sys.path.insert(0, str(REPO_ROOT))
 
 try:
     from altr_stream.__version__ import __version__ as CANONICAL_VERSION
 except ImportError:
-    CANONICAL_VERSION = "0.13.7-alpha"
+    CANONICAL_VERSION = "1.0.0-beta"
 
 GUM_VERSION = "2.0.2"
 GUM_PINNED_VERSION = GUM_VERSION
@@ -232,15 +232,23 @@ def package_release(
         generated_files.append(linux_dest)
         print(f"  ✔ Created: {linux_dest.name}")
 
-    # 3. Windows Installer (Altr-Stream_Windows_Installer.ps1)
-    win_src = installers_dir / "Altr-Stream_Windows_Installer.ps1"
-    win_dest = output_dir / "Altr-Stream_Windows_Installer.ps1"
-    if win_src.exists():
-        content = win_src.read_text(encoding="utf-8")
+    # 3. Windows Installer (Altr-Stream_Windows_Installer.bat)
+    win_bat_src = installers_dir / "Altr-Stream_Windows_Installer.bat"
+    win_bat_dest = output_dir / "Altr-Stream_Windows_Installer.bat"
+    if win_bat_src.exists():
+        content = win_bat_src.read_text(encoding="utf-8")
         content = re.sub(r'\$Version\s*=\s*"[^"]+"', f'$Version = "{version}"', content)
-        win_dest.write_text(content, encoding="utf-8")
-        generated_files.append(win_dest)
-        print(f"  ✔ Created: {win_dest.name}")
+        win_bat_dest.write_text(content, encoding="utf-8")
+        generated_files.append(win_bat_dest)
+        print(f"  ✔ Created: {win_bat_dest.name}")
+
+    # 3d. Windows Native Installer (.exe via Inno Setup 6)
+    try:
+        from scripts.build_windows_installer import build_windows_installer
+        win_exe = build_windows_installer(version=version, output_dir=output_dir)
+        generated_files.append(win_exe)
+    except Exception as e:
+        print(f"  ⚠ Note: Windows native installer (.exe) compilation skipped: {e}")
 
     # 4. Bundled Setup Packages (with pinned, verified Gum binaries)
     if bundle_gum:
@@ -303,14 +311,14 @@ def package_release(
             generated_files.append(linux_bundle_tar)
             print(f"  ✔ Created: {linux_bundle_tar.name}")
 
-            # 4c. Windows Setup Bundle (Altr-Stream_Windows_Installer.ps1 + bin\gum.exe)
+            # 4c. Windows Setup Bundle (Altr-Stream_Windows_Installer.bat + bin\gum.exe)
             win_archive = ensure_gum_archive("gum_2.0.2_Windows_x86_64.zip", gum_cache_dir)
             win_staging = output_dir / "altr-stream-setup-windows"
             if win_staging.exists():
                 shutil.rmtree(win_staging)
             (win_staging / "bin").mkdir(parents=True)
 
-            shutil.copy2(win_dest, win_staging / "Altr-Stream_Windows_Installer.ps1")
+            shutil.copy2(win_bat_dest, win_staging / "Altr-Stream_Windows_Installer.bat")
             if installer_readme_src.exists():
                 shutil.copy2(installer_readme_src, win_staging / "README.txt")
             with zipfile.ZipFile(win_archive, "r") as zf:

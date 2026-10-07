@@ -16,7 +16,6 @@ from altr_stream.domain.connector import (
     SourceCapabilities,
 )
 from altr_stream.domain.errors import (
-    ConnectionFailedError,
     QueryExecutionError,
     SchemaDiscoveryError,
 )
@@ -66,7 +65,7 @@ class MySQLConnector(BaseConnector):
         if self._pool is None:
             try:
                 self._pool = await aiomysql.create_pool(
-                    host=self.config.host or "localhost",
+                    host=self.config.resolved_host or "host.docker.internal",
                     port=int(self.config.port or 3306),
                     user=self.config.username or "root",
                     password=self.config.password or "",
@@ -103,7 +102,7 @@ class MySQLConnector(BaseConnector):
     async def _get_connection(self) -> aiomysql.Connection:
         """Establish a direct aiomysql connection with timeout."""
         return await aiomysql.connect(
-            host=self.config.host or "localhost",
+            host=self.config.resolved_host or "host.docker.internal",
             port=int(self.config.port or 3306),
             user=self.config.username or "root",
             password=self.config.password or "",

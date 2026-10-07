@@ -151,7 +151,7 @@ async def test_update_check_with_channel_filter(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncClient, mock_updates_dir: Path):
     payload = {
-        "target_version": "1.0.0-beta",
+        "target_version": "1.1.0-beta",
         "channel": "beta",
     }
     response = await client.post("/api/v1/updates/apply", json=payload)
@@ -159,7 +159,7 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     data = response.json()
 
     assert data["state"] == "requested"
-    assert data["target_version"] == "1.0.0-beta"
+    assert data["target_version"] == "1.1.0-beta"
     assert data["request_id"] is not None
 
     # Verify atomic update-request.json file exists on disk
@@ -175,7 +175,7 @@ async def test_update_apply_dispatches_intent_and_updates_status(client: AsyncCl
     assert status_res.status_code == 200
     status_data = status_res.json()
     assert status_data["state"] == "requested"
-    assert status_data["target_version"] == "1.0.0-beta"
+    assert status_data["target_version"] == "1.1.0-beta"
 
 
 @pytest.mark.asyncio
@@ -364,12 +364,12 @@ async def test_api_status_normalizes_stale_failure_to_idle(
     status_file = mock_updates_dir / "update-status.json"
     status_file.write_text(json.dumps(stale_payload), encoding="utf-8")
 
-    # Query API (test app runs 0.13.7-alpha)
+    # Query API (test app runs 1.0.0-beta)
     res = await client.get("/api/v1/updates/status")
     assert res.status_code == 200
     data = res.json()
     assert data["state"] == "idle"
-    assert data["current_version"] == "0.13.7-alpha"
+    assert data["current_version"] == "1.0.0-beta"
     assert data["target_version"] is None
     assert data["error"] is None
 
@@ -633,5 +633,135 @@ async def test_api_clear_active_status_rejected(mock_updates_dir: Path):
         res = await ac.post("/api/v1/updates/clear")
         assert res.status_code == 400
         assert "Cannot clear active update status" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_api_check_with_simulate_update_parameter(mock_updates_dir: Path):
+    test_app = FastAPI()
+    test_app.include_router(api_v1_router)
+
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="1.0.0-beta",
+    )
+    test_app.dependency_overrides[get_update_service] = lambda: svc
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://testserver") as ac:
+        res = await ac.get("/api/v1/updates/check?simulate_update=true")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["current_version"] == "1.0.0-beta"
+        assert data["latest_version"] == "1.1.0"
+        assert data["update_available"] is True
+        assert data["check_available"] is True
+        assert data["release"]["tag_name"] == "v1.1.0"
+
+
+@pytest.mark.asyncio
+async def test_api_cancel_update_in_requested_phase(mock_updates_dir: Path):
+    test_app = FastAPI()
+    test_app.include_router(api_v1_router)
+
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="1.0.0-beta",
+    )
+    test_app.dependency_overrides[get_update_service] = lambda: svc
+
+    # Seed requested status and request file
+    status_file = mock_updates_dir / "update-status.json"
+    status_file.write_text(
+        '{"request_id": "r10", "state": "requested", "current_version": "1.0.0-beta", "target_version": "1.1.0", "progress_percent": 10, "message": "Dispatched"}'
+    )
+    req_file = mock_updates_dir / "update-request.json"
+    req_file.write_text('{"request_id": "r10"}')
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://testserver") as ac:
+        res = await ac.post("/api/v1/updates/cancel")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["state"] == "cancelled"
+        assert data["progress_percent"] == 0
+        assert "cancelled by user" in data["message"].lower()
+
+        # IPC file should be deleted
+        assert not req_file.exists()
+
+
+@pytest.mark.asyncio
+async def test_api_cancel_update_in_staging_phase(mock_updates_dir: Path):
+    test_app = FastAPI()
+    test_app.include_router(api_v1_router)
+
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="1.0.0-beta",
+    )
+    test_app.dependency_overrides[get_update_service] = lambda: svc
+
+    # Seed staging status
+    status_file = mock_updates_dir / "update-status.json"
+    status_file.write_text(
+        '{"request_id": "r11", "state": "staging", "current_version": "1.0.0-beta", "target_version": "1.1.0", "progress_percent": 30, "message": "Downloading"}'
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://testserver") as ac:
+        res = await ac.post("/api/v1/updates/cancel")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["state"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_api_cancel_update_in_critical_phase_rejected(mock_updates_dir: Path):
+    test_app = FastAPI()
+    test_app.include_router(api_v1_router)
+
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="1.0.0-beta",
+    )
+    test_app.dependency_overrides[get_update_service] = lambda: svc
+
+    # Seed applying status (critical phase)
+    status_file = mock_updates_dir / "update-status.json"
+    status_file.write_text(
+        '{"request_id": "r12", "state": "applying", "current_version": "1.0.0-beta", "target_version": "1.1.0", "progress_percent": 65, "message": "Recreating container"}'
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://testserver") as ac:
+        res = await ac.post("/api/v1/updates/cancel")
+        assert res.status_code == 400
+        assert "critical phase 'applying'" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_api_status_requested_timeout_transitions_to_failed(mock_updates_dir: Path):
+    test_app = FastAPI()
+    test_app.include_router(api_v1_router)
+
+    svc = UpdateService(
+        updates_dir=mock_updates_dir,
+        current_version="1.0.0-beta",
+    )
+    test_app.dependency_overrides[get_update_service] = lambda: svc
+
+    # Seed requested status older than 60s
+    status_file = mock_updates_dir / "update-status.json"
+    status_file.write_text(
+        '{"request_id": "r13", "state": "requested", "current_version": "1.0.0-beta", "target_version": "1.1.0", "progress_percent": 10, "message": "Dispatched", "updated_at": "2020-01-01T00:00:00Z"}'
+    )
+    req_file = mock_updates_dir / "update-request.json"
+    req_file.write_text('{"request_id": "r13"}')
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://testserver") as ac:
+        res = await ac.get("/api/v1/updates/status")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["state"] == "failed"
+        assert "timed out" in data["message"].lower()
+        assert not req_file.exists()
+
+
 
 

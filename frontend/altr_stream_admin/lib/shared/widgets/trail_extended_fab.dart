@@ -84,14 +84,13 @@ class M3ETrailExtendedFab extends StatelessWidget {
                   curve: M3EMotion.emphasized,
                   child: extended
                       ? Padding(
-                          padding: EdgeInsets.only(right: extendedTheme.iconLabelGap),
+                          padding: EdgeInsets.only(
+                            right: extendedTheme.iconLabelGap,
+                          ),
                           child: Text(
                             label,
                             style: extendedTheme
-                                .labelStyle(
-                                  theme.typeScale,
-                                  fg,
-                                )
+                                .labelStyle(theme.typeScale, fg)
                                 .copyWith(
                                   color: fg,
                                   fontWeight: FontWeight.w600,

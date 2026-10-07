@@ -62,7 +62,7 @@ Altr Stream is distributed as an interactive **Setup Utility** that manages cont
 
 - **macOS**: Download `Altr-Stream_macOS_Installer.command` from the GitHub Release, then double-click in Finder or execute `chmod +x Altr-Stream_macOS_Installer.command && ./Altr-Stream_macOS_Installer.command`.
 - **Linux**: Download `Altr-Stream_Linux_Installer.sh` from the GitHub Release, then execute `chmod +x Altr-Stream_Linux_Installer.sh && ./Altr-Stream_Linux_Installer.sh`.
-- **Windows**: Download `Altr-Stream_Windows_Installer.ps1` from the GitHub Release, right-click and choose **Run with PowerShell** (or run `powershell -ExecutionPolicy Bypass -File .\Altr-Stream_Windows_Installer.ps1`).
+- **Windows**: Download `Altr-Stream-Installer.exe` (Recommended: Native Setup) or `Altr-Stream_Windows_Installer.bat` (Console Setup) from the GitHub Release. Double-click to launch setup.
 
 ### Lifecycle Workflows Supported by the Utility
 
@@ -71,7 +71,7 @@ Altr Stream is distributed as an interactive **Setup Utility** that manages cont
    - Validates that the Docker daemon is running and accessible.
    - Allows choosing between default location (`~/.altr-stream` / `%USERPROFILE%\.altr-stream`) or specifying a custom directory.
    - Generates production `docker-compose.yml` and `.env` configuration.
-   - Pulls official pinned image `ghcr.io/helloaltr/altr-stream:0.13.7-alpha`.
+   - Pulls official pinned image `ghcr.io/helloaltr/altr-stream:1.0.0-beta`.
    - Starts the unified container and polls `/api/v1/health`.
    - Launches your system browser to `http://localhost:8000`.
 
@@ -99,8 +99,8 @@ For server automation, CI pipelines, or air-gapped systems where interactive scr
 ### Step 1: Extract Release Deployment Bundle
 
 ```bash
-tar -xzf altr-stream-v0.13.7-alpha-deployment.tar.gz
-cd altr-stream-v0.13.7-alpha-deployment
+tar -xzf altr-stream-v1.0.0-beta-deployment.tar.gz
+cd altr-stream-v1.0.0-beta-deployment
 ```
 
 ### Step 2: Review `docker-compose.yml`
@@ -108,7 +108,7 @@ cd altr-stream-v0.13.7-alpha-deployment
 ```yaml
 services:
   altr-stream:
-    image: ghcr.io/helloaltr/altr-stream:0.13.7-alpha
+    image: ghcr.io/helloaltr/altr-stream:1.0.0-beta
     container_name: altr-stream
     restart: unless-stopped
     ports:
@@ -194,7 +194,7 @@ docker run -d \
   -e ALTR_STREAM_PORT=8000 \
   -e ALTR_STREAM_DATABASE_URL=sqlite+aiosqlite:////app/data/altr_stream.db \
   -e ALTR_STREAM_DEBUG=false \
-  ghcr.io/helloaltr/altr-stream:0.13.7-alpha
+  ghcr.io/helloaltr/altr-stream:1.0.0-beta
 ```
 
 ---
@@ -245,6 +245,18 @@ All settings use the `ALTR_STREAM_` prefix:
 | `ALTR_STREAM_STATIC_DIR` | `/app/static` | Directory containing compiled Flutter Web static assets. |
 | `ALTR_STREAM_DEBUG` | `false` | Enable verbose debugging logs and SQL echo. Must be `false` in production. |
 | `ALTR_STREAM_DEFAULT_CONNECTION_TIMEOUT_SEC` | `5.0` | Socket connection timeout in seconds for physical databases. |
+| `ALTR_STREAM_FEEDBACK_SERVICE_URL` | `https://altr-feedback.onrender.com` | External Altr Feedback service URL. |
+| `ALTR_FEEDBACK_API_KEY` | *(None / Optional)* | Optional priority credential. Normal Beta feedback works automatically out-of-the-box using a persistent installation identity. |
+
+> [!NOTE]
+> Public Beta installations submit feedback automatically without requiring an API key. Altr Stream generates an anonymous, pseudonymous installation UUID stored in `/app/data/altr_stream.db`. If configured, `ALTR_FEEDBACK_API_KEY` acts as an optional priority override for internal developer deployments and must remain strictly server-side.
+
+### Local Environment Setup
+To configure local development settings:
+```bash
+cp .env.example .env
+```
+Feedback works out-of-the-box without editing `.env`. Optional overrides such as `ALTR_FEEDBACK_API_KEY` are read automatically by the backend at runtime; Flutter never receives or exposes credentials.
 
 ---
 
@@ -272,7 +284,7 @@ The health check validates that the FastAPI ASGI loop and the internal SQLite da
 ```json
 {
   "service": "Altr Stream",
-  "version": "0.13.7-alpha",
+  "version": "1.0.0-beta",
   "status": "healthy",
   "timestamp": "2026-09-24T12:45:00.000000"
 }

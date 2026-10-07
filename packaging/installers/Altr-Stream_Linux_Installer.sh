@@ -9,7 +9,7 @@
 
 set -eo pipefail
 
-ALTR_VERSION="0.13.7-alpha"
+ALTR_VERSION="1.0.0-beta"
 ALTR_IMAGE="ghcr.io/helloaltr/altr-stream:${ALTR_VERSION}"
 
 DEFAULT_INSTALL_DIR="$HOME/.altr-stream"
@@ -358,12 +358,18 @@ check_compose() {
 get_docker_status_text() {
     if ! command -v docker >/dev/null 2>&1; then
         echo "Missing"
-    elif ! docker info >/dev/null 2>&1; then
-        echo "Stopped"
-    elif [ -z "$(get_compose_cmd)" ]; then
-        echo "No Compose"
     else
-        echo "Running"
+        local info_err
+        info_err="$(docker info 2>&1 || true)"
+        if echo "$info_err" | grep -qiE "manually paused|is paused|unpause it"; then
+            echo "Paused"
+        elif ! docker info >/dev/null 2>&1; then
+            echo "Stopped"
+        elif [ -z "$(get_compose_cmd)" ]; then
+            echo "No Compose"
+        else
+            echo "Running"
+        fi
     fi
 }
 
@@ -413,11 +419,39 @@ get_altr_status_text() {
     fi
     local compose_cmd
     compose_cmd="$(get_compose_cmd)"
-    if [ -n "$compose_cmd" ] && $compose_cmd -f "$dir/docker-compose.yml" ps --status running 2>/dev/null | grep -q "altr-stream"; then
-        echo "Running"
-        return
+    local status=""
+    if command -v docker >/dev/null 2>&1; then
+        status="$(docker inspect -f '{{.State.Status}}' altr-stream 2>/dev/null || true)"
     fi
-    if command -v docker >/dev/null 2>&1 && [ "$(docker inspect -f '{{.State.Status}}' altr-stream 2>/dev/null || true)" = "running" ]; then
+
+    case "$status" in
+        running)
+            echo "Running"
+            return
+            ;;
+        paused)
+            echo "Paused"
+            return
+            ;;
+        restarting)
+            echo "Restarting"
+            return
+            ;;
+        exited)
+            echo "Stopped"
+            return
+            ;;
+        dead)
+            echo "Stopped / Failed"
+            return
+            ;;
+        created)
+            echo "Not Running / Stopped"
+            return
+            ;;
+    esac
+
+    if [ -n "$compose_cmd" ] && $compose_cmd -f "$dir/docker-compose.yml" ps --status running 2>/dev/null | grep -q "altr-stream"; then
         echo "Running"
         return
     fi
@@ -487,7 +521,7 @@ write_runtime_files() {
     cat << 'EOF' > "$install_dir/docker-compose.yml"
 services:
   altr-stream:
-    image: ghcr.io/helloaltr/altr-stream:0.13.7-alpha
+    image: ghcr.io/helloaltr/altr-stream:1.0.0-beta
     container_name: altr-stream
     restart: unless-stopped
     ports:

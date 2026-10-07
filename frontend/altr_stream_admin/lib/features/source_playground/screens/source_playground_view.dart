@@ -92,7 +92,9 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
         loadedSchema = await widget.apiClient.discoverSchema(widget.source.id);
       } else {
         loadedSchema = await widget.apiClient.getLatestSchema(widget.source.id);
-        loadedSchema ??= await widget.apiClient.discoverSchema(widget.source.id);
+        loadedSchema ??= await widget.apiClient.discoverSchema(
+          widget.source.id,
+        );
       }
 
       if (mounted) {
@@ -123,8 +125,12 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
       return;
     }
 
-    final currentModeName = _mongoQueryMode == 'shell' ? 'MongoDB Shell' : 'Physical Command';
-    final newModeName = newMode == 'shell' ? 'MongoDB Shell' : 'Physical Command';
+    final currentModeName = _mongoQueryMode == 'shell'
+        ? 'MongoDB Shell'
+        : 'Physical Command';
+    final newModeName = newMode == 'shell'
+        ? 'MongoDB Shell'
+        : 'Physical Command';
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -183,10 +189,16 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
     final selection = _queryController.selection;
 
     if (selection.isValid && selection.start >= 0) {
-      final newText = currentText.replaceRange(selection.start, selection.end, field.name);
+      final newText = currentText.replaceRange(
+        selection.start,
+        selection.end,
+        field.name,
+      );
       _queryController.value = TextEditingValue(
         text: newText,
-        selection: TextSelection.collapsed(offset: selection.start + field.name.length),
+        selection: TextSelection.collapsed(
+          offset: selection.start + field.name.length,
+        ),
       );
     } else {
       _queryController.text = '$currentText ${field.name}';
@@ -280,14 +292,17 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
     if (_response!.isCommandOutcome) {
       final details = {
         'source': widget.source.name,
-        'status': _response!.metadata.message ?? 'Command executed successfully',
+        'status':
+            _response!.metadata.message ?? 'Command executed successfully',
         'affectedRows': _response!.metadata.affectedRows,
         'executionTimeMs': _response!.metadata.executionTimeMs,
       };
       final jsonString = const JsonEncoder.withIndent('  ').convert(details);
       _copyToClipboard(jsonString, 'Command outcome details');
     } else {
-      final jsonString = const JsonEncoder.withIndent('  ').convert(_response!.rows);
+      final jsonString = const JsonEncoder.withIndent(
+        '  ',
+      ).convert(_response!.rows);
       _copyToClipboard(jsonString, 'Query results JSON');
     }
   }
@@ -354,7 +369,8 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= 1024;
-        final isTablet = constraints.maxWidth >= 700 && constraints.maxWidth < 1024;
+        final isTablet =
+            constraints.maxWidth >= 700 && constraints.maxWidth < 1024;
 
         if (isDesktop) {
           return _buildDesktopLayout(context);
@@ -413,9 +429,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
               const SizedBox(height: 14),
 
               // Execution Feedback & Results
-              Expanded(
-                child: _buildResultsSection(context, colorScheme),
-              ),
+              Expanded(child: _buildResultsSection(context, colorScheme)),
             ],
           ),
         ),
@@ -442,23 +456,35 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
                 });
               },
               icon: HugeIcon(
-                icon: _isTabletSchemaOpen ? HugeIcons.strokeRoundedArrowUp01 : HugeIcons.strokeRoundedStructure01,
+                icon: _isTabletSchemaOpen
+                    ? HugeIcons.strokeRoundedArrowUp01
+                    : HugeIcons.strokeRoundedStructure01,
                 size: 14,
               ),
-              label: Text(_isTabletSchemaOpen ? 'Hide Schema Explorer' : 'Show Schema Explorer'),
-              style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+              label: Text(
+                _isTabletSchemaOpen
+                    ? 'Hide Schema Explorer'
+                    : 'Show Schema Explorer',
+              ),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
             ),
             if (_schema != null) ...[
               Builder(
                 builder: (context) {
-                  final isMongoSource = widget.source.type.toUpperCase() == 'MONGODB';
+                  final isMongoSource =
+                      widget.source.type.toUpperCase() == 'MONGODB';
                   final count = _schema!.entityCount;
                   final entityTerm = isMongoSource
                       ? (count == 1 ? 'collection' : 'collections')
                       : (count == 1 ? 'table' : 'tables');
                   return Text(
                     '$count $entityTerm available',
-                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   );
                 },
               ),
@@ -501,9 +527,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
         const SizedBox(height: 14),
 
         // Results
-        Expanded(
-          child: _buildResultsSection(context, colorScheme),
-        ),
+        Expanded(child: _buildResultsSection(context, colorScheme)),
       ],
     );
   }
@@ -522,9 +546,16 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
           children: [
             OutlinedButton.icon(
               onPressed: () => _showMobileSchemaBottomSheet(context),
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedStructure01, size: 14),
-              label: Text(isMongo ? 'Browse Collections' : 'Browse Schema Tables'),
-              style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedStructure01,
+                size: 14,
+              ),
+              label: Text(
+                isMongo ? 'Browse Collections' : 'Browse Schema Tables',
+              ),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
             ),
             if (_schema != null) ...[
               Builder(
@@ -535,7 +566,10 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
                       : (count == 1 ? 'table' : 'tables');
                   return Text(
                     '$count $entityTerm',
-                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   );
                 },
               ),
@@ -560,9 +594,7 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
         ),
         const SizedBox(height: 12),
 
-        Expanded(
-          child: _buildResultsSection(context, colorScheme),
-        ),
+        Expanded(child: _buildResultsSection(context, colorScheme)),
       ],
     );
   }
@@ -577,7 +609,10 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
             const SizedBox(height: 16),
             Text(
               'Executing query against ${widget.source.name}...',
-              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -660,7 +695,10 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
               Text(
                 'Press ⌘/Ctrl+Enter or click Run Query to test queries against ${widget.source.name}.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),

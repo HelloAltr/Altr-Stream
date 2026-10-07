@@ -6,7 +6,6 @@ and discovered physical database schemas.
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
 import uuid
 from pydantic import BaseModel, Field
 

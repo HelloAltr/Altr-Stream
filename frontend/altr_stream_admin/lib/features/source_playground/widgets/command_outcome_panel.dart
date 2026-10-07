@@ -39,7 +39,11 @@ class CommandOutcomePanel extends StatelessWidget {
                   color: colorScheme.primaryContainer,
                   shape: BoxShape.circle,
                 ),
-                child: HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 20, color: colorScheme.primary),
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                  size: 20,
+                  color: colorScheme.primary,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -68,7 +72,10 @@ class CommandOutcomePanel extends StatelessWidget {
               if (onCopy != null) ...[
                 OutlinedButton.icon(
                   onPressed: onCopy,
-                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedCopy01, size: 12),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedCopy01,
+                    size: 12,
+                  ),
                   label: const Text(
                     'Copy Details',
                     style: TextStyle(fontSize: 11),
@@ -85,7 +92,10 @@ class CommandOutcomePanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.4), height: 1),
+          Divider(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+            height: 1,
+          ),
           const SizedBox(height: 16),
           Row(
             children: [

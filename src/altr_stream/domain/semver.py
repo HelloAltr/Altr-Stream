@@ -206,6 +206,7 @@ class UpgradePlan:
     error_code: str | None = None
     message: str | None = None
     retry_after: int | None = None
+    latest_version: SemVer | None = None
 
 
 class DirectUpgradeResolver:
@@ -256,6 +257,7 @@ class DirectUpgradeResolver:
 
         # Filter strictly strictly newer than current version (direct upgrade)
         newer_releases = [rel for rel in unique_releases if rel.version > current_version]
+        latest_available = unique_releases[-1].version if unique_releases else current_version
 
         if not newer_releases:
             return UpgradePlan(
@@ -265,6 +267,7 @@ class DirectUpgradeResolver:
                 channel=target_channel,
                 target_release=None,
                 all_releases=unique_releases,
+                latest_version=latest_available,
             )
 
         # Direct upgrade selects the highest newer version available
@@ -276,4 +279,5 @@ class DirectUpgradeResolver:
             channel=target_channel,
             target_release=highest,
             all_releases=unique_releases,
+            latest_version=highest.version,
         )

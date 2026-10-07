@@ -31,7 +31,9 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.entity.name);
-    _descriptionController = TextEditingController(text: widget.entity.description ?? '');
+    _descriptionController = TextEditingController(
+      text: widget.entity.description ?? '',
+    );
   }
 
   @override
@@ -53,7 +55,9 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
       final updated = await widget.apiClient.updateLogicalEntity(
         entityId: widget.entity.id,
         name: _nameController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
       );
 
       if (mounted) {
@@ -93,7 +97,11 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: HugeIcon(icon: HugeIcons.strokeRoundedSheet, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedSheet,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -110,14 +118,20 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                         ),
                         Text(
                           'Update name or description for this entity.',
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 18,
+                    ),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -129,16 +143,25 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                   decoration: BoxDecoration(
                     color: colorScheme.errorContainer.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: colorScheme.error.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedAlertCircle,
+                        color: colorScheme.error,
+                        size: 18,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: TextStyle(color: colorScheme.error, fontSize: 12),
+                          style: TextStyle(
+                            color: colorScheme.error,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -153,7 +176,9 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                   hintText: 'e.g. Student, Course, OrderItem',
                 ),
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Entity name is required';
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Entity name is required';
+                  }
                   if (!RegExp(r'^[a-zA-Z0-9_\-]+$').hasMatch(val.trim())) {
                     return 'Alphanumeric and underscores only';
                   }
@@ -175,8 +200,13 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(
@@ -187,7 +217,10 @@ class _EditEntityDialogState extends State<EditEntityDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
+                        : const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                            size: 16,
+                          ),
                     label: Text(_isSubmitting ? 'Saving...' : 'Save Changes'),
                   ),
                 ],

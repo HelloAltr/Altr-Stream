@@ -25,7 +25,12 @@ class _FieldDraft {
   bool isPrimaryKey = false;
   bool nullable = true;
 
-  _FieldDraft({String name = '', this.dataType = 'STRING', this.isPrimaryKey = false, this.nullable = true}) {
+  _FieldDraft({
+    String name = '',
+    this.dataType = 'STRING',
+    this.isPrimaryKey = false,
+    this.nullable = true,
+  }) {
     nameController.text = name;
   }
 
@@ -39,8 +44,18 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final List<_FieldDraft> _fields = [
-    _FieldDraft(name: 'id', dataType: 'INTEGER', isPrimaryKey: true, nullable: false),
-    _FieldDraft(name: 'name', dataType: 'STRING', isPrimaryKey: false, nullable: false),
+    _FieldDraft(
+      name: 'id',
+      dataType: 'INTEGER',
+      isPrimaryKey: true,
+      nullable: false,
+    ),
+    _FieldDraft(
+      name: 'name',
+      dataType: 'STRING',
+      isPrimaryKey: false,
+      nullable: false,
+    ),
   ];
 
   bool _isSubmitting = false;
@@ -58,7 +73,14 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
 
   void _addField() {
     setState(() {
-      _fields.add(_FieldDraft(name: '', dataType: 'STRING', isPrimaryKey: false, nullable: true));
+      _fields.add(
+        _FieldDraft(
+          name: '',
+          dataType: 'STRING',
+          isPrimaryKey: false,
+          nullable: true,
+        ),
+      );
     });
   }
 
@@ -99,7 +121,9 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
       final created = await widget.apiClient.createLogicalEntity(
         modelId: widget.modelId,
         name: _nameController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
         fields: fieldPayloads,
       );
 
@@ -119,7 +143,16 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    const dataTypes = ['STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'JSON', 'BINARY'];
+    const dataTypes = [
+      'STRING',
+      'INTEGER',
+      'FLOAT',
+      'BOOLEAN',
+      'DATE',
+      'TIMESTAMP',
+      'JSON',
+      'BINARY',
+    ];
 
     return Dialog(
       backgroundColor: colorScheme.surfaceContainerHigh,
@@ -141,7 +174,11 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                       color: colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: HugeIcon(icon: HugeIcons.strokeRoundedSheet, color: colorScheme.primary, size: 20),
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedSheet,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -158,14 +195,20 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                         ),
                         Text(
                           'Define a domain entity and its standard fields.',
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedCancel01, size: 18),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      size: 18,
+                    ),
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ],
@@ -177,16 +220,25 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                   decoration: BoxDecoration(
                     color: colorScheme.errorContainer.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: colorScheme.error.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, color: colorScheme.error, size: 18),
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedAlertCircle,
+                        color: colorScheme.error,
+                        size: 18,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: TextStyle(color: colorScheme.error, fontSize: 12),
+                          style: TextStyle(
+                            color: colorScheme.error,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -201,7 +253,9 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                   hintText: 'e.g. Student, Course, OrderItem',
                 ),
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Entity name is required';
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Entity name is required';
+                  }
                   if (!RegExp(r'^[a-zA-Z0-9_\-]+$').hasMatch(val.trim())) {
                     return 'Alphanumeric and underscores only';
                   }
@@ -230,8 +284,14 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                   ),
                   TextButton.icon(
                     onPressed: _addField,
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
-                    label: const Text('Add Field', style: TextStyle(fontSize: 12)),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedAdd01,
+                      size: 14,
+                    ),
+                    label: const Text(
+                      'Add Field',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
                 ],
               ),
@@ -260,11 +320,18 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                     }
 
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainer,
                         borderRadius: borderRadius,
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -273,14 +340,22 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                             flex: 3,
                             child: TextFormField(
                               controller: f.nameController,
-                              style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.onSurface,
+                              ),
                               decoration: const InputDecoration(
                                 isDense: true,
                                 labelText: 'Field Name',
-                                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 10,
+                                ),
                               ),
                               validator: (val) {
-                                if (val == null || val.trim().isEmpty) return 'Required';
+                                if (val == null || val.trim().isEmpty) {
+                                  return 'Required';
+                                }
                                 return null;
                               },
                             ),
@@ -292,20 +367,33 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                               initialValue: f.dataType,
                               isDense: true,
                               isExpanded: true,
-                              style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.onSurface,
+                              ),
                               decoration: const InputDecoration(
                                 isDense: true,
                                 labelText: 'Type',
-                                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 10,
+                                ),
                               ),
                               items: dataTypes
-                                  .map((t) => DropdownMenuItem(
-                                        value: t,
-                                        child: Text(t, style: const TextStyle(fontSize: 13)),
-                                      ))
+                                  .map(
+                                    (t) => DropdownMenuItem(
+                                      value: t,
+                                      child: Text(
+                                        t,
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                  )
                                   .toList(),
                               onChanged: (val) {
-                                if (val != null) setState(() => f.dataType = val);
+                                if (val != null) {
+                                  setState(() => f.dataType = val);
+                                }
                               },
                             ),
                           ),
@@ -317,9 +405,17 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                               children: [
                                 Checkbox(
                                   value: f.isPrimaryKey,
-                                  onChanged: (val) => setState(() => f.isPrimaryKey = val ?? false),
+                                  onChanged: (val) => setState(
+                                    () => f.isPrimaryKey = val ?? false,
+                                  ),
                                 ),
-                                const Text('PK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                const Text(
+                                  'PK',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -331,15 +427,24 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                               children: [
                                 Checkbox(
                                   value: f.nullable,
-                                  onChanged: (val) => setState(() => f.nullable = val ?? true),
+                                  onChanged: (val) =>
+                                      setState(() => f.nullable = val ?? true),
                                 ),
-                                const Text('Null', style: TextStyle(fontSize: 11)),
+                                const Text(
+                                  'Null',
+                                  style: TextStyle(fontSize: 11),
+                                ),
                               ],
                             ),
                           ),
                           IconButton(
-                            onPressed: _fields.length > 1 ? () => _removeField(idx) : null,
-                            icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
+                            onPressed: _fields.length > 1
+                                ? () => _removeField(idx)
+                                : null,
+                            icon: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedDelete02,
+                              size: 18,
+                            ),
                             color: colorScheme.error,
                           ),
                         ],
@@ -353,8 +458,13 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(
@@ -365,7 +475,10 @@ class _AddEntityDialogState extends State<AddEntityDialog> {
                             height: 14,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkBadge01, size: 16),
+                        : const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                            size: 16,
+                          ),
                     label: Text(_isSubmitting ? 'Saving...' : 'Add Entity'),
                   ),
                 ],

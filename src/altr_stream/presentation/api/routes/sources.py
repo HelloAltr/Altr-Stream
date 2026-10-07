@@ -2,7 +2,6 @@
 
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from altr_stream.application.schema_service import SchemaService
 from altr_stream.application.source_service import SourceService

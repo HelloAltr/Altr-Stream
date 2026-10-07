@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import 'models.dart';
@@ -8,11 +10,7 @@ class ApiException implements Exception {
   final String message;
   final dynamic details;
 
-  ApiException({
-    required this.statusCode,
-    required this.message,
-    this.details,
-  });
+  ApiException({required this.statusCode, required this.message, this.details});
 
   @override
   String toString() => message;
@@ -23,22 +21,24 @@ class ApiClient {
   final http.Client _client;
 
   ApiClient({String? baseUrl, http.Client? client})
-      : baseUrl = baseUrl ?? AppConfig.apiBaseUrl,
-        _client = client ?? http.Client();
+    : baseUrl = baseUrl ?? AppConfig.apiBaseUrl,
+      _client = client ?? http.Client();
 
   Uri _uri(String path) {
     // Handle both relative URLs and absolute URLs
     if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
-      final normalizedBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final normalizedBase = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       return Uri.parse('$normalizedBase$path');
     }
     return Uri.parse('$baseUrl$path');
   }
 
   Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
   dynamic _processResponse(http.Response response) {
     final status = response.statusCode;
@@ -61,11 +61,7 @@ class ApiClient {
       errorMsg = response.body.isNotEmpty ? response.body : errorMsg;
     }
 
-    throw ApiException(
-      statusCode: status,
-      message: errorMsg,
-      details: details,
-    );
+    throw ApiException(statusCode: status, message: errorMsg, details: details);
   }
 
   /// Check backend health
@@ -75,12 +71,17 @@ class ApiClient {
   }
 
   /// Get real-time read and write usage metrics (optional per-source filtering)
-  Future<UsageMetricsModel> getUsageMetrics({String timeWindow = '30m', String? sourceId}) async {
+  Future<UsageMetricsModel> getUsageMetrics({
+    String timeWindow = '30m',
+    String? sourceId,
+  }) async {
     final endpoint = (sourceId != null && sourceId.isNotEmpty)
         ? '/metrics/usage?time_window=$timeWindow&source_id=$sourceId'
         : '/metrics/usage?time_window=$timeWindow';
     final res = await _client.get(_uri(endpoint), headers: _headers);
-    return UsageMetricsModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return UsageMetricsModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Clear all monitored usage logs and metrics
@@ -89,14 +90,14 @@ class ApiClient {
     _processResponse(res);
   }
 
-
-
   /// List all registered data sources (optional probe=true tests physical reachability for each DB source)
   Future<List<SourceModel>> listSources({bool probe = false}) async {
     final endpoint = probe ? '/sources?probe=true' : '/sources';
     final res = await _client.get(_uri(endpoint), headers: _headers);
     final data = _processResponse(res) as List<dynamic>;
-    return data.map((e) => SourceModel.fromJson(e as Map<String, dynamic>)).toList();
+    return data
+        .map((e) => SourceModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// Get single source details
@@ -129,7 +130,11 @@ class ApiClient {
     if (password != null) payload['password'] = password;
     if (filePath != null) payload['file_path'] = filePath;
 
-    final res = await _client.post(_uri('/sources'), headers: _headers, body: jsonEncode(payload));
+    final res = await _client.post(
+      _uri('/sources'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    );
     return SourceModel.fromJson(_processResponse(res) as Map<String, dynamic>);
   }
 
@@ -177,9 +182,7 @@ class ApiClient {
     String? password,
     String? filePath,
   }) async {
-    final payload = <String, dynamic>{
-      'type': type,
-    };
+    final payload = <String, dynamic>{'type': type};
     if (host != null) payload['host'] = host;
     if (port != null) payload['port'] = port;
     if (databaseName != null) payload['database_name'] = databaseName;
@@ -187,34 +190,60 @@ class ApiClient {
     if (password != null) payload['password'] = password;
     if (filePath != null) payload['file_path'] = filePath;
 
-    final res = await _client.post(_uri('/sources/test'), headers: _headers, body: jsonEncode(payload));
-    return ConnectionTestResultModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    final res = await _client.post(
+      _uri('/sources/test'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    );
+    return ConnectionTestResultModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Test connection for an existing registered source
   Future<ConnectionTestResultModel> testSavedConnection(String id) async {
-    final res = await _client.post(_uri('/sources/$id/test'), headers: _headers);
-    return ConnectionTestResultModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    final res = await _client.post(
+      _uri('/sources/$id/test'),
+      headers: _headers,
+    );
+    return ConnectionTestResultModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Get source connector capabilities
   Future<SourceCapabilitiesModel> getSourceCapabilities(String id) async {
-    final res = await _client.get(_uri('/sources/$id/capabilities'), headers: _headers);
-    return SourceCapabilitiesModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    final res = await _client.get(
+      _uri('/sources/$id/capabilities'),
+      headers: _headers,
+    );
+    return SourceCapabilitiesModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Trigger schema discovery on a physical source
   Future<SourceSchemaModel> discoverSchema(String id) async {
-    final res = await _client.post(_uri('/sources/$id/schema/discover'), headers: _headers);
-    return SourceSchemaModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    final res = await _client.post(
+      _uri('/sources/$id/schema/discover'),
+      headers: _headers,
+    );
+    return SourceSchemaModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Get the most recent discovered schema snapshot
   Future<SourceSchemaModel?> getLatestSchema(String id) async {
     try {
-      final res = await _client.get(_uri('/sources/$id/schema'), headers: _headers);
+      final res = await _client.get(
+        _uri('/sources/$id/schema'),
+        headers: _headers,
+      );
       if (res.statusCode == 404) return null;
-      return SourceSchemaModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+      return SourceSchemaModel.fromJson(
+        _processResponse(res) as Map<String, dynamic>,
+      );
     } on ApiException catch (e) {
       if (e.statusCode == 404) return null;
       rethrow;
@@ -238,21 +267,23 @@ class ApiClient {
       headers: _headers,
       body: body,
     );
-    return QueryExecuteResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return QueryExecuteResponseModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Parse an AltrQL query text into a typed Abstract Syntax Tree (AltrQueryIR)
   Future<AltrQLParseResponseModel> parseAltrQL(String query) async {
-    final body = jsonEncode({
-      'query': query,
-    });
+    final body = jsonEncode({'query': query});
 
     final res = await _client.post(
       _uri('/altrql/parse'),
       headers: _headers,
       body: body,
     );
-    return AltrQLParseResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return AltrQLParseResponseModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Bind a parsed AltrQL query against a registered data source or logical model
@@ -267,7 +298,8 @@ class ApiClient {
       'query': query,
       if (sourceId != null && sourceId.isNotEmpty) 'source_id': sourceId,
       if (mappingId != null && mappingId.isNotEmpty) 'mapping_id': mappingId,
-      if (logicalModelId != null && logicalModelId.isNotEmpty) 'logical_model_id': logicalModelId,
+      if (logicalModelId != null && logicalModelId.isNotEmpty)
+        'logical_model_id': logicalModelId,
       'normalize': normalize,
     });
 
@@ -276,7 +308,9 @@ class ApiClient {
       headers: _headers,
       body: body,
     );
-    return AltrQLBindResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return AltrQLBindResponseModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Execute an AltrQL query against a registered data source or federated across all eligible sources
@@ -292,7 +326,8 @@ class ApiClient {
       'query': query,
       if (sourceId != null && sourceId.isNotEmpty) 'source_id': sourceId,
       if (mappingId != null && mappingId.isNotEmpty) 'mapping_id': mappingId,
-      if (logicalModelId != null && logicalModelId.isNotEmpty) 'logical_model_id': logicalModelId,
+      if (logicalModelId != null && logicalModelId.isNotEmpty)
+        'logical_model_id': logicalModelId,
       'normalize': normalize,
       'confirm_mass_mutation': confirmMassMutation,
     });
@@ -302,7 +337,9 @@ class ApiClient {
       headers: _headers,
       body: body,
     );
-    return AltrQLExecuteResponseModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return AltrQLExecuteResponseModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   // =========================================================================
@@ -312,20 +349,29 @@ class ApiClient {
   /// Fetch registry summary metrics
   Future<RegistrySummaryModel> getRegistrySummary() async {
     final res = await _client.get(_uri('/registry/summary'), headers: _headers);
-    return RegistrySummaryModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return RegistrySummaryModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// List all logical data models
   Future<List<LogicalModelModel>> listLogicalModels() async {
     final res = await _client.get(_uri('/registry/models'), headers: _headers);
     final data = _processResponse(res) as List<dynamic>;
-    return data.map((e) => LogicalModelModel.fromJson(e as Map<String, dynamic>)).toList();
+    return data
+        .map((e) => LogicalModelModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// Get single logical data model with its entities and fields
   Future<LogicalModelModel> getLogicalModel(String modelId) async {
-    final res = await _client.get(_uri('/registry/models/$modelId'), headers: _headers);
-    return LogicalModelModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    final res = await _client.get(
+      _uri('/registry/models/$modelId'),
+      headers: _headers,
+    );
+    return LogicalModelModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Create a new logical data model
@@ -349,7 +395,9 @@ class ApiClient {
       headers: _headers,
       body: body,
     );
-    return LogicalModelModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return LogicalModelModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Update an existing logical data model
@@ -371,12 +419,17 @@ class ApiClient {
       headers: _headers,
       body: jsonEncode(payload),
     );
-    return LogicalModelModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return LogicalModelModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Delete a logical data model
   Future<void> deleteLogicalModel(String modelId) async {
-    final res = await _client.delete(_uri('/registry/models/$modelId'), headers: _headers);
+    final res = await _client.delete(
+      _uri('/registry/models/$modelId'),
+      headers: _headers,
+    );
     _processResponse(res);
   }
 
@@ -400,7 +453,9 @@ class ApiClient {
       headers: _headers,
       body: body,
     );
-    return LogicalEntityModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return LogicalEntityModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Update an existing logical entity
@@ -418,12 +473,17 @@ class ApiClient {
       headers: _headers,
       body: jsonEncode(payload),
     );
-    return LogicalEntityModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return LogicalEntityModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Delete a logical entity
   Future<void> deleteLogicalEntity(String entityId) async {
-    final res = await _client.delete(_uri('/registry/entities/$entityId'), headers: _headers);
+    final res = await _client.delete(
+      _uri('/registry/entities/$entityId'),
+      headers: _headers,
+    );
     _processResponse(res);
   }
 
@@ -451,7 +511,9 @@ class ApiClient {
       headers: _headers,
       body: body,
     );
-    return LogicalFieldModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return LogicalFieldModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Update an existing logical field
@@ -475,12 +537,17 @@ class ApiClient {
       headers: _headers,
       body: jsonEncode(payload),
     );
-    return LogicalFieldModel.fromJson(_processResponse(res) as Map<String, dynamic>);
+    return LogicalFieldModel.fromJson(
+      _processResponse(res) as Map<String, dynamic>,
+    );
   }
 
   /// Delete a logical field
   Future<void> deleteLogicalField(String fieldId) async {
-    final res = await _client.delete(_uri('/registry/fields/$fieldId'), headers: _headers);
+    final res = await _client.delete(
+      _uri('/registry/fields/$fieldId'),
+      headers: _headers,
+    );
     _processResponse(res);
   }
 
@@ -491,32 +558,52 @@ class ApiClient {
     String? status,
   }) async {
     final queryParams = <String, String>{};
-    if (modelId != null && modelId.isNotEmpty) queryParams['model_id'] = modelId;
-    if (sourceId != null && sourceId.isNotEmpty) queryParams['source_id'] = sourceId;
-    if (status != null && status.isNotEmpty) queryParams['status'] = status;
+    if (modelId != null && modelId.isNotEmpty) {
+      queryParams['model_id'] = modelId;
+    }
+    if (sourceId != null && sourceId.isNotEmpty) {
+      queryParams['source_id'] = sourceId;
+    }
+    if (status != null && status.isNotEmpty) {
+      queryParams['status'] = status;
+    }
 
     var path = '/registry/mappings';
     if (queryParams.isNotEmpty) {
-      final queryStr = queryParams.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
+      final queryStr = queryParams.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
       path = '$path?$queryStr';
     }
 
     final res = await _client.get(_uri(path), headers: _headers);
     final raw = _processResponse(res);
     if (raw is List) {
-      return raw.map((e) => SourceMappingModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+      return raw
+          .map(
+            (e) => SourceMappingModel.fromJson(
+              Map<String, dynamic>.from(e as Map),
+            ),
+          )
+          .toList();
     }
     return [];
   }
 
   /// Get single source mapping with its entity and field mappings
   Future<SourceMappingModel> getSourceMapping(String mappingId) async {
-    final res = await _client.get(_uri('/registry/mappings/$mappingId'), headers: _headers);
+    final res = await _client.get(
+      _uri('/registry/mappings/$mappingId'),
+      headers: _headers,
+    );
     final raw = _processResponse(res);
     if (raw is Map) {
       return SourceMappingModel.fromJson(Map<String, dynamic>.from(raw));
     }
-    throw ApiException(statusCode: res.statusCode, message: 'Invalid mapping response format');
+    throw ApiException(
+      statusCode: res.statusCode,
+      message: 'Invalid mapping response format',
+    );
   }
 
   /// Create a new source mapping
@@ -546,7 +633,10 @@ class ApiClient {
     if (raw is Map) {
       return SourceMappingModel.fromJson(Map<String, dynamic>.from(raw));
     }
-    throw ApiException(statusCode: res.statusCode, message: 'Invalid mapping creation response');
+    throw ApiException(
+      statusCode: res.statusCode,
+      message: 'Invalid mapping creation response',
+    );
   }
 
   /// Update an existing source mapping
@@ -574,7 +664,10 @@ class ApiClient {
     if (raw is Map) {
       return SourceMappingModel.fromJson(Map<String, dynamic>.from(raw));
     }
-    throw ApiException(statusCode: res.statusCode, message: 'Invalid mapping update response');
+    throw ApiException(
+      statusCode: res.statusCode,
+      message: 'Invalid mapping update response',
+    );
   }
 
   /// Validate a source mapping against source physical schema
@@ -588,14 +681,19 @@ class ApiClient {
       final json = Map<String, dynamic>.from(raw);
       if (json.containsKey('mapping') && json['mapping'] is Map) {
         final mappingMap = Map<String, dynamic>.from(json['mapping'] as Map);
-        if (json['error'] != null && json['error'].toString().isNotEmpty && mappingMap['error_message'] == null) {
+        if (json['error'] != null &&
+            json['error'].toString().isNotEmpty &&
+            mappingMap['error_message'] == null) {
           mappingMap['error_message'] = json['error'].toString();
         }
         return SourceMappingModel.fromJson(mappingMap);
       }
       return SourceMappingModel.fromJson(json);
     }
-    throw ApiException(statusCode: res.statusCode, message: 'Invalid validation response format');
+    throw ApiException(
+      statusCode: res.statusCode,
+      message: 'Invalid validation response format',
+    );
   }
 
   /// Activate a source mapping
@@ -608,16 +706,24 @@ class ApiClient {
     if (raw is Map) {
       final json = Map<String, dynamic>.from(raw);
       if (json.containsKey('mapping') && json['mapping'] is Map) {
-        return SourceMappingModel.fromJson(Map<String, dynamic>.from(json['mapping'] as Map));
+        return SourceMappingModel.fromJson(
+          Map<String, dynamic>.from(json['mapping'] as Map),
+        );
       }
       return SourceMappingModel.fromJson(json);
     }
-    throw ApiException(statusCode: res.statusCode, message: 'Invalid activation response format');
+    throw ApiException(
+      statusCode: res.statusCode,
+      message: 'Invalid activation response format',
+    );
   }
 
   /// Delete a source mapping
   Future<void> deleteSourceMapping(String mappingId) async {
-    final res = await _client.delete(_uri('/registry/mappings/$mappingId'), headers: _headers);
+    final res = await _client.delete(
+      _uri('/registry/mappings/$mappingId'),
+      headers: _headers,
+    );
     _processResponse(res);
   }
 
@@ -647,7 +753,10 @@ class ApiClient {
     String resolvedPath = path;
     if (pathParams != null) {
       pathParams.forEach((key, value) {
-        resolvedPath = resolvedPath.replaceAll('{$key}', Uri.encodeComponent(value));
+        resolvedPath = resolvedPath.replaceAll(
+          '{$key}',
+          Uri.encodeComponent(value),
+        );
       });
     }
 
@@ -667,7 +776,9 @@ class ApiClient {
       });
     }
 
-    final fullPath = resolvedPath.startsWith('/') ? resolvedPath : '/$resolvedPath';
+    final fullPath = resolvedPath.startsWith('/')
+        ? resolvedPath
+        : '/$resolvedPath';
 
     if (origin.isNotEmpty) {
       final baseUri = Uri.parse(origin);
@@ -692,11 +803,12 @@ class ApiClient {
     dynamic body,
     Map<String, String>? customHeaders,
   }) async {
-    final uri = resolveEndpointUri(path, pathParams: pathParams, queryParams: queryParams);
-    final headers = <String, String>{
-      ..._headers,
-      ...?customHeaders,
-    };
+    final uri = resolveEndpointUri(
+      path,
+      pathParams: pathParams,
+      queryParams: queryParams,
+    );
+    final headers = <String, String>{..._headers, ...?customHeaders};
 
     String? encodedBody;
     if (body != null) {
@@ -716,16 +828,32 @@ class ApiClient {
           response = await _client.get(uri, headers: headers);
           break;
         case 'POST':
-          response = await _client.post(uri, headers: headers, body: encodedBody);
+          response = await _client.post(
+            uri,
+            headers: headers,
+            body: encodedBody,
+          );
           break;
         case 'PUT':
-          response = await _client.put(uri, headers: headers, body: encodedBody);
+          response = await _client.put(
+            uri,
+            headers: headers,
+            body: encodedBody,
+          );
           break;
         case 'DELETE':
-          response = await _client.delete(uri, headers: headers, body: encodedBody);
+          response = await _client.delete(
+            uri,
+            headers: headers,
+            body: encodedBody,
+          );
           break;
         case 'PATCH':
-          response = await _client.patch(uri, headers: headers, body: encodedBody);
+          response = await _client.patch(
+            uri,
+            headers: headers,
+            body: encodedBody,
+          );
           break;
         case 'HEAD':
           response = await _client.head(uri, headers: headers);
@@ -747,7 +875,9 @@ class ApiClient {
       if (response.body.isNotEmpty) {
         try {
           responseData = jsonDecode(response.body);
-          if (response.statusCode >= 400 && responseData is Map && responseData.containsKey('detail')) {
+          if (response.statusCode >= 400 &&
+              responseData is Map &&
+              responseData.containsKey('detail')) {
             errorMessage = responseData['detail'].toString();
           }
         } catch (_) {
@@ -827,7 +957,25 @@ class ApiClient {
     }
   }
 
-  Future<UpdateCheckResponse> checkForUpdates({String? channel, bool forceRefresh = false}) async {
+  Future<UpdateCheckResponse> checkForUpdates({
+    String? channel,
+    bool forceRefresh = false,
+  }) async {
+    if (AppConfig.isUpdateSimulationEnabled) {
+      // Development-only simulation: exercises the complete update pipeline without live GitHub release
+      await Future<void>.microtask(() {});
+      return const UpdateCheckResponse(
+        currentVersion: '1.0.0-beta',
+        latestVersion: '1.1.0',
+        updateAvailable: true,
+        channel: 'beta',
+        releaseName: 'v1.1.0 Stability & Performance Release',
+        releaseNotes:
+            'Includes engine improvements and Live Activities support.',
+        publishedAt: '2026-10-07T00:00:00Z',
+        checkAvailable: true,
+      );
+    }
     final queryParams = <String, String>{};
     if (channel != null && channel.isNotEmpty) {
       queryParams['channel'] = channel;
@@ -835,14 +983,104 @@ class ApiClient {
     if (forceRefresh) {
       queryParams['force_refresh'] = 'true';
     }
-    final queryString = queryParams.isNotEmpty ? '?${Uri(queryParameters: queryParams).query}' : '';
+    final queryString = queryParams.isNotEmpty
+        ? '?${Uri(queryParameters: queryParams).query}'
+        : '';
     final url = _uri('/updates/check$queryString');
     final response = await _client.get(url, headers: _headers);
     final data = _processResponse(response);
     return UpdateCheckResponse.fromJson(Map<String, dynamic>.from(data as Map));
   }
 
-  Future<UpdateStatusResponse> applyUpdate({required String targetVersion, String? channel}) async {
+  // Development simulation state
+  static Timer? _simulationTimer;
+  static int _simulationStep = 0;
+  static UpdateStatusResponse? _simulatedStatus;
+
+  /// Resets simulated update state (for tests and manual testing).
+  @visibleForTesting
+  static void resetSimulation() {
+    _simulationTimer?.cancel();
+    _simulationTimer = null;
+    _simulationStep = 0;
+    _simulatedStatus = null;
+  }
+
+  Future<UpdateStatusResponse> applyUpdate({
+    required String targetVersion,
+    String? channel,
+  }) async {
+    if (AppConfig.isUpdateSimulationEnabled) {
+      _simulationTimer?.cancel();
+      _simulationStep = 1;
+      _simulatedStatus = UpdateStatusResponse(
+        requestId: 'sim-req-1',
+        state: 'requested',
+        currentVersion: '1.0.0-beta',
+        targetVersion: targetVersion,
+        progressPercent: 10,
+        message: 'Update request dispatched to host supervisor.',
+        updatedAt: DateTime.now().toUtc().toIso8601String(),
+      );
+
+      // Realistic progression timer through stages
+      _simulationTimer = Timer.periodic(const Duration(milliseconds: 2500), (
+        timer,
+      ) {
+        _simulationStep++;
+        if (_simulationStep == 2) {
+          // Staging (cancellable download phase)
+          _simulatedStatus = UpdateStatusResponse(
+            requestId: 'sim-req-1',
+            state: 'staging',
+            currentVersion: '1.0.0-beta',
+            targetVersion: targetVersion,
+            progressPercent: 35,
+            message: 'Downloading update package (35%)...',
+            updatedAt: DateTime.now().toUtc().toIso8601String(),
+          );
+        } else if (_simulationStep == 3) {
+          // Applying (CRITICAL INSTALLATION PHASE - non-cancellable)
+          _simulatedStatus = UpdateStatusResponse(
+            requestId: 'sim-req-1',
+            state: 'applying',
+            currentVersion: '1.0.0-beta',
+            targetVersion: targetVersion,
+            progressPercent: 65,
+            message: 'Installing update: Recreating application container...',
+            updatedAt: DateTime.now().toUtc().toIso8601String(),
+          );
+        } else if (_simulationStep == 4) {
+          // Health Check (CRITICAL INSTALLATION PHASE - non-cancellable)
+          _simulatedStatus = UpdateStatusResponse(
+            requestId: 'sim-req-1',
+            state: 'health_check',
+            currentVersion: '1.0.0-beta',
+            targetVersion: targetVersion,
+            progressPercent: 90,
+            message: 'Verifying container health checks...',
+            updatedAt: DateTime.now().toUtc().toIso8601String(),
+          );
+        } else if (_simulationStep >= 5) {
+          // Completed
+          _simulatedStatus = UpdateStatusResponse(
+            requestId: 'sim-req-1',
+            state: 'completed',
+            currentVersion: targetVersion,
+            targetVersion: targetVersion,
+            progressPercent: 100,
+            message:
+                'Update applied successfully. Reload required to activate.',
+            updatedAt: DateTime.now().toUtc().toIso8601String(),
+          );
+          timer.cancel();
+          _simulationTimer = null;
+        }
+      });
+
+      return _simulatedStatus!;
+    }
+
     final url = _uri('/updates/apply');
     final body = jsonEncode({
       'target_version': targetVersion,
@@ -850,22 +1088,94 @@ class ApiClient {
     });
     final response = await _client.post(url, headers: _headers, body: body);
     final data = _processResponse(response);
-    return UpdateStatusResponse.fromJson(Map<String, dynamic>.from(data as Map));
+    return UpdateStatusResponse.fromJson(
+      Map<String, dynamic>.from(data as Map),
+    );
+  }
+
+  Future<UpdateStatusResponse> cancelUpdate() async {
+    if (AppConfig.isUpdateSimulationEnabled) {
+      if (_simulatedStatus != null && _simulatedStatus!.isCritical) {
+        throw ApiException(
+          statusCode: 400,
+          message: 'Cannot cancel update during critical installation phase.',
+        );
+      }
+      _simulationTimer?.cancel();
+      _simulationTimer = null;
+      _simulatedStatus = UpdateStatusResponse(
+        requestId: 'sim-req-1',
+        state: 'cancelled',
+        currentVersion: '1.0.0-beta',
+        targetVersion: '1.1.0',
+        progressPercent: 0,
+        message: 'Update cancelled by user.',
+        updatedAt: DateTime.now().toUtc().toIso8601String(),
+      );
+      return _simulatedStatus!;
+    }
+
+    final url = _uri('/updates/cancel');
+    final response = await _client.post(url, headers: _headers);
+    final data = _processResponse(response);
+    return UpdateStatusResponse.fromJson(
+      Map<String, dynamic>.from(data as Map),
+    );
   }
 
   Future<UpdateStatusResponse> getUpdateStatus() async {
+    if (AppConfig.isUpdateSimulationEnabled) {
+      if (_simulatedStatus != null) {
+        return _simulatedStatus!;
+      }
+      return const UpdateStatusResponse(
+        state: 'idle',
+        currentVersion: '1.0.0-beta',
+        targetVersion: '1.1.0',
+        progressPercent: 0,
+        message: 'System is up to date.',
+        updatedAt: '',
+      );
+    }
+
     final url = _uri('/updates/status');
     final response = await _client.get(url, headers: _headers);
     final data = _processResponse(response);
-    return UpdateStatusResponse.fromJson(Map<String, dynamic>.from(data as Map));
+    return UpdateStatusResponse.fromJson(
+      Map<String, dynamic>.from(data as Map),
+    );
   }
 
   Future<UpdateStatusResponse> clearUpdateStatus() async {
+    if (AppConfig.isUpdateSimulationEnabled) {
+      _simulationTimer?.cancel();
+      _simulationTimer = null;
+      _simulatedStatus = const UpdateStatusResponse(
+        state: 'idle',
+        currentVersion: '1.0.0-beta',
+        targetVersion: '1.1.0',
+        progressPercent: 0,
+        message: 'System is up to date.',
+        updatedAt: '',
+      );
+      return _simulatedStatus!;
+    }
+
     final url = _uri('/updates/clear');
     final response = await _client.post(url, headers: _headers);
     final data = _processResponse(response);
-    return UpdateStatusResponse.fromJson(Map<String, dynamic>.from(data as Map));
+    return UpdateStatusResponse.fromJson(
+      Map<String, dynamic>.from(data as Map),
+    );
+  }
+
+  Future<Map<String, dynamic>> submitFeedback(
+    Map<String, dynamic> payload,
+  ) async {
+    final url = _uri('/feedback');
+    final body = jsonEncode(payload);
+    final response = await _client.post(url, headers: _headers, body: body);
+    final data = _processResponse(response);
+    return Map<String, dynamic>.from(data as Map);
   }
 }
-
-

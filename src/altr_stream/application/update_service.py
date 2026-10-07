@@ -106,6 +106,9 @@ class UpdateService:
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": f"Altr-Stream-Node/{settings.app_version}",
         }
+        github_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        if github_token:
+            headers["Authorization"] = f"Bearer {github_token}"
 
         try:
             if self._http_client:
@@ -231,6 +234,7 @@ class UpdateService:
                     target_release=plan.target_release,
                     all_releases=plan.all_releases,
                     check_available=True,
+                    latest_version=plan.latest_version,
                 )
 
         fetch_res = await self.fetch_releases_result(force_refresh=force_refresh)
@@ -251,6 +255,7 @@ class UpdateService:
                 error_code=None,
                 message=None,
                 retry_after=None,
+                latest_version=plan.latest_version,
             )
 
         # Discovery failed (rate limited or unavailable)
@@ -320,6 +325,38 @@ class UpdateService:
         )
         return status
 
+    async def cancel_update(self) -> UpdateStatus:
+        """Cancel an active update workflow if in a cancellable phase."""
+        current = await self.get_status()
+        if not current.state.is_active:
+            raise ValueError("No active update workflow to cancel.")
+
+        if not current.state.is_cancellable:
+            raise ValueError(
+                f"Cannot cancel update in critical phase '{current.state.value}'. "
+                "Installation is actively underway and cannot be interrupted."
+            )
+
+        # 1. Remove IPC request file so host supervisor does not proceed
+        if self.request_file.exists():
+            try:
+                self.request_file.unlink()
+            except OSError as exc:
+                logger.warning("Failed to remove update request file during cancellation: %s", exc)
+
+        # 2. Transition status to CANCELLED
+        status = UpdateStatus(
+            request_id=current.request_id,
+            state=UpdateStatusState.CANCELLED,
+            current_version=str(self.current_semver),
+            target_version=current.target_version,
+            progress_percent=0,
+            message="Update cancelled by user.",
+        )
+        self._write_atomic_json(self.status_file, status.to_dict())
+        logger.info("Cancelled update request %s in phase '%s'", current.request_id, current.state.value)
+        return status
+
     async def get_status(self) -> UpdateStatus:
         """Read the current update status written by the host supervisor or application."""
         if not self.status_file.is_file():
@@ -333,6 +370,39 @@ class UpdateService:
             content = self.status_file.read_text(encoding="utf-8")
             data = json.loads(content)
             status = UpdateStatus.from_dict(data)
+
+            # Check for timed-out REQUESTED state (e.g. host supervisor offline or uninstalled)
+            if status.state == UpdateStatusState.REQUESTED and status.updated_at:
+                try:
+                    updated_dt = datetime.fromisoformat(status.updated_at)
+                    now_dt = datetime.now(timezone.utc)
+                    if updated_dt.tzinfo is None:
+                        updated_dt = updated_dt.replace(tzinfo=timezone.utc)
+                    elapsed = (now_dt - updated_dt).total_seconds()
+                    if elapsed > 60:
+                        logger.warning(
+                            "Update request %s timed out after %.1f seconds in REQUESTED state",
+                            status.request_id,
+                            elapsed,
+                        )
+                        failed_status = UpdateStatus(
+                            request_id=status.request_id,
+                            state=UpdateStatusState.FAILED,
+                            current_version=status.current_version,
+                            target_version=status.target_version,
+                            progress_percent=0,
+                            message="Update request timed out. The host supervisor did not respond.",
+                            error="Host supervisor response timed out after 60 seconds.",
+                        )
+                        self._write_atomic_json(self.status_file, failed_status.to_dict())
+                        if self.request_file.exists():
+                            try:
+                                self.request_file.unlink()
+                            except OSError:
+                                pass
+                        return failed_status
+                except Exception as exc:
+                    logger.warning("Error checking requested status timeout: %s", exc)
 
             # If persisted status is stale relative to the running node, normalize to IDLE
             if status.is_stale(self.current_semver):

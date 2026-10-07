@@ -10,8 +10,12 @@ class OpenApiParser {
     final version = info['version']?.toString() ?? 'v1.0.0';
     final description = info['description']?.toString() ?? '';
 
-    final components = spec['components'] is Map ? spec['components'] as Map : {};
-    final schemas = components['schemas'] is Map ? Map<String, dynamic>.from(components['schemas'] as Map) : <String, dynamic>{};
+    final components = spec['components'] is Map
+        ? spec['components'] as Map
+        : {};
+    final schemas = components['schemas'] is Map
+        ? Map<String, dynamic>.from(components['schemas'] as Map)
+        : <String, dynamic>{};
 
     final pathsMap = spec['paths'] is Map ? spec['paths'] as Map : {};
     final List<ApiEndpoint> endpoints = [];
@@ -28,13 +32,27 @@ class OpenApiParser {
       if (pathItem['parameters'] is List) {
         for (final p in pathItem['parameters'] as List) {
           if (p is Map) {
-            commonParams.add(ApiParameter.fromJson(Map<String, dynamic>.from(p), rootSchemas: schemas));
+            commonParams.add(
+              ApiParameter.fromJson(
+                Map<String, dynamic>.from(p),
+                rootSchemas: schemas,
+              ),
+            );
           }
         }
       }
 
       // Check all HTTP operations
-      const validOps = ['get', 'post', 'put', 'delete', 'patch', 'head', 'options', 'trace'];
+      const validOps = [
+        'get',
+        'post',
+        'put',
+        'delete',
+        'patch',
+        'head',
+        'options',
+        'trace',
+      ];
       pathItem.forEach((opKey, opValRaw) {
         final lowerOp = opKey.toLowerCase();
         if (!validOps.contains(lowerOp) || opValRaw is! Map) return;
@@ -68,9 +86,16 @@ class OpenApiParser {
         if (opMap['parameters'] is List) {
           for (final p in opMap['parameters'] as List) {
             if (p is Map) {
-              final parsedParam = ApiParameter.fromJson(Map<String, dynamic>.from(p), rootSchemas: schemas);
+              final parsedParam = ApiParameter.fromJson(
+                Map<String, dynamic>.from(p),
+                rootSchemas: schemas,
+              );
               // Avoid duplicate parameter names
-              opParams.removeWhere((existing) => existing.name == parsedParam.name && existing.inLocation == parsedParam.inLocation);
+              opParams.removeWhere(
+                (existing) =>
+                    existing.name == parsedParam.name &&
+                    existing.inLocation == parsedParam.inLocation,
+              );
               opParams.add(parsedParam);
             }
           }
@@ -89,7 +114,8 @@ class OpenApiParser {
         if (opMap['responses'] is Map) {
           (opMap['responses'] as Map).forEach((statusCodeKey, respRaw) {
             if (respRaw is Map) {
-              responses[statusCodeKey.toString()] = ApiResponseDefinition.fromJson(
+              responses[statusCodeKey
+                  .toString()] = ApiResponseDefinition.fromJson(
                 statusCodeKey.toString(),
                 Map<String, dynamic>.from(respRaw),
               );
@@ -97,17 +123,19 @@ class OpenApiParser {
           });
         }
 
-        endpoints.add(ApiEndpoint(
-          path: path,
-          method: method,
-          summary: summary,
-          description: desc,
-          tags: tags,
-          operationId: operationId,
-          parameters: opParams,
-          requestBody: requestBody,
-          responses: responses,
-        ));
+        endpoints.add(
+          ApiEndpoint(
+            path: path,
+            method: method,
+            summary: summary,
+            description: desc,
+            tags: tags,
+            operationId: operationId,
+            parameters: opParams,
+            requestBody: requestBody,
+            responses: responses,
+          ),
+        );
       });
     });
 
@@ -122,7 +150,8 @@ class OpenApiParser {
 
     // Order discovered methods logically
     final List<String> sortedMethods = _sortDiscoveredMethods(methodsFound);
-    final List<String> sortedTags = tagsFound.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final List<String> sortedTags = tagsFound.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
     return OpenApiSpecData(
       title: title,
@@ -168,7 +197,10 @@ class OpenApiParser {
   }
 
   /// Generate formatted JSON template for a request body schema
-  static String _generateSampleRequestBody(Map<String, dynamic> requestBodyJson, Map<String, dynamic> rootSchemas) {
+  static String _generateSampleRequestBody(
+    Map<String, dynamic> requestBodyJson,
+    Map<String, dynamic> rootSchemas,
+  ) {
     if (requestBodyJson['content'] is Map) {
       final content = requestBodyJson['content'] as Map;
       Map<String, dynamic>? targetSchema;
@@ -176,17 +208,25 @@ class OpenApiParser {
       if (content.containsKey('application/json')) {
         final jsonContent = content['application/json'];
         if (jsonContent is Map && jsonContent['schema'] is Map) {
-          targetSchema = Map<String, dynamic>.from(jsonContent['schema'] as Map);
+          targetSchema = Map<String, dynamic>.from(
+            jsonContent['schema'] as Map,
+          );
         }
       } else if (content.isNotEmpty) {
         final firstContent = content.values.first;
         if (firstContent is Map && firstContent['schema'] is Map) {
-          targetSchema = Map<String, dynamic>.from(firstContent['schema'] as Map);
+          targetSchema = Map<String, dynamic>.from(
+            firstContent['schema'] as Map,
+          );
         }
       }
 
       if (targetSchema != null) {
-        final sampleObject = _generateSampleFromSchema(targetSchema, rootSchemas, depth: 0);
+        final sampleObject = _generateSampleFromSchema(
+          targetSchema,
+          rootSchemas,
+          depth: 0,
+        );
         try {
           const encoder = JsonEncoder.withIndent('  ');
           return encoder.convert(sampleObject);
@@ -211,7 +251,11 @@ class OpenApiParser {
       final refStr = schema['\$ref'].toString();
       final resolved = _resolveRef(refStr, rootSchemas);
       if (resolved != null) {
-        return _generateSampleFromSchema(resolved, rootSchemas, depth: depth + 1);
+        return _generateSampleFromSchema(
+          resolved,
+          rootSchemas,
+          depth: depth + 1,
+        );
       }
       return {};
     }
@@ -223,7 +267,9 @@ class OpenApiParser {
     if (schema.containsKey('default') && schema['default'] != null) {
       return schema['default'];
     }
-    if (schema.containsKey('enum') && schema['enum'] is List && (schema['enum'] as List).isNotEmpty) {
+    if (schema.containsKey('enum') &&
+        schema['enum'] is List &&
+        (schema['enum'] as List).isNotEmpty) {
       return (schema['enum'] as List).first;
     }
 
@@ -232,7 +278,11 @@ class OpenApiParser {
       final mergedMap = <String, dynamic>{};
       for (final sub in schema['allOf'] as List) {
         if (sub is Map) {
-          final sampleSub = _generateSampleFromSchema(Map<String, dynamic>.from(sub), rootSchemas, depth: depth + 1);
+          final sampleSub = _generateSampleFromSchema(
+            Map<String, dynamic>.from(sub),
+            rootSchemas,
+            depth: depth + 1,
+          );
           if (sampleSub is Map) {
             mergedMap.addAll(Map<String, dynamic>.from(sampleSub));
           }
@@ -244,20 +294,32 @@ class OpenApiParser {
     // 4. Handle anyOf / oneOf (e.g. nullable types like str | None in OpenAPI 3.1)
     if (schema.containsKey('anyOf') && schema['anyOf'] is List) {
       final nonNullSubs = (schema['anyOf'] as List)
-          .where((s) => s is Map && s['type']?.toString().toLowerCase() != 'null')
+          .where(
+            (s) => s is Map && s['type']?.toString().toLowerCase() != 'null',
+          )
           .map((s) => Map<String, dynamic>.from(s as Map))
           .toList();
       if (nonNullSubs.isNotEmpty) {
-        return _generateSampleFromSchema(nonNullSubs.first, rootSchemas, depth: depth + 1);
+        return _generateSampleFromSchema(
+          nonNullSubs.first,
+          rootSchemas,
+          depth: depth + 1,
+        );
       }
     }
     if (schema.containsKey('oneOf') && schema['oneOf'] is List) {
       final nonNullSubs = (schema['oneOf'] as List)
-          .where((s) => s is Map && s['type']?.toString().toLowerCase() != 'null')
+          .where(
+            (s) => s is Map && s['type']?.toString().toLowerCase() != 'null',
+          )
           .map((s) => Map<String, dynamic>.from(s as Map))
           .toList();
       if (nonNullSubs.isNotEmpty) {
-        return _generateSampleFromSchema(nonNullSubs.first, rootSchemas, depth: depth + 1);
+        return _generateSampleFromSchema(
+          nonNullSubs.first,
+          rootSchemas,
+          depth: depth + 1,
+        );
       }
     }
 
@@ -268,7 +330,11 @@ class OpenApiParser {
       props.forEach((propKey, propValRaw) {
         if (propValRaw is Map) {
           final propSchema = Map<String, dynamic>.from(propValRaw);
-          result[propKey.toString()] = _generateSampleFromSchema(propSchema, rootSchemas, depth: depth + 1);
+          result[propKey.toString()] = _generateSampleFromSchema(
+            propSchema,
+            rootSchemas,
+            depth: depth + 1,
+          );
         } else {
           result[propKey.toString()] = '';
         }
@@ -293,7 +359,11 @@ class OpenApiParser {
       case 'array':
         if (schema['items'] is Map) {
           final itemSchema = Map<String, dynamic>.from(schema['items'] as Map);
-          final itemSample = _generateSampleFromSchema(itemSchema, rootSchemas, depth: depth + 1);
+          final itemSample = _generateSampleFromSchema(
+            itemSchema,
+            rootSchemas,
+            depth: depth + 1,
+          );
           return [itemSample];
         }
         return [];
@@ -307,7 +377,10 @@ class OpenApiParser {
     }
   }
 
-  static Map<String, dynamic>? _resolveRef(String ref, Map<String, dynamic> rootSchemas) {
+  static Map<String, dynamic>? _resolveRef(
+    String ref,
+    Map<String, dynamic> rootSchemas,
+  ) {
     // Standard format: #/components/schemas/ModelName
     final prefix = '#/components/schemas/';
     if (ref.startsWith(prefix)) {

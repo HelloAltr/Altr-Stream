@@ -7,34 +7,46 @@ import 'theme_util.dart';
 /// Encapsulates Material 3 light/dark themes, component themes, and semantic operational status tokens.
 class AppTheme {
   // --- SEMANTIC OPERATIONAL STATUS COLORS ---
-  static const Color success = Color(0xFF15803D);       // Green 700
-  static const Color successLight = Color(0xFF16A34A);  // Green 600
-  static const Color successDark = Color(0xFF4ADE80);   // Green 400
+  static const Color success = Color(0xFF15803D); // Green 700
+  static const Color successLight = Color(0xFF16A34A); // Green 600
+  static const Color successDark = Color(0xFF4ADE80); // Green 400
 
-  static const Color error = Color(0xFFDC2626);         // Red 600
-  static const Color errorLight = Color(0xFFEF4444);    // Red 500
-  static const Color errorDark = Color(0xFFF87171);     // Red 400
+  static const Color error = Color(0xFFDC2626); // Red 600
+  static const Color errorLight = Color(0xFFEF4444); // Red 500
+  static const Color errorDark = Color(0xFFF87171); // Red 400
 
-  static const Color warning = Color(0xFFD97706);       // Amber 600
-  static const Color warningLight = Color(0xFFF59E0B);  // Amber 500
-  static const Color warningDark = Color(0xFFFBBF24);   // Amber 400
+  static const Color warning = Color(0xFFD97706); // Amber 600
+  static const Color warningLight = Color(0xFFF59E0B); // Amber 500
+  static const Color warningDark = Color(0xFFFBBF24); // Amber 400
 
-  static const Color info = Color(0xFF0284C7);          // Sky 600
-  static const Color infoLight = Color(0xFF38BDF8);     // Sky 400
-  static const Color infoDark = Color(0xFF38BDF8);      // Sky 400
+  static const Color info = Color(0xFF0284C7); // Sky 600
+  static const Color infoLight = Color(0xFF38BDF8); // Sky 400
+  static const Color infoDark = Color(0xFF38BDF8); // Sky 400
 
   // Status background alpha helpers
-  static Color successBg(BuildContext context) =>
-      _statusBg(Theme.of(context).brightness == Brightness.dark ? successDark : successLight, context);
+  static Color successBg(BuildContext context) => _statusBg(
+    Theme.of(context).brightness == Brightness.dark
+        ? successDark
+        : successLight,
+    context,
+  );
 
-  static Color errorBg(BuildContext context) =>
-      _statusBg(Theme.of(context).brightness == Brightness.dark ? errorDark : errorLight, context);
+  static Color errorBg(BuildContext context) => _statusBg(
+    Theme.of(context).brightness == Brightness.dark ? errorDark : errorLight,
+    context,
+  );
 
-  static Color warningBg(BuildContext context) =>
-      _statusBg(Theme.of(context).brightness == Brightness.dark ? warningDark : warningLight, context);
+  static Color warningBg(BuildContext context) => _statusBg(
+    Theme.of(context).brightness == Brightness.dark
+        ? warningDark
+        : warningLight,
+    context,
+  );
 
-  static Color infoBg(BuildContext context) =>
-      _statusBg(Theme.of(context).brightness == Brightness.dark ? infoDark : infoLight, context);
+  static Color infoBg(BuildContext context) => _statusBg(
+    Theme.of(context).brightness == Brightness.dark ? infoDark : infoLight,
+    context,
+  );
 
   static Color _statusBg(Color color, BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -136,7 +148,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surfaceContainerLowest,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: scheme.outlineVariant),
@@ -157,10 +172,7 @@ class AppTheme {
           color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
           fontSize: 13,
         ),
-        labelStyle: TextStyle(
-          color: scheme.onSurfaceVariant,
-          fontSize: 13,
-        ),
+        labelStyle: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -168,13 +180,8 @@ class AppTheme {
           foregroundColor: scheme.onPrimary,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -182,22 +189,14 @@ class AppTheme {
           foregroundColor: scheme.onSurface,
           side: BorderSide(color: scheme.outlineVariant),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: scheme.primary,
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
       ),
       dialogTheme: DialogThemeData(
@@ -213,7 +212,10 @@ class AppTheme {
         labelColor: scheme.primary,
         unselectedLabelColor: scheme.onSurfaceVariant,
         labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.normal,
+          fontSize: 13,
+        ),
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: scheme.surfaceContainerLow,
@@ -229,9 +231,7 @@ class AppTheme {
           fontSize: 11,
         ),
       ),
-      drawerTheme: DrawerThemeData(
-        backgroundColor: scheme.surfaceContainerLow,
-      ),
+      drawerTheme: DrawerThemeData(backgroundColor: scheme.surfaceContainerLow),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surfaceContainerLow,
         foregroundColor: scheme.onSurface,

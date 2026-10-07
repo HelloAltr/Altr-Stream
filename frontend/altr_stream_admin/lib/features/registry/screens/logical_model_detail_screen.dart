@@ -21,7 +21,7 @@ class LogicalModelDetailScreen extends StatefulWidget {
   final ApiClient apiClient;
   final VoidCallback onBack;
   final VoidCallback onModelDeleted;
-  final String nodeStatus; 
+  final String nodeStatus;
   final VoidCallback onNodeStatusTap;
 
   const LogicalModelDetailScreen({
@@ -36,10 +36,12 @@ class LogicalModelDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<LogicalModelDetailScreen> createState() => LogicalModelDetailScreenState();
+  State<LogicalModelDetailScreen> createState() =>
+      LogicalModelDetailScreenState();
 }
 
-class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with SingleTickerProviderStateMixin {
+class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late final M3ERefreshIndicatorController _refreshController;
   late LogicalModelModel _currentModel;
@@ -118,7 +120,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
   Future<void> _fetchMappings() async {
     setState(() => _isLoadingMappings = true);
     try {
-      final list = await widget.apiClient.listSourceMappings(modelId: _currentModel.id);
+      final list = await widget.apiClient.listSourceMappings(
+        modelId: _currentModel.id,
+      );
       setState(() {
         _mappings = list;
         _isLoadingMappings = false;
@@ -132,12 +136,15 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
   }
 
   Future<void> _ensureSourceSchema(String sourceId) async {
-    if (_sourceSchemas.containsKey(sourceId) || _loadingSchemaSourceIds.contains(sourceId)) {
+    if (_sourceSchemas.containsKey(sourceId) ||
+        _loadingSchemaSourceIds.contains(sourceId)) {
       return;
     }
     _loadingSchemaSourceIds.add(sourceId);
     try {
-      SourceSchemaModel? schema = await widget.apiClient.getLatestSchema(sourceId);
+      SourceSchemaModel? schema = await widget.apiClient.getLatestSchema(
+        sourceId,
+      );
       if (schema == null || schema.entities.isEmpty) {
         schema = await widget.apiClient.discoverSchema(sourceId);
       }
@@ -161,16 +168,22 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
       _editingFieldAssignments.clear();
 
       for (final logicalEntity in _currentModel.entities) {
-        final em = mapping.entityMappings.where(
-          (m) => m.logicalEntityId == logicalEntity.id || m.logicalEntityName == logicalEntity.name,
-        ).firstOrNull;
+        final em = mapping.entityMappings
+            .where(
+              (m) =>
+                  m.logicalEntityId == logicalEntity.id ||
+                  m.logicalEntityName == logicalEntity.name,
+            )
+            .firstOrNull;
 
         if (em != null) {
           _editingPhysicalEntityNames[logicalEntity.id] = em.physicalEntityName;
           _editingPhysicalNamespaces[logicalEntity.id] = em.physicalNamespace;
           final fieldMap = <String, String?>{};
           for (final lf in logicalEntity.fields) {
-            final fm = em.fieldMappings.where((f) => f.logicalFieldName == lf.name).firstOrNull;
+            final fm = em.fieldMappings
+                .where((f) => f.logicalFieldName == lf.name)
+                .firstOrNull;
             fieldMap[lf.name] = fm?.physicalFieldName;
           }
           _editingFieldAssignments[logicalEntity.id] = fieldMap;
@@ -204,7 +217,8 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
     setState(() {
       for (final logicalEntity in _currentModel.entities) {
         final logicalName = logicalEntity.name.toLowerCase();
-        var selectedPhysicalName = _editingPhysicalEntityNames[logicalEntity.id];
+        var selectedPhysicalName =
+            _editingPhysicalEntityNames[logicalEntity.id];
 
         if (selectedPhysicalName == null || selectedPhysicalName.isEmpty) {
           final matchedEntity = schema.entities.where((pe) {
@@ -219,19 +233,26 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
           if (matchedEntity != null) {
             selectedPhysicalName = matchedEntity.name;
             _editingPhysicalEntityNames[logicalEntity.id] = matchedEntity.name;
-            _editingPhysicalNamespaces[logicalEntity.id] = matchedEntity.namespace;
+            _editingPhysicalNamespaces[logicalEntity.id] =
+                matchedEntity.namespace;
           }
         }
 
         if (selectedPhysicalName != null && selectedPhysicalName.isNotEmpty) {
-          final physEntity = schema.entities.where((pe) => pe.name == selectedPhysicalName).firstOrNull;
+          final physEntity = schema.entities
+              .where((pe) => pe.name == selectedPhysicalName)
+              .firstOrNull;
           if (physEntity != null) {
-            final fieldMap = _editingFieldAssignments.putIfAbsent(logicalEntity.id, () => {});
+            final fieldMap = _editingFieldAssignments.putIfAbsent(
+              logicalEntity.id,
+              () => {},
+            );
             for (final lf in logicalEntity.fields) {
               final lfn = lf.name.toLowerCase().replaceAll('_', '');
               for (final pf in physEntity.fields) {
                 final pfn = pf.name.toLowerCase().replaceAll('_', '');
-                if ((pfn == lfn || pf.name.toLowerCase() == lf.name.toLowerCase()) &&
+                if ((pfn == lfn ||
+                        pf.name.toLowerCase() == lf.name.toLowerCase()) &&
                     areDataTypesCompatible(lf.dataType, pf.dataType)) {
                   fieldMap[lf.name] = pf.name;
                   break;
@@ -252,7 +273,8 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
       if (physicalName == null || physicalName.isEmpty) {
         continue;
       }
-      final physicalNs = _editingPhysicalNamespaces[logicalEntity.id] ?? 'public';
+      final physicalNs =
+          _editingPhysicalNamespaces[logicalEntity.id] ?? 'public';
       final fieldMap = _editingFieldAssignments[logicalEntity.id] ?? {};
       final fieldPayloads = <Map<String, dynamic>>[];
 
@@ -280,7 +302,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
 
     if (entityPayloads.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('At least one entity with mapped fields is required to save.')),
+        const SnackBar(
+          content: Text(
+            'At least one entity with mapped fields is required to save.',
+          ),
+        ),
       );
       return;
     }
@@ -297,7 +323,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
       await _fetchMappings();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Source mapping updated! Status reset to DRAFT. Click Validate to test.')),
+          const SnackBar(
+            content: Text(
+              'Source mapping updated! Status reset to DRAFT. Click Validate to test.',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -325,7 +355,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         onModelUpdated: (updated) {
           setState(() => _currentModel = updated);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logical model updated successfully.')),
+            const SnackBar(
+              content: Text('Logical model updated successfully.'),
+            ),
           );
         },
       ),
@@ -346,7 +378,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         title: 'Delete Logical Model?',
         content: Text(
           'Are you sure you want to delete "${_currentModel.name}" and all its entities and source mappings? This action cannot be undone.',
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.5,
+          ),
         ),
         actions: [
           M3EButton(
@@ -370,7 +406,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete model: $e'), backgroundColor: colorScheme.error),
+            SnackBar(
+              content: Text('Failed to delete model: $e'),
+              backgroundColor: colorScheme.error,
+            ),
           );
         }
       }
@@ -402,7 +441,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         onEntityUpdated: (_) {
           _refreshModel();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logical entity updated successfully.')),
+            const SnackBar(
+              content: Text('Logical entity updated successfully.'),
+            ),
           );
         },
       ),
@@ -451,7 +492,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         onMappingCreated: (_) {
           _fetchMappings();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Source mapping created and validated!')),
+            const SnackBar(
+              content: Text('Source mapping created and validated!'),
+            ),
           );
         },
       ),
@@ -472,7 +515,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         title: 'Delete Logical Entity?',
         content: Text(
           'Are you sure you want to delete "${entity.name}" and its fields? This action cannot be undone.',
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.5,
+          ),
         ),
         actions: [
           M3EButton(
@@ -496,7 +543,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete entity: $e'), backgroundColor: colorScheme.error),
+            SnackBar(
+              content: Text('Failed to delete entity: $e'),
+              backgroundColor: colorScheme.error,
+            ),
           );
         }
       }
@@ -517,7 +567,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         title: 'Delete Field?',
         content: Text(
           'Are you sure you want to delete field "${field.name}"?',
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.5,
+          ),
         ),
         actions: [
           M3EButton(
@@ -541,7 +595,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete field: $e'), backgroundColor: colorScheme.error),
+            SnackBar(
+              content: Text('Failed to delete field: $e'),
+              backgroundColor: colorScheme.error,
+            ),
           );
         }
       }
@@ -560,7 +617,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Validation error: $e'), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(
+            content: Text('Validation error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     }
@@ -578,7 +638,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Activation failed: $e'), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(
+            content: Text('Activation failed: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     }
@@ -598,7 +661,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         title: 'Delete Source Mapping?',
         content: Text(
           'Are you sure you want to delete this source mapping?',
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, height: 1.5),
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.5,
+          ),
         ),
         actions: [
           M3EButton(
@@ -622,7 +689,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Delete failed: $e'), backgroundColor: colorScheme.error),
+            SnackBar(
+              content: Text('Delete failed: $e'),
+              backgroundColor: colorScheme.error,
+            ),
           );
         }
       }
@@ -685,22 +755,34 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: colorScheme.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.3,
+                                ),
+                              ),
                             ),
                             child: Text(
                               'v${_currentModel.version}',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.primary),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        (_currentModel.description != null && _currentModel.description!.isNotEmpty)
+                        (_currentModel.description != null &&
+                                _currentModel.description!.isNotEmpty)
                             ? _currentModel.description!
                             : '${_currentModel.entityCount} ${_currentModel.entityCount == 1 ? "entity" : "entities"} • ${_currentModel.totalFieldCount} fields • ${_mappings.length} ${_mappings.length == 1 ? "source mapped" : "sources mapped"}',
                         style: TextStyle(
@@ -725,15 +807,12 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
               unselectedLabelColor: colorScheme.onSurfaceVariant,
               indicatorColor: colorScheme.primary,
               tabs: [
-                const Tab(
-                  text: 'Overview',
-                ),
+                const Tab(text: 'Overview'),
                 Tab(
-                  text: 'Logical Schemas (${_currentModel.entityCount} entities, ${_currentModel.totalFieldCount} fields)',
+                  text:
+                      'Logical Schemas (${_currentModel.entityCount} entities, ${_currentModel.totalFieldCount} fields)',
                 ),
-                Tab(
-                  text: 'Source Mappings (${_mappings.length} sources)',
-                ),
+                Tab(text: 'Source Mappings (${_mappings.length} sources)'),
               ],
             ),
             const SizedBox(height: 16),
@@ -765,20 +844,35 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
         ),
         child: Center(
           child: Column(
             children: [
-              HugeIcon(icon: HugeIcons.strokeRoundedSheet, size: 40, color: colorScheme.onSurfaceVariant),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedSheet,
+                size: 40,
+                color: colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(height: 12),
-              const Text('No logical entities defined yet.', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'No logical entities defined yet.',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 6),
-              const Text('Add entities and field definitions to build this domain model.', style: TextStyle(fontSize: 12)),
+              const Text(
+                'Add entities and field definitions to build this domain model.',
+                style: TextStyle(fontSize: 12),
+              ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: _showAddEntityDialog,
-                icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 16),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedAdd01,
+                  size: 16,
+                ),
                 label: const Text('Add Logical Entity'),
               ),
             ],
@@ -795,7 +889,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
 
     final list = ListView.separated(
       shrinkWrap: !isBounded,
-      physics: isBounded ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
+      physics: isBounded
+          ? const AlwaysScrollableScrollPhysics()
+          : const NeverScrollableScrollPhysics(),
       itemCount: _currentModel.entities.length,
       separatorBuilder: (_, _) => const SizedBox(height: 16),
       itemBuilder: (context, idx) {
@@ -817,7 +913,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                             color: colorScheme.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: HugeIcon(icon: HugeIcons.strokeRoundedSheet, size: 16, color: colorScheme.primary),
+                          child: HugeIcon(
+                            icon: HugeIcons.strokeRoundedSheet,
+                            size: 16,
+                            color: colorScheme.primary,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -831,7 +931,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                         const SizedBox(width: 8),
                         Text(
                           '(${entity.fieldCount} fields)',
-                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -839,19 +942,31 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                       children: [
                         TextButton.icon(
                           onPressed: () => _showAddFieldDialog(entity),
-                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
-                          label: const Text('Add Field', style: TextStyle(fontSize: 12)),
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedAdd01,
+                            size: 14,
+                          ),
+                          label: const Text(
+                            'Add Field',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                         const SizedBox(width: 4),
                         IconButton(
                           onPressed: () => _showEditEntityDialog(entity),
-                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 18),
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedEdit02,
+                            size: 18,
+                          ),
                           tooltip: 'Edit Entity',
                         ),
                         const SizedBox(width: 4),
                         IconButton(
                           onPressed: () => _deleteEntity(entity),
-                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedDelete02,
+                            size: 18,
+                          ),
                           color: colorScheme.error,
                           tooltip: 'Delete Entity',
                         ),
@@ -861,10 +976,19 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                 ),
                 if (entity.description != null) ...[
                   const SizedBox(height: 4),
-                  Text(entity.description!, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                  Text(
+                    entity.description!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 12),
-                Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                Divider(
+                  height: 1,
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                ),
                 const SizedBox(height: 8),
                 // Fields Table
                 Table(
@@ -878,26 +1002,56 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                   children: [
                     TableRow(
                       decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.2))),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.2,
+                            ),
+                          ),
+                        ),
                       ),
                       children: const [
                         Padding(
                           padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text('FIELD NAME', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            'FIELD NAME',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                         Padding(
                           padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text('LOGICAL TYPE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            'LOGICAL TYPE',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                         Padding(
                           padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text('ATTRIBUTES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            'ATTRIBUTES',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                         Padding(
                           padding: EdgeInsets.symmetric(vertical: 6),
                           child: Align(
                             alignment: Alignment.centerRight,
-                            child: Text('ACTIONS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                            child: Text(
+                              'ACTIONS',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -910,16 +1064,22 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                             child: Row(
                               children: [
                                 HugeIcon(
-                                  icon: f.isPrimaryKey ? HugeIcons.strokeRoundedKey01 : HugeIcons.strokeRoundedTag01,
+                                  icon: f.isPrimaryKey
+                                      ? HugeIcons.strokeRoundedKey01
+                                      : HugeIcons.strokeRoundedTag01,
                                   size: 13,
-                                  color: f.isPrimaryKey ? Colors.amber : colorScheme.onSurfaceVariant,
+                                  color: f.isPrimaryKey
+                                      ? Colors.amber
+                                      : colorScheme.onSurfaceVariant,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   f.name,
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: f.isPrimaryKey ? FontWeight.bold : FontWeight.normal,
+                                    fontWeight: f.isPrimaryKey
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                                     fontFamily: 'monospace',
                                     color: colorScheme.onSurface,
                                   ),
@@ -931,7 +1091,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Text(
                               f.dataType,
-                              style: TextStyle(fontSize: 12, color: colorScheme.primary, fontFamily: 'monospace'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.primary,
+                                fontFamily: 'monospace',
+                              ),
                             ),
                           ),
                           Padding(
@@ -940,22 +1104,44 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                               children: [
                                 if (f.isPrimaryKey)
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 1,
+                                    ),
                                     margin: const EdgeInsets.only(right: 4),
                                     decoration: BoxDecoration(
-                                      color: Colors.amber.withValues(alpha: 0.15),
+                                      color: Colors.amber.withValues(
+                                        alpha: 0.15,
+                                      ),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
-                                    child: const Text('PK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber)),
+                                    child: const Text(
+                                      'PK',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.amber,
+                                      ),
+                                    ),
                                   ),
                                 if (f.nullable)
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 1,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: colorScheme.surfaceContainerHighest,
+                                      color:
+                                          colorScheme.surfaceContainerHighest,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
-                                    child: Text('NULL', style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant)),
+                                    child: Text(
+                                      'NULL',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
@@ -967,14 +1153,22 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                               children: [
                                 IconButton(
                                   onPressed: () => _showEditFieldDialog(f),
-                                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 14),
+                                  icon: const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedEdit02,
+                                    size: 14,
+                                  ),
                                   tooltip: 'Edit field',
                                   visualDensity: VisualDensity.compact,
                                 ),
                                 IconButton(
                                   onPressed: () => _deleteField(f),
-                                  icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 14),
-                                  color: colorScheme.error.withValues(alpha: 0.7),
+                                  icon: const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedDelete02,
+                                    size: 14,
+                                  ),
+                                  color: colorScheme.error.withValues(
+                                    alpha: 0.7,
+                                  ),
                                   tooltip: 'Delete field',
                                   visualDensity: VisualDensity.compact,
                                 ),
@@ -1009,7 +1203,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
             ),
             ElevatedButton.icon(
               onPressed: _showAddEntityDialog,
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedAdd01,
+                size: 14,
+              ),
               label: const Text('Add Logical Entity'),
             ),
           ],
@@ -1029,22 +1226,34 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (physicalFieldName == null || physicalFieldName.isEmpty || physicalFieldName == '—') {
+    if (physicalFieldName == null ||
+        physicalFieldName.isEmpty ||
+        physicalFieldName == '—') {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedAlert02, size: 13, color: colorScheme.onSurfaceVariant),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedAlert02,
+              size: 13,
+              color: colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 5),
             Text(
               'Unmapped',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -1062,11 +1271,19 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedCancelCircle, size: 13, color: colorScheme.error),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedCancelCircle,
+              size: 13,
+              color: colorScheme.error,
+            ),
             const SizedBox(width: 5),
             Text(
               'Missing in Schema',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.error),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.error,
+              ),
             ),
           ],
         ),
@@ -1085,11 +1302,19 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle, size: 13, color: colorScheme.error),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedAlertCircle,
+              size: 13,
+              color: colorScheme.error,
+            ),
             const SizedBox(width: 5),
             Text(
               'Type Mismatch',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colorScheme.error),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.error,
+              ),
             ),
           ],
         ),
@@ -1106,11 +1331,19 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 13, color: Colors.green),
+          HugeIcon(
+            icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+            size: 13,
+            color: Colors.green,
+          ),
           SizedBox(width: 5),
           Text(
             'Valid',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.green,
+            ),
           ),
         ],
       ),
@@ -1130,18 +1363,29 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
     if (isEditing) {
       physicalTableName = _editingPhysicalEntityNames[logicalEntity.id];
     } else {
-      final em = mapping.entityMappings.where(
-        (m) => m.logicalEntityId == logicalEntity.id || m.logicalEntityName == logicalEntity.name,
-      ).firstOrNull;
+      final em = mapping.entityMappings
+          .where(
+            (m) =>
+                m.logicalEntityId == logicalEntity.id ||
+                m.logicalEntityName == logicalEntity.name,
+          )
+          .firstOrNull;
       physicalTableName = em?.physicalEntityName;
     }
 
-    final physicalEntitySchema = schema?.entities.where((e) => e.name == physicalTableName).firstOrNull;
-    final availableFields = physicalEntitySchema?.fields ?? <FieldSchemaModel>[];
+    final physicalEntitySchema = schema?.entities
+        .where((e) => e.name == physicalTableName)
+        .firstOrNull;
+    final availableFields =
+        physicalEntitySchema?.fields ?? <FieldSchemaModel>[];
 
-    final em = mapping.entityMappings.where(
-      (m) => m.logicalEntityId == logicalEntity.id || m.logicalEntityName == logicalEntity.name,
-    ).firstOrNull;
+    final em = mapping.entityMappings
+        .where(
+          (m) =>
+              m.logicalEntityId == logicalEntity.id ||
+              m.logicalEntityName == logicalEntity.name,
+        )
+        .firstOrNull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1151,75 +1395,124 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  HugeIcon(icon: HugeIcons.strokeRoundedSheet, size: 15, color: colorScheme.primary),
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedSheet,
+                    size: 15,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Entity: ${logicalEntity.name}',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  const HugeIcon(icon: HugeIcons.strokeRoundedArrowRight01, size: 12),
+                  const HugeIcon(
+                    icon: HugeIcons.strokeRoundedArrowRight01,
+                    size: 12,
+                  ),
                   const SizedBox(width: 8),
                   Container(
                     height: 34,
                     alignment: Alignment.centerLeft,
                     child: isEditing
                         ? (schema == null
-                            ? Text('Loading schema...', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))
-                            : SizedBox(
-                                width: 260,
-                                height: 34,
-                                child: DropdownButtonFormField<String?>(
-                                  isExpanded: true,
-                                  initialValue: physicalTableName,
-                                  isDense: true,
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: colorScheme.surfaceContainerLowest,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(6),
-                                      borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.8)),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(6),
-                                      borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
-                                    ),
+                              ? Text(
+                                  'Loading schema...',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colorScheme.onSurfaceVariant,
                                   ),
-                                  hint: const Text('(Select Physical Table)', style: TextStyle(fontSize: 12)),
-                                  items: [
-                                    const DropdownMenuItem<String?>(
-                                      value: null,
-                                      child: Text('(None / Unmapped)', style: TextStyle(fontSize: 12)),
-                                    ),
-                                    ...schema.entities.map(
-                                      (pe) => DropdownMenuItem<String?>(
-                                        value: pe.name,
-                                        child: Text('${pe.namespace}.${pe.name} (${pe.fields.length} cols)', style: const TextStyle(fontSize: 12)),
+                                )
+                              : SizedBox(
+                                  width: 260,
+                                  height: 34,
+                                  child: DropdownButtonFormField<String?>(
+                                    isExpanded: true,
+                                    initialValue: physicalTableName,
+                                    isDense: true,
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor:
+                                          colorScheme.surfaceContainerLowest,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                        borderSide: BorderSide(
+                                          color: colorScheme.outlineVariant
+                                              .withValues(alpha: 0.8),
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                        borderSide: BorderSide(
+                                          color: colorScheme.primary,
+                                          width: 1.5,
+                                        ),
                                       ),
                                     ),
-                                  ],
-                                  onChanged: (val) {
-                                    setState(() {
-                                      _editingPhysicalEntityNames[logicalEntity.id] = val;
-                                      if (val != null) {
-                                        final matched = schema.entities.where((e) => e.name == val).firstOrNull;
-                                        if (matched != null) {
-                                          _editingPhysicalNamespaces[logicalEntity.id] = matched.namespace;
+                                    hint: const Text(
+                                      '(Select Physical Table)',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                    items: [
+                                      const DropdownMenuItem<String?>(
+                                        value: null,
+                                        child: Text(
+                                          '(None / Unmapped)',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                      ...schema.entities.map(
+                                        (pe) => DropdownMenuItem<String?>(
+                                          value: pe.name,
+                                          child: Text(
+                                            '${pe.namespace}.${pe.name} (${pe.fields.length} cols)',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _editingPhysicalEntityNames[logicalEntity
+                                                .id] =
+                                            val;
+                                        if (val != null) {
+                                          final matched = schema.entities
+                                              .where((e) => e.name == val)
+                                              .firstOrNull;
+                                          if (matched != null) {
+                                            _editingPhysicalNamespaces[logicalEntity
+                                                    .id] =
+                                                matched.namespace;
+                                          }
                                         }
-                                      }
-                                    });
-                                  },
-                                ),
-                              ))
+                                      });
+                                    },
+                                  ),
+                                ))
                         : Text(
                             physicalTableName != null
                                 ? '${em?.physicalNamespace ?? "public"}.$physicalTableName'
@@ -1228,7 +1521,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                               fontSize: 12.5,
                               fontFamily: 'monospace',
                               fontWeight: FontWeight.bold,
-                              color: physicalTableName != null ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                              color: physicalTableName != null
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
                             ),
                           ),
                   ),
@@ -1236,15 +1531,22 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
               ),
               Text(
                 '${logicalEntity.fields.length} logical fields',
-                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
         ),
         Container(
           decoration: BoxDecoration(
-            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+            ),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(8),
+            ),
           ),
           child: Table(
             columnWidths: const {
@@ -1259,57 +1561,108 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
               TableRow(
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainer,
-                  border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                  ),
                 ),
                 children: [
                   Container(
                     height: 36,
                     alignment: Alignment.centerLeft,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: const Text('LOGICAL FIELD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+                    child: const Text(
+                      'LOGICAL FIELD',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
                   ),
                   Container(
                     height: 36,
                     alignment: Alignment.centerLeft,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: const Text('LOGICAL TYPE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+                    child: const Text(
+                      'LOGICAL TYPE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
                   ),
                   Container(
                     height: 36,
                     alignment: Alignment.centerLeft,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: const Text('PHYSICAL FIELD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+                    child: const Text(
+                      'PHYSICAL FIELD',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
                   ),
                   Container(
                     height: 36,
                     alignment: Alignment.centerLeft,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: const Text('PHYSICAL TYPE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+                    child: const Text(
+                      'PHYSICAL TYPE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
                   ),
                   Container(
                     height: 36,
                     alignment: Alignment.centerLeft,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: const Text('STATUS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+                    child: const Text(
+                      'STATUS',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
                   ),
                 ],
               ),
               ...logicalEntity.fields.map((lf) {
                 String? mappedPhysicalFieldName;
                 if (isEditing) {
-                  mappedPhysicalFieldName = _editingFieldAssignments[logicalEntity.id]?[lf.name];
+                  mappedPhysicalFieldName =
+                      _editingFieldAssignments[logicalEntity.id]?[lf.name];
                 } else {
-                  final fm = em?.fieldMappings.where((f) => f.logicalFieldName == lf.name).firstOrNull;
+                  final fm = em?.fieldMappings
+                      .where((f) => f.logicalFieldName == lf.name)
+                      .firstOrNull;
                   mappedPhysicalFieldName = fm?.physicalFieldName;
                 }
 
-                final physicalFieldSchema = availableFields.where((f) => f.name == mappedPhysicalFieldName).firstOrNull;
+                final physicalFieldSchema = availableFields
+                    .where((f) => f.name == mappedPhysicalFieldName)
+                    .firstOrNull;
                 final physicalDataType = physicalFieldSchema?.dataType;
-                final isFieldFoundInSchema = physicalFieldSchema != null || schema == null;
+                final isFieldFoundInSchema =
+                    physicalFieldSchema != null || schema == null;
 
                 return TableRow(
                   decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.15))),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: colorScheme.outlineVariant.withValues(
+                          alpha: 0.15,
+                        ),
+                      ),
+                    ),
                   ),
                   children: [
                     Container(
@@ -1319,9 +1672,13 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                       child: Row(
                         children: [
                           HugeIcon(
-                            icon: lf.isPrimaryKey ? HugeIcons.strokeRoundedKey01 : HugeIcons.strokeRoundedTag01,
+                            icon: lf.isPrimaryKey
+                                ? HugeIcons.strokeRoundedKey01
+                                : HugeIcons.strokeRoundedTag01,
                             size: 13,
-                            color: lf.isPrimaryKey ? Colors.amber : colorScheme.onSurfaceVariant,
+                            color: lf.isPrimaryKey
+                                ? Colors.amber
+                                : colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 6),
                           Expanded(
@@ -1329,7 +1686,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                               lf.name,
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: lf.isPrimaryKey ? FontWeight.bold : FontWeight.normal,
+                                fontWeight: lf.isPrimaryKey
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                                 fontFamily: 'monospace',
                                 color: colorScheme.onSurface,
                               ),
@@ -1338,13 +1697,23 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                           ),
                           if (lf.isPrimaryKey)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1,
+                              ),
                               margin: const EdgeInsets.only(left: 4),
                               decoration: BoxDecoration(
                                 color: Colors.amber.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: const Text('PK', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.amber)),
+                              child: const Text(
+                                'PK',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber,
+                                ),
+                              ),
                             ),
                         ],
                       ),
@@ -1355,7 +1724,12 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Text(
                         lf.dataType,
-                        style: TextStyle(fontSize: 12, color: colorScheme.primary, fontFamily: 'monospace', fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.primary,
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     Container(
@@ -1364,58 +1738,105 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       child: isEditing
                           ? (availableFields.isEmpty
-                              ? Text(
-                                  physicalTableName == null ? '(Select table first)' : '(No columns found)',
-                                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: colorScheme.onSurfaceVariant),
-                                )
-                              : SizedBox(
-                                  height: 34,
-                                  child: DropdownButtonFormField<String?>(
-                                    isExpanded: true,
-                                    initialValue: availableFields.any((f) => f.name == mappedPhysicalFieldName)
-                                        ? mappedPhysicalFieldName
-                                        : null,
-                                    isDense: true,
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: colorScheme.surfaceContainerLowest,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(6),
-                                        borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.8)),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(6),
-                                        borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
-                                      ),
+                                ? Text(
+                                    physicalTableName == null
+                                        ? '(Select table first)'
+                                        : '(No columns found)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                      color: colorScheme.onSurfaceVariant,
                                     ),
-                                    hint: const Text('(Unmapped)', style: TextStyle(fontSize: 12)),
-                                    items: [
-                                      const DropdownMenuItem<String?>(
-                                        value: null,
-                                        child: Text('(Unmapped)', style: TextStyle(fontSize: 12)),
-                                      ),
-                                      ...availableFields.map(
-                                        (pf) => DropdownMenuItem<String?>(
-                                          value: pf.name,
-                                          child: Text('${pf.name} (${pf.dataType})', style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+                                  )
+                                : SizedBox(
+                                    height: 34,
+                                    child: DropdownButtonFormField<String?>(
+                                      isExpanded: true,
+                                      initialValue:
+                                          availableFields.any(
+                                            (f) =>
+                                                f.name ==
+                                                mappedPhysicalFieldName,
+                                          )
+                                          ? mappedPhysicalFieldName
+                                          : null,
+                                      isDense: true,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor:
+                                            colorScheme.surfaceContainerLowest,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: colorScheme.outlineVariant
+                                                .withValues(alpha: 0.8),
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: colorScheme.primary,
+                                            width: 1.5,
+                                          ),
                                         ),
                                       ),
-                                    ],
-                                    onChanged: (val) {
-                                      setState(() {
-                                        _editingFieldAssignments.putIfAbsent(logicalEntity.id, () => {})[lf.name] = val;
-                                      });
-                                    },
-                                  ),
-                                ))
+                                      hint: const Text(
+                                        '(Unmapped)',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      items: [
+                                        const DropdownMenuItem<String?>(
+                                          value: null,
+                                          child: Text(
+                                            '(Unmapped)',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
+                                        ),
+                                        ...availableFields.map(
+                                          (pf) => DropdownMenuItem<String?>(
+                                            value: pf.name,
+                                            child: Text(
+                                              '${pf.name} (${pf.dataType})',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontFamily: 'monospace',
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (val) {
+                                        setState(() {
+                                          _editingFieldAssignments.putIfAbsent(
+                                            logicalEntity.id,
+                                            () => {},
+                                          )[lf.name] = val;
+                                        });
+                                      },
+                                    ),
+                                  ))
                           : Text(
                               mappedPhysicalFieldName ?? '(Unmapped)',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontFamily: 'monospace',
-                                color: mappedPhysicalFieldName != null ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
+                                color: mappedPhysicalFieldName != null
+                                    ? colorScheme.onSurface
+                                    : colorScheme.onSurfaceVariant,
                               ),
                             ),
                     ),
@@ -1428,7 +1849,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                         style: TextStyle(
                           fontSize: 12,
                           fontFamily: 'monospace',
-                          color: physicalDataType != null ? colorScheme.onSurfaceVariant : colorScheme.outline,
+                          color: physicalDataType != null
+                              ? colorScheme.onSurfaceVariant
+                              : colorScheme.outline,
                         ),
                       ),
                     ),
@@ -1454,9 +1877,14 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
     );
   }
 
-  Widget _buildSourceMappingCard(BuildContext context, SourceMappingModel mapping) {
+  Widget _buildSourceMappingCard(
+    BuildContext context,
+    SourceMappingModel mapping,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final source = widget.sources.where((s) => s.id == mapping.sourceId).firstOrNull;
+    final source = widget.sources
+        .where((s) => s.id == mapping.sourceId)
+        .firstOrNull;
     final isEditing = _editingMappingId == mapping.id;
     final schema = _sourceSchemas[mapping.sourceId];
 
@@ -1466,7 +1894,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         borderRadius: BorderRadius.circular(28),
         side: isEditing
             ? BorderSide(color: colorScheme.primary, width: 2)
-            : BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0)),
+            : BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0),
+              ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1507,14 +1937,23 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                             if (isEditing) ...[
                               const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: colorScheme.primary.withValues(alpha: 0.15),
+                                  color: colorScheme.primary.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   'EDITING',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colorScheme.primary),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.primary,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1522,7 +1961,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                         ),
                         Text(
                           '${source?.type ?? "SOURCE"} • Provenance: ${mapping.provenance} • Mapping ID: ${mapping.id.length > 8 ? "${mapping.id.substring(0, 8)}..." : mapping.id}',
-                          style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -1535,46 +1977,94 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                     if (isEditing) ...[
                       OutlinedButton.icon(
                         onPressed: () => _autoMatchCurrentEdit(mapping),
-                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedMagicWand01, size: 14),
-                        label: const Text('Auto-Match', style: TextStyle(fontSize: 12)),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedMagicWand01,
+                          size: 14,
+                        ),
+                        label: const Text(
+                          'Auto-Match',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton(
-                        onPressed: _isSavingInlineEdit ? null : _cancelInlineEdit,
-                        child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                        onPressed: _isSavingInlineEdit
+                            ? null
+                            : _cancelInlineEdit,
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       ElevatedButton.icon(
-                        onPressed: _isSavingInlineEdit ? null : () => _saveCurrentInlineEdit(mapping),
+                        onPressed: _isSavingInlineEdit
+                            ? null
+                            : () => _saveCurrentInlineEdit(mapping),
                         icon: _isSavingInlineEdit
-                            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const HugeIcon(icon: HugeIcons.strokeRoundedFloppyDisk, size: 14),
-                        label: const Text('Save Changes', style: TextStyle(fontSize: 12)),
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const HugeIcon(
+                                icon: HugeIcons.strokeRoundedFloppyDisk,
+                                size: 14,
+                              ),
+                        label: const Text(
+                          'Save Changes',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ] else ...[
                       OutlinedButton.icon(
                         onPressed: () => _startInlineEdit(mapping),
-                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 14),
-                        label: const Text('Edit', style: TextStyle(fontSize: 12)),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedEdit02,
+                          size: 14,
+                        ),
+                        label: const Text(
+                          'Edit',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       if (mapping.status != 'ACTIVE') ...[
                         OutlinedButton.icon(
                           onPressed: () => _validateMapping(mapping),
-                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 14),
-                          label: const Text('Validate', style: TextStyle(fontSize: 12)),
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                            size: 14,
+                          ),
+                          label: const Text(
+                            'Validate',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
-                          onPressed: mapping.status == 'VALIDATED' ? () => _activateMapping(mapping) : null,
-                          icon: const HugeIcon(icon: HugeIcons.strokeRoundedFlash, size: 14),
-                          label: const Text('Activate', style: TextStyle(fontSize: 12)),
+                          onPressed: mapping.status == 'VALIDATED'
+                              ? () => _activateMapping(mapping)
+                              : null,
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedFlash,
+                            size: 14,
+                          ),
+                          label: const Text(
+                            'Activate',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                         const SizedBox(width: 8),
                       ],
                       IconButton(
                         onPressed: () => _deleteMapping(mapping),
-                        icon: const HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 18),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedDelete02,
+                          size: 18,
+                        ),
                         color: colorScheme.error,
                         tooltip: 'Delete mapping',
                       ),
@@ -1590,31 +2080,50 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                 decoration: BoxDecoration(
                   color: colorScheme.errorContainer.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: colorScheme.error.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        HugeIcon(icon: HugeIcons.strokeRoundedAlert02, size: 16, color: colorScheme.error),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedAlert02,
+                          size: 16,
+                          color: colorScheme.error,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Validation Errors:',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorScheme.error),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.error,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     ...mapping.validationErrors.map(
-                      (err) => Text('• $err', style: TextStyle(fontSize: 11, color: colorScheme.error)),
+                      (err) => Text(
+                        '• $err',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.error,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
             const SizedBox(height: 16),
-            Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+            Divider(
+              height: 1,
+              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+            ),
             const SizedBox(height: 12),
             ..._currentModel.entities.map((logicalEntity) {
               return Padding(
@@ -1634,7 +2143,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
     );
   }
 
-  Widget _buildSourceMappingsTab(BuildContext context, {bool isBounded = true}) {
+  Widget _buildSourceMappingsTab(
+    BuildContext context, {
+    bool isBounded = true,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (_isLoadingMappings) {
@@ -1653,20 +2165,35 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
         ),
         child: Center(
           child: Column(
             children: [
-              HugeIcon(icon: HugeIcons.strokeRoundedLink01, size: 40, color: colorScheme.onSurfaceVariant),
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedLink01,
+                size: 40,
+                color: colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(height: 12),
-              const Text('No source mappings connected to this model.', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'No source mappings connected to this model.',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 6),
-              const Text('Map a physical data source (PostgreSQL, SQLite) to resolve logical AltrQL queries.', style: TextStyle(fontSize: 12)),
+              const Text(
+                'Map a physical data source (PostgreSQL, SQLite) to resolve logical AltrQL queries.',
+                style: TextStyle(fontSize: 12),
+              ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: _showAddMappingDialog,
-                icon: const HugeIcon(icon: HugeIcons.strokeRoundedExchange01, size: 16),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedExchange01,
+                  size: 16,
+                ),
                 label: const Text('Add Source Mapping'),
               ),
             ],
@@ -1683,7 +2210,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
 
     final list = ListView.separated(
       shrinkWrap: !isBounded,
-      physics: isBounded ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
+      physics: isBounded
+          ? const AlwaysScrollableScrollPhysics()
+          : const NeverScrollableScrollPhysics(),
       itemCount: _mappings.length,
       separatorBuilder: (_, _) => const SizedBox(height: 16),
       itemBuilder: (context, idx) {
@@ -1708,7 +2237,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
             ),
             ElevatedButton.icon(
               onPressed: _showAddMappingDialog,
-              icon: const HugeIcon(icon: HugeIcons.strokeRoundedExchange01, size: 14),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedExchange01,
+                size: 14,
+              ),
               label: const Text('Add Source Mapping'),
             ),
           ],
@@ -1724,7 +2256,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
     final colorScheme = Theme.of(context).colorScheme;
 
     final activeCount = _mappings.where((m) => m.status == 'ACTIVE').length;
-    final validatedCount = _mappings.where((m) => m.status == 'VALIDATED').length;
+    final validatedCount = _mappings
+        .where((m) => m.status == 'VALIDATED')
+        .length;
     final draftCount = _mappings.where((m) => m.status == 'DRAFT').length;
 
     final leftCard = Card(
@@ -1735,17 +2269,27 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
           children: [
             Text(
               'Logical Model Summary',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 16),
             _buildInfoRow(context, 'Model Name', _currentModel.name),
             _buildDivider(context),
-            _buildInfoRow(context, 'Model Version', 'v${_currentModel.version}', isMonospace: true),
+            _buildInfoRow(
+              context,
+              'Model Version',
+              'v${_currentModel.version}',
+              isMonospace: true,
+            ),
             _buildDivider(context),
             _buildInfoRow(
               context,
               'Description',
-              (_currentModel.description != null && _currentModel.description!.isNotEmpty)
+              (_currentModel.description != null &&
+                      _currentModel.description!.isNotEmpty)
                   ? _currentModel.description!
                   : 'No description provided',
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1772,19 +2316,25 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                   ? Text(
                       'No sources mapped yet',
                       textAlign: TextAlign.right,
-                      style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     )
                   : Align(
                       alignment: Alignment.centerRight,
                       child: Table(
-                        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                        defaultVerticalAlignment:
+                            TableCellVerticalAlignment.middle,
                         columnWidths: const {
                           0: IntrinsicColumnWidth(),
                           1: IntrinsicColumnWidth(),
                           2: IntrinsicColumnWidth(),
                         },
                         children: _mappings.map((m) {
-                          final src = widget.sources.where((s) => s.id == m.sourceId).firstOrNull;
+                          final src = widget.sources
+                              .where((s) => s.id == m.sourceId)
+                              .firstOrNull;
                           final srcName = src?.name ?? m.sourceId;
                           final srcType = src?.type ?? 'SOURCE';
 
@@ -1796,7 +2346,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                                 width: 8,
                                 height: 8,
                                 decoration: BoxDecoration(
-                                  color: AppTheme.getStatusColor('ACTIVE', context),
+                                  color: AppTheme.getStatusColor(
+                                    'ACTIVE',
+                                    context,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -1808,7 +2361,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                                 width: 8,
                                 height: 8,
                                 decoration: BoxDecoration(
-                                  color: AppTheme.getStatusColor('ERROR', context),
+                                  color: AppTheme.getStatusColor(
+                                    'ERROR',
+                                    context,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -1819,7 +2375,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                               child: HugeIcon(
                                 icon: HugeIcons.strokeRoundedAlert02,
                                 size: 14,
-                                color: AppTheme.getStatusColor('DRAFT', context),
+                                color: AppTheme.getStatusColor(
+                                  'DRAFT',
+                                  context,
+                                ),
                               ),
                             );
                           } else {
@@ -1829,7 +2388,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                                 width: 8,
                                 height: 8,
                                 decoration: BoxDecoration(
-                                  color: AppTheme.getStatusColor(m.status, context),
+                                  color: AppTheme.getStatusColor(
+                                    m.status,
+                                    context,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -1839,7 +2401,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                           return TableRow(
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 3,
+                                  horizontal: 6,
+                                ),
                                 child: Align(
                                   alignment: Alignment.centerRight,
                                   child: Text(
@@ -1854,16 +2419,24 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 3,
+                                  horizontal: 6,
+                                ),
                                 child: Align(
                                   alignment: Alignment.centerRight,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                                      color: colorScheme.surfaceContainerHighest
+                                          .withValues(alpha: 0.6),
                                       borderRadius: BorderRadius.circular(4),
                                       border: Border.all(
-                                        color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                                        color: colorScheme.outlineVariant
+                                            .withValues(alpha: 0.4),
                                         width: 0.8,
                                       ),
                                     ),
@@ -1881,7 +2454,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.only(left: 4, top: 3, bottom: 3),
+                                padding: const EdgeInsets.only(
+                                  left: 4,
+                                  top: 3,
+                                  bottom: 3,
+                                ),
                                 child: Align(
                                   alignment: Alignment.centerLeft,
                                   child: indicator,
@@ -1904,7 +2481,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                   key: const ValueKey('copy_model_id_btn'),
                   onPressed: _copyModelId,
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     foregroundColor: colorScheme.onSurface,
@@ -1916,7 +2496,11 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                             key: const ValueKey('model_id_copied'),
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              HugeIcon(icon: HugeIcons.strokeRoundedCheckmarkCircle02, size: 14, color: colorScheme.primary),
+                              HugeIcon(
+                                icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                                size: 14,
+                                color: colorScheme.primary,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 'Copied',
@@ -1940,7 +2524,8 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                                 color: colorScheme.onSurface,
                                 decoration: TextDecoration.underline,
                                 decorationStyle: TextDecorationStyle.dotted,
-                                decorationColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                                decorationColor: colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.5),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1950,9 +2535,17 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
               ),
             ),
             _buildDivider(context),
-            _buildInfoRow(context, 'Created Date', dateFormat.format(_currentModel.createdAt)),
+            _buildInfoRow(
+              context,
+              'Created Date',
+              dateFormat.format(_currentModel.createdAt),
+            ),
             _buildDivider(context),
-            _buildInfoRow(context, 'Last Updated', dateFormat.format(_currentModel.updatedAt)),
+            _buildInfoRow(
+              context,
+              'Last Updated',
+              dateFormat.format(_currentModel.updatedAt),
+            ),
           ],
         ),
       ),
@@ -1968,19 +2561,30 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
               children: [
                 Text(
                   'Model Management Actions',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'Define canonical entities, map physical database sources (PostgreSQL, MySQL, SQLite, MongoDB), or edit model metadata.',
-                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant, height: 1.4),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _showAddEntityDialog,
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedAdd01, size: 14),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedAdd01,
+                      size: 14,
+                    ),
                     label: const Text('Add Logical Entity'),
                   ),
                 ),
@@ -1989,7 +2593,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: _showAddMappingDialog,
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedExchange01, size: 14),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedExchange01,
+                      size: 14,
+                    ),
                     label: const Text('Map New Data Source'),
                   ),
                 ),
@@ -1998,7 +2605,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: _showEditModelDialog,
-                    icon: const HugeIcon(icon: HugeIcons.strokeRoundedEdit02, size: 14),
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedEdit02,
+                      size: 14,
+                    ),
                     label: const Text('Edit Model Details'),
                   ),
                 ),
@@ -2018,19 +2628,35 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
               children: [
                 Text(
                   'Danger Zone',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colorScheme.error),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.error,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'Deleting this logical model permanently removes all associated entity definitions, field schemas, and physical source mapping rules.',
-                  style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
                   onPressed: _deleteModel,
-                  icon: HugeIcon(icon: HugeIcons.strokeRoundedDelete02, size: 14, color: colorScheme.error),
-                  label: Text('Delete Logical Model', style: TextStyle(color: colorScheme.error, fontSize: 12)),
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: colorScheme.error)),
+                  icon: HugeIcon(
+                    icon: HugeIcons.strokeRoundedDelete02,
+                    size: 14,
+                    color: colorScheme.error,
+                  ),
+                  label: Text(
+                    'Delete Logical Model',
+                    style: TextStyle(color: colorScheme.error, fontSize: 12),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: colorScheme.error),
+                  ),
                 ),
               ],
             ),
@@ -2045,11 +2671,7 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
 
         if (isNarrow) {
           return Column(
-            children: [
-              leftCard,
-              const SizedBox(height: 16),
-              rightColumn,
-            ],
+            children: [leftCard, const SizedBox(height: 16), rightColumn],
           );
         }
 
@@ -2082,7 +2704,13 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
             const SizedBox(height: 8),
             if (customWidget != null)
               customWidget
@@ -2107,7 +2735,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: crossAxisAlignment,
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+          ),
           const SizedBox(width: 12),
           if (customWidget != null)
             Flexible(child: customWidget)
@@ -2132,6 +2763,10 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen> with
 
   Widget _buildDivider(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5));
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+    );
   }
 }
