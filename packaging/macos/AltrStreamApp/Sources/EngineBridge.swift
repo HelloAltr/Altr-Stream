@@ -116,10 +116,50 @@ public final class EngineBridge: @unchecked Sendable {
         }
     }
 
+/// Thread-safe line accumulator and lifecycle synchronizer for streaming child process output.
+final class LineBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    private var isClosed = false
+
+    func processChunk(_ chunk: Data, onLine: (String) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isClosed, !chunk.isEmpty else { return }
+        data.append(chunk)
+        extractLines(onLine: onLine)
+    }
+
+    func closeAndFlush(trailingData: Data, onLine: (String) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isClosed else { return }
+        if !trailingData.isEmpty {
+            data.append(trailingData)
+        }
+        extractLines(onLine: onLine)
+        if !data.isEmpty, let line = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !line.isEmpty {
+            onLine(line)
+        }
+        data.removeAll()
+        isClosed = true
+    }
+
+    private func extractLines(onLine: (String) -> Void) {
+        while let newlineRange = data.range(of: Data([0x0A])) {
+            let lineData = data.subdata(in: 0..<newlineRange.lowerBound)
+            data.removeSubrange(0..<newlineRange.upperBound)
+            if let line = String(data: lineData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !line.isEmpty {
+                onLine(line)
+            }
+        }
+    }
+}
+
     /// Asynchronously runs an engine command, streaming lines from stdout as they arrive.
     public func streamCommand(
         args: [String],
-        onLine: @escaping (String) -> Void
+        onLine: @escaping @Sendable (String) -> Void
     ) async throws -> (stderr: String, exitCode: Int32) {
         guard let binary = resolveEngineBinary() else {
             throw EngineError.engineNotFound
@@ -136,20 +176,13 @@ public final class EngineBridge: @unchecked Sendable {
                 process.standardOutput = stdoutPipe
                 process.standardError = stderrPipe
 
-                var buffer = Data()
+                let lineBuffer = LineBuffer()
                 stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     if data.isEmpty {
                         return
                     }
-                    buffer.append(data)
-                    while let newlineRange = buffer.range(of: Data([0x0A])) {
-                        let lineData = buffer.subdata(in: 0..<newlineRange.lowerBound)
-                        buffer.removeSubrange(0..<newlineRange.upperBound)
-                        if let line = String(data: lineData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !line.isEmpty {
-                            onLine(line)
-                        }
-                    }
+                    lineBuffer.processChunk(data, onLine: onLine)
                 }
 
                 do {
@@ -158,15 +191,15 @@ public final class EngineBridge: @unchecked Sendable {
                     process.waitUntilExit()
                     stdoutPipe.fileHandleForReading.readabilityHandler = nil
 
-                    // Flush any remaining buffer
-                    if !buffer.isEmpty, let line = String(data: buffer, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !line.isEmpty {
-                        onLine(line)
-                    }
+                    // Drain any remaining unread bytes from stdout pipe and flush
+                    let remainingData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                    lineBuffer.closeAndFlush(trailingData: remainingData, onLine: onLine)
 
                     let stderrStr = String(data: stderrData, encoding: .utf8) ?? ""
                     continuation.resume(returning: (stderrStr, process.terminationStatus))
                 } catch {
                     stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                    lineBuffer.closeAndFlush(trailingData: Data(), onLine: onLine)
                     continuation.resume(throwing: error)
                 }
             }
@@ -263,7 +296,7 @@ public final class EngineBridge: @unchecked Sendable {
     public func install(
         targetDir: String? = nil,
         replaceExisting: Bool = false,
-        onProgress: @escaping (InstallProgress) -> Void
+        onProgress: @escaping @Sendable (InstallProgress) -> Void
     ) async throws {
         var args = ["install", "--json"]
         if let dir = targetDir, !dir.isEmpty {
@@ -295,7 +328,7 @@ public final class EngineBridge: @unchecked Sendable {
 
     public func repair(
         targetDir: String? = nil,
-        onProgress: @escaping (InstallProgress) -> Void
+        onProgress: @escaping @Sendable (InstallProgress) -> Void
     ) async throws {
         var args = ["repair", "--json"]
         if let dir = targetDir, !dir.isEmpty {

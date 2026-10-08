@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Engine Models
 
-public struct DockerDiagnostics: Codable, Equatable {
+public struct DockerDiagnostics: Codable, Equatable, Sendable {
     public let state: String
     public let cliInstalled: Bool?
     public let desktopInstalled: Bool?
@@ -50,7 +50,7 @@ public struct DockerDiagnostics: Codable, Equatable {
     }
 }
 
-public struct EnvironmentInfo: Codable, Equatable {
+public struct EnvironmentInfo: Codable, Equatable, Sendable {
     public let os: String
     public let arch: String
     public let userHome: String
@@ -71,7 +71,7 @@ public struct EnvironmentInfo: Codable, Equatable {
     }
 }
 
-public struct ConflictInfo: Codable, Equatable {
+public struct ConflictInfo: Codable, Equatable, Sendable {
     public let exists: Bool
     public let conflictType: String?
     public let containerID: String?
@@ -142,7 +142,7 @@ public struct ConflictInfo: Codable, Equatable {
     }
 }
 
-public struct InstallProgress: Codable, Equatable {
+public struct InstallProgress: Codable, Equatable, Sendable {
     public let stage: String
     public let stageIndex: Int
     public let totalStages: Int
@@ -157,7 +157,7 @@ public struct InstallProgress: Codable, Equatable {
     }
 }
 
-public struct NodeStatus: Codable, Equatable {
+public struct NodeStatus: Codable, Equatable, Sendable {
     public let installDir: String
     public let targetVersion: String
     public let containerState: String
@@ -185,7 +185,7 @@ public struct NodeStatus: Codable, Equatable {
     }
 }
 
-public enum ContainerLifecycleState: String, Codable, Equatable {
+public enum ContainerLifecycleState: String, Codable, Equatable, Sendable {
     case running = "running"
     case paused = "paused"
     case exited = "exited"

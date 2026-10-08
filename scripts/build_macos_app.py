@@ -100,7 +100,13 @@ def build_swift_app(arch: str) -> Path:
     cmd = ["swift", "build", "-c", "release"]
     result = subprocess.run(cmd, cwd=swift_proj, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"[!] Swift compilation failed:\n{result.stderr}", file=sys.stderr)
+        output_parts = []
+        if result.stdout and result.stdout.strip():
+            output_parts.append(f"--- STDOUT ---\n{result.stdout.strip()}")
+        if result.stderr and result.stderr.strip():
+            output_parts.append(f"--- STDERR ---\n{result.stderr.strip()}")
+        diag = "\n\n".join(output_parts) if output_parts else "(No output recorded on stdout or stderr)"
+        print(f"[!] Swift compilation failed (exit code {result.returncode}):\n{diag}", file=sys.stderr)
         sys.exit(1)
 
     built_bin = swift_proj / ".build" / "release" / "Altr Stream"
