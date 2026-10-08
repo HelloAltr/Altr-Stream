@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -133,6 +134,9 @@ def test_package_release_generates_all_artifacts(tmp_path: Path) -> None:
     }
     assert expected_names.issubset(artifact_names)
     assert "Altr-Stream_Windows_Installer.ps1" not in artifact_names
+    if platform.system() == "Darwin":
+        assert "Altr-Stream-Installer.pkg" in artifact_names
+        assert "Altr-Stream_macOS_Installer.app.zip" in artifact_names
 
 
 def test_packaged_installers_contain_target_version(tmp_path: Path) -> None:
@@ -223,6 +227,42 @@ def test_sha256sums_accuracy(tmp_path: Path) -> None:
         assert file_path.is_file(), f"Hashed file does not exist: {filename}"
         actual_hash = compute_sha256(file_path)
         assert actual_hash == expected_hash, f"Hash mismatch for {filename}: {actual_hash} != {expected_hash}"
+
+
+def test_package_release_manifest_only_with_macos_pkg(tmp_path: Path) -> None:
+    """Verify that release_manifest_only accurately includes Altr-Stream-Installer.pkg in SHA256SUMS."""
+    # Create mock release assets in tmp_path
+    (tmp_path / "Altr-Stream-Installer.exe").write_bytes(b"dummy-exe-content")
+    (tmp_path / "Altr-Stream-Installer.pkg").write_bytes(b"dummy-pkg-content")
+    (tmp_path / "Altr-Stream_macOS_Installer.app.zip").write_bytes(b"dummy-zip-content")
+    (tmp_path / "Altr-Stream_Linux_Installer.sh").write_bytes(b"dummy-sh-content")
+
+    artifacts = package_release(
+        version="1.0.1-beta",
+        tag="v1.0.1-beta",
+        output_dir=tmp_path,
+        release_manifest_only=True,
+        bundle_gum=False,
+    )
+
+    checksum_file = tmp_path / "SHA256SUMS"
+    assert checksum_file.is_file()
+    checksum_text = checksum_file.read_text(encoding="utf-8")
+
+    assert "Altr-Stream-Installer.pkg" in checksum_text
+    assert "Altr-Stream_macOS_Installer.app.zip" in checksum_text
+    assert "Altr-Stream-Installer.exe" in checksum_text
+    assert "Altr-Stream_Linux_Installer.sh" in checksum_text
+    assert "README.txt" in checksum_text
+    assert "altr-stream-v1.0.1-beta-deployment.tar.gz" in checksum_text
+    assert "altr-stream-v1.0.1-beta-deployment.zip" in checksum_text
+
+    # Verify every line in SHA256SUMS matches actual computed hash
+    for line in checksum_text.strip().splitlines():
+        sha, fname = line.split()
+        target_f = tmp_path / fname
+        assert target_f.is_file()
+        assert compute_sha256(target_f) == sha
 
 
 def test_documentation_structure_and_no_obsolete_ports() -> None:

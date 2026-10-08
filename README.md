@@ -157,7 +157,7 @@ Every execution response includes structured telemetry:
 Altr Stream includes an interactive setup utility for macOS, Linux, and Windows:
 
 - **Windows**: Download and double-click the native setup wizard **`Altr-Stream-Installer.exe`** from the [Latest Release](https://github.com/HelloAltr/Altr-Stream/releases/latest) (or console fallback `Altr-Stream_Windows_Installer.bat`).
-- **macOS**: Download **`Altr-Stream_macOS_Installer.app.zip`** from the [Latest Release](https://github.com/HelloAltr/Altr-Stream/releases/latest), extract it, and double-click **`Altr Stream Installer.app`** (or terminal fallback `Altr-Stream_macOS_Installer.command`).
+- **macOS**: Download the native installer package **`Altr-Stream-Installer.pkg`** from the [Latest Release](https://github.com/HelloAltr/Altr-Stream/releases/latest) to install into `/Applications` (or use standalone archive `Altr-Stream_macOS_Installer.app.zip` / terminal fallback `Altr-Stream_macOS_Installer.command`).
 - **Linux**: Download and run **`Altr-Stream_Linux_Installer.sh`**:
   ```bash
   curl -fsSL https://github.com/HelloAltr/Altr-Stream/releases/latest/download/Altr-Stream_Linux_Installer.sh -o Altr-Stream_Linux_Installer.sh

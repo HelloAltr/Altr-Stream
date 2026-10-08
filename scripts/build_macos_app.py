@@ -23,6 +23,7 @@ import argparse
 import hashlib
 import os
 import platform
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -128,9 +129,9 @@ def assemble_app_bundle(
     go_engine_binary: Path,
     output_dir: Path,
     version: str,
-    app_name: str = "Altr Stream Installer.app",
+    app_name: str = "Altr Stream.app",
 ) -> Path:
-    """Assemble the standalone Altr Stream Installer.app macOS bundle."""
+    """Assemble the standalone Altr Stream.app macOS bundle."""
     app_dir = output_dir / app_name
     macos_dir = app_dir / "Contents" / "MacOS"
     resources_dir = app_dir / "Contents" / "Resources"
@@ -159,7 +160,15 @@ def assemble_app_bundle(
     info_plist_src = REPO_ROOT / "packaging" / "macos" / "Info.plist"
     dest_plist = app_dir / "Contents" / "Info.plist"
     if info_plist_src.is_file():
-        shutil.copy2(info_plist_src, dest_plist)
+        try:
+            with open(info_plist_src, "rb") as f:
+                plist_data = plistlib.load(f)
+            plist_data["CFBundleShortVersionString"] = version
+            plist_data["CFBundleVersion"] = version
+            with open(dest_plist, "wb") as f:
+                plistlib.dump(plist_data, f)
+        except Exception:
+            shutil.copy2(info_plist_src, dest_plist)
     else:
         dest_plist.write_text(f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -174,6 +183,8 @@ def assemble_app_bundle(
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
+    <string>{version}</string>
+    <key>CFBundleVersion</key>
     <string>{version}</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
@@ -190,18 +201,18 @@ def assemble_app_bundle(
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"[-] Codesign skipped or failed: {e}")
 
-    # 5. Maintain backwards-compatible symlink to 'Altr Stream.app' if different
-    if app_name != "Altr Stream.app":
-        compat_link = output_dir / "Altr Stream.app"
-        if compat_link.exists() or compat_link.is_symlink():
-            if compat_link.is_dir() and not compat_link.is_symlink():
-                shutil.rmtree(compat_link)
-            else:
-                compat_link.unlink()
-        try:
-            compat_link.symlink_to(app_dir.name)
-        except OSError:
-            pass
+    # 5. Maintain backwards-compatible symlinks between 'Altr Stream.app' and 'Altr Stream Installer.app'
+    compat_name = "Altr Stream Installer.app" if app_name == "Altr Stream.app" else "Altr Stream.app"
+    compat_link = output_dir / compat_name
+    if compat_link.exists() or compat_link.is_symlink():
+        if compat_link.is_dir() and not compat_link.is_symlink():
+            shutil.rmtree(compat_link)
+        else:
+            compat_link.unlink()
+    try:
+        compat_link.symlink_to(app_dir.name)
+    except OSError:
+        pass
 
     print(f"[+] Assembled macOS application bundle: {app_dir}")
     return app_dir
@@ -259,15 +270,92 @@ def archive_app_bundle(app_bundle: Path, output_zip: Path) -> Path:
     return output_zip
 
 
+def build_pkg_installer(
+    app_bundle: Path,
+    output_pkg: Path,
+    version: str,
+    scripts_dir: Path | None = None,
+    identifier: str = "com.helloaltr.altr-stream",
+    install_location: str = "/Applications",
+) -> Path:
+    """Build a standalone macOS distribution installer (.pkg) using Apple's pkgbuild and productbuild."""
+    pkgbuild_bin = shutil.which("pkgbuild")
+    productbuild_bin = shutil.which("productbuild")
+
+    if not pkgbuild_bin or not productbuild_bin:
+        raise RuntimeError("Native macOS packaging tools 'pkgbuild' or 'productbuild' not found on system PATH.")
+
+    if scripts_dir is None:
+        scripts_dir = REPO_ROOT / "packaging" / "macos" / "scripts"
+
+    if output_pkg.exists():
+        output_pkg.unlink()
+
+    output_pkg.parent.mkdir(parents=True, exist_ok=True)
+    temp_component_pkg = output_pkg.parent / "Altr-Stream-Component.pkg"
+    if temp_component_pkg.exists():
+        temp_component_pkg.unlink()
+
+    try:
+        # 1. Build component package with pkgbuild
+        cmd_pkg = [
+            pkgbuild_bin,
+            "--component",
+            str(app_bundle.resolve()),
+            "--install-location",
+            install_location,
+            "--identifier",
+            identifier,
+            "--version",
+            version,
+        ]
+        if scripts_dir and scripts_dir.is_dir():
+            cmd_pkg.extend(["--scripts", str(scripts_dir.resolve())])
+
+        cmd_pkg.append(str(temp_component_pkg.resolve()))
+
+        print(f"[*] Building component package with pkgbuild: {temp_component_pkg.name}...")
+        res_pkg = subprocess.run(cmd_pkg, capture_output=True, text=True)
+        if res_pkg.returncode != 0:
+            print(f"[!] pkgbuild failed (exit code {res_pkg.returncode}):\n{res_pkg.stderr}", file=sys.stderr)
+            raise RuntimeError(f"pkgbuild failed: {res_pkg.stderr.strip()}")
+
+        # 2. Build final distribution product archive with productbuild
+        cmd_prod = [
+            productbuild_bin,
+            "--package",
+            str(temp_component_pkg.resolve()),
+            str(output_pkg.resolve()),
+        ]
+
+        print(f"[*] Building product distribution installer with productbuild: {output_pkg.name}...")
+        res_prod = subprocess.run(cmd_prod, capture_output=True, text=True)
+        if res_prod.returncode != 0:
+            print(f"[!] productbuild failed (exit code {res_prod.returncode}):\n{res_prod.stderr}", file=sys.stderr)
+            raise RuntimeError(f"productbuild failed: {res_prod.stderr.strip()}")
+
+        if not output_pkg.is_file() or output_pkg.stat().st_size == 0:
+            raise RuntimeError(f"Generated package is missing or empty: {output_pkg}")
+
+        print(f"[+] Created macOS .pkg installer: {output_pkg} ({output_pkg.stat().st_size:,} bytes)")
+        return output_pkg
+    finally:
+        if temp_component_pkg.exists():
+            temp_component_pkg.unlink()
+
+
 def build_macos_app(
     version: str = CANONICAL_VERSION,
     image: str | None = None,
     arch: str | None = None,
     output_dir: Path | None = None,
-    app_name: str = "Altr Stream Installer.app",
+    app_name: str = "Altr Stream.app",
+    pkg_name: str = "Altr-Stream-Installer.pkg",
     archive_name: str = "Altr-Stream_macOS_Installer.app.zip",
+    build_pkg: bool = True,
+    build_zip: bool = True,
 ) -> Path:
-    """Build the macOS native GUI installer and its release zip archive."""
+    """Build the macOS native application, .pkg distribution installer, and optional zip archive."""
     if output_dir is None:
         output_dir = REPO_ROOT / "dist"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -283,6 +371,8 @@ def build_macos_app(
     print(f" Image:       {image}")
     print(f" Output Dir:  {output_dir}")
     print(f" App Name:    {app_name}")
+    print(f" PKG Name:    {pkg_name}")
+    print(f" Zip Name:    {archive_name}")
     print("=" * 60)
 
     # 1. Build Go Engine
@@ -299,21 +389,32 @@ def build_macos_app(
     # 3. Assemble .app Bundle
     app_bundle = assemble_app_bundle(swift_bin, engine_path, output_dir, version, app_name=app_name)
 
-    # 4. Create Archive
+    # 4. Build .pkg installer (primary distribution format)
+    pkg_path = output_dir / pkg_name
+    if build_pkg:
+        build_pkg_installer(app_bundle, pkg_path, version=version)
+        pkg_sha = compute_sha256(pkg_path)
+        print(f"    SHA-256 (pkg):    {pkg_sha}")
+
+    # 5. Create Archive (fallback/auxiliary distribution format)
     archive_path = output_dir / archive_name
-    archive_app_bundle(app_bundle, archive_path)
-    archive_sha = compute_sha256(archive_path)
+    if build_zip:
+        archive_app_bundle(app_bundle, archive_path)
+        archive_sha = compute_sha256(archive_path)
+        print(f"    SHA-256 (zip):    {archive_sha}")
 
     print("\n" + "=" * 60)
     print(" Build Complete!")
     print(f" App Bundle:      {app_bundle}")
-    print(f" Archive:         {archive_path}")
+    if build_pkg:
+        print(f" PKG Installer:   {pkg_path} (primary)")
+    if build_zip:
+        print(f" Zip Archive:     {archive_path} (fallback)")
     print(f" Architecture:    darwin/{target_arch}")
     print(f" Embedded Engine: {app_bundle / 'Contents' / 'Resources' / 'altr-installer-engine'}")
-    print(f" Archive SHA-256: {archive_sha}")
     print("=" * 60)
 
-    return archive_path
+    return pkg_path if build_pkg else archive_path
 
 
 def main() -> None:
@@ -322,8 +423,11 @@ def main() -> None:
     parser.add_argument("--image", default=None, help="Docker image reference (default: ghcr.io/helloaltr/altr-stream:{version})")
     parser.add_argument("--arch", default=None, help="Target architecture: arm64 or amd64 (default: host architecture)")
     parser.add_argument("--output-dir", type=Path, default=REPO_ROOT / "dist", help="Output directory")
-    parser.add_argument("--app-name", default="Altr Stream Installer.app", help="Application bundle name")
+    parser.add_argument("--app-name", default="Altr Stream.app", help="Application bundle name")
+    parser.add_argument("--pkg-name", default="Altr-Stream-Installer.pkg", help="Output PKG installer name")
     parser.add_argument("--archive-name", default="Altr-Stream_macOS_Installer.app.zip", help="Output archive name")
+    parser.add_argument("--no-pkg", action="store_true", help="Skip building .pkg installer")
+    parser.add_argument("--no-zip", action="store_true", help="Skip building .app.zip archive")
     args = parser.parse_args()
 
     build_macos_app(
@@ -332,7 +436,10 @@ def main() -> None:
         arch=args.arch,
         output_dir=args.output_dir,
         app_name=args.app_name,
+        pkg_name=args.pkg_name,
         archive_name=args.archive_name,
+        build_pkg=not args.no_pkg,
+        build_zip=not args.no_zip,
     )
 
 

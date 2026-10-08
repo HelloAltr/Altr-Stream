@@ -351,4 +351,83 @@ def test_macos_app_archive_integrity(tmp_path: Path, macos_app_bundle: Path) -> 
     assert plist_file.is_file()
 
 
+def test_macos_pkg_creation_and_integrity(tmp_path: Path, macos_app_bundle: Path) -> None:
+    """Verify that the native macOS .pkg installer is created and has valid size."""
+    pkg_path = REPO_ROOT / "dist" / "Altr-Stream-Installer.pkg"
+    if not pkg_path.is_file():
+        from scripts.build_macos_app import build_pkg_installer
+        build_pkg_installer(macos_app_bundle, pkg_path, version="1.0.1-beta")
+
+    assert pkg_path.is_file()
+    assert pkg_path.stat().st_size > 500_000
+
+
+def test_macos_pkg_payload_and_metadata(tmp_path: Path, macos_app_bundle: Path) -> None:
+    """Verify macOS .pkg package metadata, payload structure, permissions, and install location."""
+    pkg_path = REPO_ROOT / "dist" / "Altr-Stream-Installer.pkg"
+    if not pkg_path.is_file():
+        from scripts.build_macos_app import build_pkg_installer
+        build_pkg_installer(macos_app_bundle, pkg_path, version="1.0.1-beta")
+
+    expand_dir = tmp_path / "expanded_pkg"
+    if expand_dir.exists():
+        import shutil
+        shutil.rmtree(expand_dir)
+
+    # Use native pkgutil to expand package fully (pkgutil creates destination dir)
+    subprocess.run(["pkgutil", "--expand-full", str(pkg_path), str(expand_dir)], check=True)
+
+    # 1. Verify Distribution XML metadata
+    dist_file = expand_dir / "Distribution"
+    assert dist_file.is_file(), "Distribution file missing from expanded product archive"
+    dist_content = dist_file.read_text(encoding="utf-8")
+    assert 'id="com.helloaltr.altr-stream"' in dist_content
+    assert 'path="Altr Stream.app"' in dist_content
+
+    # 2. Locate component package directory
+    component_pkgs = list(expand_dir.glob("*.pkg"))
+    assert len(component_pkgs) >= 1, "No component package found inside expanded product archive"
+    comp_dir = component_pkgs[0]
+
+    # 3. Verify PackageInfo metadata
+    pkg_info_file = comp_dir / "PackageInfo"
+    assert pkg_info_file.is_file(), "PackageInfo missing from component package"
+    pkg_info_content = pkg_info_file.read_text(encoding="utf-8")
+    assert 'install-location="/Applications"' in pkg_info_content
+    assert 'identifier="com.helloaltr.altr-stream"' in pkg_info_content
+    assert 'path="./Altr Stream.app"' in pkg_info_content
+    assert '<postinstall file="./postinstall"' in pkg_info_content
+
+    # 4. Verify postinstall script presence and permissions
+    postinstall_script = comp_dir / "Scripts" / "postinstall"
+    assert postinstall_script.is_file(), "postinstall script missing from package scripts"
+    assert os.access(postinstall_script, os.X_OK), "postinstall script is not executable"
+    postinstall_content = postinstall_script.read_text(encoding="utf-8")
+    # Verify postinstall does not contain Docker install/launch logic
+    assert "docker" not in postinstall_content.lower(), "postinstall script must not manage Docker engine lifecycle"
+    assert "open " not in postinstall_content, "postinstall script must not auto-launch application"
+
+    # 5. Verify Payload structure (/Applications/Altr Stream.app)
+    payload_dir = comp_dir / "Payload"
+    assert payload_dir.is_dir(), "Payload directory missing"
+    installed_app = payload_dir / "Altr Stream.app"
+    assert installed_app.is_dir(), "Payload does not contain Altr Stream.app bundle"
+
+    # 6. Verify embedded executable and altr-installer-engine
+    contents_dir = installed_app / "Contents"
+    app_bin = contents_dir / "MacOS" / "Altr Stream"
+    engine_bin = contents_dir / "Resources" / "altr-installer-engine"
+    plist_file = contents_dir / "Info.plist"
+
+    assert app_bin.is_file(), "Contents/MacOS/Altr Stream missing from package payload"
+    assert engine_bin.is_file(), "Contents/Resources/altr-installer-engine missing from package payload"
+    assert plist_file.is_file(), "Contents/Info.plist missing from package payload"
+
+    # 7. Verify executable permissions in package payload
+    assert os.access(app_bin, os.X_OK), "Main binary lost executable permission in pkg payload"
+    assert os.access(engine_bin, os.X_OK), "Embedded Go engine lost executable permission in pkg payload"
+    assert app_bin.stat().st_mode & 0o111, "Executable bits missing on Altr Stream"
+    assert engine_bin.stat().st_mode & 0o111, "Executable bits missing on altr-installer-engine"
+
+
 

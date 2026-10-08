@@ -1,0 +1,18 @@
+#!/bin/bash
+# Altr Stream macOS Installer postinstall script
+set -e
+
+APP_PATH="/Applications/Altr Stream.app"
+
+if [ -d "$APP_PATH" ]; then
+    # Ensure correct permissions on the installed application bundle and binaries
+    chmod -R u=rwX,go=rX "$APP_PATH"
+    if [ -f "$APP_PATH/Contents/MacOS/Altr Stream" ]; then
+        chmod 755 "$APP_PATH/Contents/MacOS/Altr Stream"
+    fi
+    if [ -f "$APP_PATH/Contents/Resources/altr-installer-engine" ]; then
+        chmod 755 "$APP_PATH/Contents/Resources/altr-installer-engine"
+    fi
+fi
+
+exit 0

@@ -9,10 +9,13 @@ Windows (Native Graphical Setup)
   Script / Terminal Fallback:
     Altr-Stream_Windows_Installer.bat
 
-macOS (Native Graphical Setup)
+macOS (Native Installer Package)
   Primary:
+    Altr-Stream-Installer.pkg
+    Double-click Altr-Stream-Installer.pkg to install Altr Stream.app into /Applications.
+  Standalone App Archive:
     Altr-Stream_macOS_Installer.app.zip
-    Unzip the archive and double-click "Altr Stream Installer.app" in Finder.
+    Unzip the archive and run "Altr Stream.app" directly or move to Applications.
   Script / Terminal Fallback:
     Altr-Stream_macOS_Installer.command
 

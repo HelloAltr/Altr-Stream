@@ -57,11 +57,13 @@ jobs:
             --image "ghcr.io/helloaltr/altr-stream:${{ steps.version_info.outputs.version }}" \
             --output-dir dist
 
-      - name: Upload macOS Installer Artifact
+      - name: Upload macOS Installer Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-installer
-          path: dist/Altr-Stream_macOS_Installer.app.zip
+          path: |
+            dist/Altr-Stream-Installer.pkg
+            dist/Altr-Stream_macOS_Installer.app.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -150,6 +152,7 @@ jobs:
         run: |
           ls -la dist/
           test -f dist/Altr-Stream-Installer.exe
+          test -f dist/Altr-Stream-Installer.pkg
           test -f dist/Altr-Stream_macOS_Installer.app.zip
           test -f dist/Altr-Stream_Linux_Installer.sh
           test -f dist/README.txt
@@ -166,6 +169,7 @@ jobs:
           generate_release_notes: true
           files: |
             dist/Altr-Stream-Installer.exe
+            dist/Altr-Stream-Installer.pkg
             dist/Altr-Stream_macOS_Installer.app.zip
             dist/Altr-Stream_Linux_Installer.sh
             dist/README.txt

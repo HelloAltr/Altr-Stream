@@ -222,21 +222,25 @@ def package_release(
         generated_files.append(macos_dest)
         print(f"  ✔ Created: {macos_dest.name}")
 
-    # 1b. macOS Native GUI Installer Archive (Altr-Stream_macOS_Installer.app.zip)
+    # 1b. macOS Native Installer (.pkg - primary distribution format)
+    # and .app.zip (auxiliary/fallback distribution format)
+    macos_pkg = output_dir / "Altr-Stream-Installer.pkg"
     macos_zip = output_dir / "Altr-Stream_macOS_Installer.app.zip"
-    if macos_zip.is_file():
-        if macos_zip not in generated_files:
-            generated_files.append(macos_zip)
-            print(f"  ✔ Detected existing macOS GUI installer archive: {macos_zip.name}")
-    elif sys.platform == "darwin":
+
+    if (not macos_pkg.is_file() or not macos_zip.is_file()) and sys.platform == "darwin":
         try:
             from scripts.build_macos_app import build_macos_app
-            built_zip = build_macos_app(version=version, output_dir=output_dir)
-            if built_zip and built_zip.is_file():
-                generated_files.append(built_zip)
-                print(f"  ✔ Built macOS GUI installer archive: {built_zip.name}")
+            build_macos_app(version=version, output_dir=output_dir)
         except Exception as e:
             print(f"  ⚠ Note: macOS GUI installer build skipped: {e}")
+
+    if macos_pkg.is_file() and macos_pkg not in generated_files:
+        generated_files.append(macos_pkg)
+        print(f"  ✔ Detected macOS native installer package: {macos_pkg.name}")
+
+    if macos_zip.is_file() and macos_zip not in generated_files:
+        generated_files.append(macos_zip)
+        print(f"  ✔ Detected macOS GUI installer archive: {macos_zip.name}")
 
     # 2. Linux Installer (Altr-Stream_Linux_Installer.sh)
     linux_src = installers_dir / "Altr-Stream_Linux_Installer.sh"
@@ -420,6 +424,7 @@ def package_release(
     if release_manifest_only:
         release_asset_names = {
             "Altr-Stream-Installer.exe",
+            "Altr-Stream-Installer.pkg",
             "Altr-Stream_macOS_Installer.app.zip",
             "Altr-Stream_Linux_Installer.sh",
             "README.txt",
