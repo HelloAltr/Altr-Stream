@@ -267,12 +267,12 @@ def test_macos_engine_gui_restricted_path_and_clean_environment(tmp_path: Path) 
 
 def test_macos_app_window_termination_and_no_quit_button() -> None:
     """Verify Quit button is removed from UI and window close terminates the application."""
-    main_swift = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "main.swift").read_text(encoding="utf-8")
+    app_swift = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "AltrStreamApp.swift").read_text(encoding="utf-8")
     content_swift = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "ContentView.swift").read_text(encoding="utf-8")
 
     # 1. Ensure window close delegate terminates application
-    assert "applicationShouldTerminateAfterLastWindowClosed" in main_swift
-    assert "@NSApplicationDelegateAdaptor" in main_swift
+    assert "applicationShouldTerminateAfterLastWindowClosed" in app_swift
+    assert "@NSApplicationDelegateAdaptor" in app_swift
 
     # 2. Ensure custom Quit button was removed from ContentView
     assert 'Button("Quit")' not in content_swift
