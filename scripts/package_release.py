@@ -181,6 +181,7 @@ def package_release(
     tag: str | Path | None = None,
     output_dir: Path | None = None,
     bundle_gum: bool = True,
+    release_manifest_only: bool = False,
 ) -> list[Path]:
     """Build all release assets and return list of generated artifact paths."""
     if output_dir is None and isinstance(tag, Path):
@@ -210,7 +211,7 @@ def package_release(
         generated_files.append(installer_readme_dest)
         print(f"  ✔ Created: {installer_readme_dest.name}")
 
-    # 1. macOS Installer (Altr-Stream_macOS_Installer.command)
+    # 1. macOS TUI Installer (Altr-Stream_macOS_Installer.command - compatibility fallback)
     macos_src = installers_dir / "Altr-Stream_macOS_Installer.command"
     macos_dest = output_dir / "Altr-Stream_macOS_Installer.command"
     if macos_src.exists():
@@ -220,6 +221,22 @@ def package_release(
         macos_dest.chmod(macos_dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         generated_files.append(macos_dest)
         print(f"  ✔ Created: {macos_dest.name}")
+
+    # 1b. macOS Native GUI Installer Archive (Altr-Stream_macOS_Installer.app.zip)
+    macos_zip = output_dir / "Altr-Stream_macOS_Installer.app.zip"
+    if macos_zip.is_file():
+        if macos_zip not in generated_files:
+            generated_files.append(macos_zip)
+            print(f"  ✔ Detected existing macOS GUI installer archive: {macos_zip.name}")
+    elif sys.platform == "darwin":
+        try:
+            from scripts.build_macos_app import build_macos_app
+            built_zip = build_macos_app(version=version, output_dir=output_dir)
+            if built_zip and built_zip.is_file():
+                generated_files.append(built_zip)
+                print(f"  ✔ Built macOS GUI installer archive: {built_zip.name}")
+        except Exception as e:
+            print(f"  ⚠ Note: macOS GUI installer build skipped: {e}")
 
     # 2. Linux Installer (Altr-Stream_Linux_Installer.sh)
     linux_src = installers_dir / "Altr-Stream_Linux_Installer.sh"
@@ -232,7 +249,7 @@ def package_release(
         generated_files.append(linux_dest)
         print(f"  ✔ Created: {linux_dest.name}")
 
-    # 3. Windows Installer (Altr-Stream_Windows_Installer.bat)
+    # 3. Windows Console Installer (Altr-Stream_Windows_Installer.bat - compatibility fallback)
     win_bat_src = installers_dir / "Altr-Stream_Windows_Installer.bat"
     win_bat_dest = output_dir / "Altr-Stream_Windows_Installer.bat"
     if win_bat_src.exists():
@@ -242,13 +259,17 @@ def package_release(
         generated_files.append(win_bat_dest)
         print(f"  ✔ Created: {win_bat_dest.name}")
 
-    # 3d. Windows Native Installer (.exe via Inno Setup 6)
+    # 3d. Windows Native GUI Installer (.exe via Inno Setup 6)
     try:
         from scripts.build_windows_installer import build_windows_installer
         win_exe = build_windows_installer(version=version, output_dir=output_dir)
         generated_files.append(win_exe)
     except Exception as e:
         print(f"  ⚠ Note: Windows native installer (.exe) compilation skipped: {e}")
+        existing_exe = output_dir / "Altr-Stream-Installer.exe"
+        if existing_exe.is_file() and existing_exe not in generated_files:
+            generated_files.append(existing_exe)
+            print(f"  ✔ Detected existing Windows native installer: {existing_exe.name}")
 
     # 4. Bundled Setup Packages (with pinned, verified Gum binaries)
     if bundle_gum:
@@ -396,7 +417,20 @@ def package_release(
 
     # 6. Checksums (SHA256SUMS)
     checksum_lines: list[str] = []
-    for artifact in generated_files:
+    if release_manifest_only:
+        release_asset_names = {
+            "Altr-Stream-Installer.exe",
+            "Altr-Stream_macOS_Installer.app.zip",
+            "Altr-Stream_Linux_Installer.sh",
+            "README.txt",
+            f"{bundle_name}.tar.gz",
+            f"{bundle_name}.zip",
+        }
+        manifest_files = [a for a in generated_files if a.name in release_asset_names]
+    else:
+        manifest_files = generated_files
+
+    for artifact in manifest_files:
         sha = compute_sha256(artifact)
         checksum_lines.append(f"{sha}  {artifact.name}")
 
@@ -426,6 +460,16 @@ def main() -> int:
         help="Directory to place release artifacts (default: dist)",
     )
     parser.add_argument(
+        "--release-manifest-only",
+        action="store_true",
+        help="Compute SHA256SUMS strictly for the official primary release assets",
+    )
+    parser.add_argument(
+        "--no-bundle-gum",
+        action="store_true",
+        help="Skip downloading and bundling Gum archives",
+    )
+    parser.add_argument(
         "--install-gum-binary",
         default=None,
         help="Download, verify against pinned checksum, and install Gum binary to the specified path",
@@ -452,7 +496,13 @@ def main() -> int:
     if not output_dir.is_absolute():
         output_dir = REPO_ROOT / output_dir
 
-    artifacts = package_release(version=version, tag=tag, output_dir=output_dir)
+    artifacts = package_release(
+        version=version,
+        tag=tag,
+        output_dir=output_dir,
+        bundle_gum=not args.no_bundle_gum,
+        release_manifest_only=args.release_manifest_only,
+    )
     print("\nPackage generation complete:")
     for a in artifacts:
         print(f"  - {a.relative_to(REPO_ROOT) if a.is_relative_to(REPO_ROOT) else a} ({a.stat().st_size:,} bytes)")

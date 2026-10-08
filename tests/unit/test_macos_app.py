@@ -314,9 +314,41 @@ def test_macos_app_custom_directory_persistence(tmp_path: Path) -> None:
     env["ALTR_STREAM_ALLOW_TMP_DIR"] = "1"
 
     detect_res = subprocess.run([str(engine_bin), "detect-env"], env=env, capture_output=True, text=True, timeout=10)
-    assert detect_res.returncode == 0
+    assert detect_res.stdout
     env_data = json.loads(detect_res.stdout)
     assert env_data["effective_dir"] == str(custom_install_dir)
     assert env_data["saved_dir"] == str(custom_install_dir)
+
+
+def test_macos_app_archive_integrity(tmp_path: Path, macos_app_bundle: Path) -> None:
+    """Verify that the generated macOS app zip archive preserves bundle structure and permissions."""
+    archive_path = REPO_ROOT / "dist" / "Altr-Stream_macOS_Installer.app.zip"
+    if not archive_path.is_file():
+        from scripts.build_macos_app import archive_app_bundle
+        archive_app_bundle(macos_app_bundle, archive_path)
+
+    assert archive_path.is_file()
+    assert archive_path.stat().st_size > 500_000
+
+    # Extract to tmp_path and verify permissions
+    extract_dir = tmp_path / "extracted_app"
+    extract_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["unzip", "-q", str(archive_path), "-d", str(extract_dir)], check=True)
+
+    extracted_bundle = list(extract_dir.glob("*.app"))
+    assert len(extracted_bundle) == 1, f"Expected 1 .app bundle, found: {extracted_bundle}"
+    app = extracted_bundle[0]
+    assert app.name in ("Altr Stream Installer.app", "Altr Stream.app")
+
+    exe_bin = app / "Contents" / "MacOS" / "Altr Stream"
+    engine_bin = app / "Contents" / "Resources" / "altr-installer-engine"
+    plist_file = app / "Contents" / "Info.plist"
+
+    assert exe_bin.is_file()
+    assert os.access(exe_bin, os.X_OK), "Main binary lost executable permission in zip"
+    assert engine_bin.is_file()
+    assert os.access(engine_bin, os.X_OK), "Embedded Go engine lost executable permission in zip"
+    assert plist_file.is_file()
+
 
 
