@@ -41,19 +41,45 @@ func getPlatformDockerCLICandidates(home string) []string {
 }
 
 func (d *DockerManager) resolvePlatformDockerDesktop() (string, bool) {
-	// 1. System Applications
-	appPath := "/Applications/Docker.app"
-	if fi, err := d.stat(appPath); err == nil && fi.IsDir() {
-		return appPath, true
+	candidates := []string{
+		"/Applications/Docker.app",
+		"/Applications/Docker Desktop.app",
 	}
-	// 2. User-specific Applications (~/Applications)
+
 	home, _ := os.UserHomeDir()
 	if home != "" {
 		userApp := filepath.Join(home, "Applications", "Docker.app")
-		if fi, err := d.stat(userApp); err == nil && fi.IsDir() {
-			return userApp, true
+		candidates = append(candidates,
+			userApp,
+			filepath.Join(home, "Applications", "Docker Desktop.app"),
+		)
+	}
+
+	for _, cand := range candidates {
+		if fi, err := d.stat(cand); err == nil && fi.IsDir() {
+			return cand, true
 		}
 	}
+
+	// Check if docker CLI binary is within a Docker.app bundle or symlinks to one
+	cliPath := d.ResolveDockerCLI()
+	if cliPath != "" {
+		if idx := strings.Index(cliPath, ".app"); idx != -1 {
+			appDir := cliPath[:idx+4]
+			if fi, err := d.stat(appDir); err == nil && fi.IsDir() {
+				return appDir, true
+			}
+		}
+		if target, err := filepath.EvalSymlinks(cliPath); err == nil && target != "" {
+			if idx := strings.Index(target, ".app"); idx != -1 {
+				appDir := target[:idx+4]
+				if fi, err := d.stat(appDir); err == nil && fi.IsDir() {
+					return appDir, true
+				}
+			}
+		}
+	}
+
 	return "", false
 }
 
@@ -166,4 +192,27 @@ func (d *DockerManager) unpausePlatformDockerDesktop(ctx context.Context) error 
 	}
 	return fmt.Errorf("failed to unpause Docker Desktop (cli exit %d: %s)", exitCode, strings.TrimSpace(stderr+" "+stdout))
 }
+
+func (d *DockerManager) isPlatformDockerDesktopProcessRunning(ctx context.Context) bool {
+	if _, isReal := d.executor.(*OSCommandExecutor); !isReal {
+		return false
+	}
+	pCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+	stdout, _, exitCode, _ := d.executor.Run(pCtx, "pgrep", "-f", "Docker.app/Contents/MacOS")
+	if exitCode == 0 && strings.TrimSpace(stdout) != "" {
+		return true
+	}
+	pCtx2, cancel2 := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel2()
+	stdout2, _, exitCode2, _ := d.executor.Run(pCtx2, "pgrep", "-x", "Docker Desktop")
+	if exitCode2 == 0 && strings.TrimSpace(stdout2) != "" {
+		return true
+	}
+	pCtx3, cancel3 := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel3()
+	stdout3, _, exitCode3, _ := d.executor.Run(pCtx3, "pgrep", "-x", "Docker")
+	return exitCode3 == 0 && strings.TrimSpace(stdout3) != ""
+}
+
 

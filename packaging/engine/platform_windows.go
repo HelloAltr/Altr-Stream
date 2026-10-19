@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
 )
 
 func setDetachedProcess(cmd *exec.Cmd) {
@@ -131,4 +133,12 @@ func (d *DockerManager) unpausePlatformDockerDesktop(ctx context.Context) error 
 	}
 	return d.LaunchDockerDesktop(ctx)
 }
+
+func (d *DockerManager) isPlatformDockerDesktopProcessRunning(ctx context.Context) bool {
+	pCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+	stdout, _, exitCode, _ := d.executor.Run(pCtx, "tasklist", "/FI", "IMAGENAME eq Docker Desktop.exe")
+	return exitCode == 0 && strings.Contains(strings.ToLower(stdout), "docker desktop.exe")
+}
+
 

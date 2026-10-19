@@ -144,7 +144,7 @@ def test_go_installer_engine_cli_subcommands(tmp_path: Path) -> None:
     assert ".altr-stream" in env_data["default_dir"]
 
     # 2. Test check-docker JSON output
-    res_docker = subprocess.run([str(out_bin), "check-docker"], capture_output=True, text=True, timeout=10)
+    res_docker = subprocess.run([str(out_bin), "check-docker"], capture_output=True, text=True, timeout=20)
     assert res_docker.returncode == 0
     docker_data = json.loads(res_docker.stdout)
     assert "state" in docker_data
@@ -155,7 +155,7 @@ def test_go_installer_engine_cli_subcommands(tmp_path: Path) -> None:
 
 
 def test_inno_setup_script_structure() -> None:
-    """Verify Inno Setup 6 script definitions, engine bundling, and lifecycle semantics."""
+    """Verify Inno Setup 6 script definitions, Manager installation, and lifecycle semantics."""
     iss_path = REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss"
     assert iss_path.is_file(), f"Missing Inno Setup script at {iss_path}"
 
@@ -163,38 +163,31 @@ def test_inno_setup_script_structure() -> None:
 
     # Product and version metadata
     assert '#define MyAppVersion "1.0.0-beta"' in content
-    assert '#define MyDockerImage "ghcr.io/helloaltr/altr-stream:0.13.7-alpha"' in content
-    assert "AppName=Altr Stream" in content
-    assert "OutputBaseFilename=Altr-Stream-Installer" in content
+    assert "AppName=Altr Stream Manager" in content
+    assert "OutputBaseFilename=Altr Stream Installer" in content
     assert "ArchitecturesInstallIn64BitMode=x64compatible" in content
     assert "PrivilegesRequired=lowest" in content
+    assert r"DefaultDirName={autopf}\Altr Stream" in content
 
     # Bundled files
-    assert r'Source: "build\altr-installer-engine.exe"; DestDir: "{app}"' in content
-    assert r'Source: "build\altr-installer-engine.exe"; DestDir: "{tmp}"; Flags: dontcopy' in content
+    assert r'Source: "build\altr-installer-engine.exe"; DestDir: "{app}"; DestName: "Altr Stream Manager.exe"' in content
+    assert r'Source: "build\altr-installer-engine.exe"; DestDir: "{app}"; DestName: "altr-installer-engine.exe"' in content
     assert r'Source: "..\templates\INSTALLER_README.md"; DestDir: "{app}"; DestName: "README.txt"' in content
 
-    # Engine-driven semantics
-    assert "check-docker" in content
-    assert "launch-docker" in content
-    assert "wait-docker" in content
-    assert "conflict" in content
-    assert "install" in content
-    assert "repair" in content
-    assert "status" in content
-    assert "uninstall" in content
-    assert "--delete-data" in content
+    # Shortcuts
+    assert r"{autoprograms}\Altr Stream\Altr Stream Manager" in content
+    assert r"{autoprograms}\Altr Stream\Uninstall Altr Stream Manager" in content
+    assert r"{autodesktop}\Altr Stream Manager" in content
 
-    # Start menu shortcuts
-    assert "Altr Stream Web UI" in content
-    assert "Altr Stream Status" in content
-    assert "Altr Stream Repair" in content
-    assert "Uninstall Altr Stream" in content
+    # Launch Manager after install
+    assert r'Filename: "{app}\Altr Stream Manager.exe"; Description: "Launch Altr Stream Manager"' in content
 
-    # CLI parameter handling
-    assert "InitializeSetup" in content
-    assert "/REPAIR" in content
-    assert "/STATUS" in content
+    # Pure application installer: does NOT run Docker lifecycle during install and has no DevOptionsPage
+    assert "DevOptionsPage" not in content
+    assert "check-docker" not in content
+
+    # Volume preservation on uninstall
+    assert "altr_stream_data" in content
 
 
 def test_build_windows_installer_script_help() -> None:
@@ -223,7 +216,7 @@ def test_build_windows_installer_produces_valid_pe(tmp_path: Path) -> None:
             pytest.skip(f"Docker daemon unavailable to run containerized Inno Setup compiler: {e}")
         raise
     assert installer_exe.is_file()
-    assert installer_exe.name == "Altr-Stream-Installer.exe"
+    assert installer_exe.name in ("Altr Stream Installer.exe", "Altr-Stream-Installer.exe")
 
     # Size check: embedded engine (~7MB compressed to ~4MB)
     size = installer_exe.stat().st_size
@@ -243,72 +236,30 @@ def test_build_windows_installer_produces_valid_pe(tmp_path: Path) -> None:
 
 
 def test_inno_setup_prereq_page_responsive_layout() -> None:
-    """Verify PrereqPage uses responsive full-width layout instead of narrow column."""
+    """Verify Inno Setup uses modern wizard style and delegates prerequisite checks to Manager."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Responsive width tied to SurfaceWidth
-    assert "PrereqPage.SurfaceWidth - ScaleX(16)" in iss_content
-    # AutoSize disabled so full width is respected
-    assert "DockerStatusLabel.AutoSize := False;" in iss_content
-    assert "DockerDetailLabel.AutoSize := False;" in iss_content
-    # Word wrap enabled for detail explanation
-    assert "DockerDetailLabel.WordWrap := True;" in iss_content
-    # Narrow hardcoded widths must not be present
-    assert "DockerStatusLabel.Width := ScaleX(400);" not in iss_content
-    assert "DockerDetailLabel.Width := ScaleX(460);" not in iss_content
+    assert "WizardStyle=modern" in iss_content
+    assert "PrereqPage" not in iss_content
 
 
 def test_inno_setup_default_install_dir_avoids_onedrive() -> None:
-    """Verify installer resolves user profile directly and avoids redirected Documents/OneDrive."""
+    """Verify installer installs to Program Files, avoiding user OneDrive/Documents."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Must use dynamic function instead of redirected {userdocs}\..
-    assert "DefaultDirName={code:GetDefaultInstallDir}" in iss_content
-    assert "DefaultDirName={userdocs}" not in iss_content
-
-    # GetDefaultInstallDir checks USERPROFILE first
-    assert "UserProfile := GetEnv('USERPROFILE');" in iss_content
-    assert r"Result := UserProfile + '\.altr-stream';" in iss_content
-
-    # wpSelectDir validates against accidental OneDrive directories
-    assert "if CurPageID = wpSelectDir then" in iss_content
-    assert r"Pos('\ONEDRIVE\', Uppercase(SelectedDir)) > 0" in iss_content
+    assert r"DefaultDirName={autopf}\Altr Stream" in iss_content
 
 
 def test_inno_setup_progress_reporting_and_non_freezing_loop() -> None:
-    """Verify live progress reporting, non-blocking execution, and message pumping."""
-    iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Engine execution with real-time progress file and completion marker
-    assert "--progress-file" in iss_content
-    assert "install_progress.txt" in iss_content
-    assert "install_done.txt" in iss_content
-    assert "ewNoWait" in iss_content
-
-    # Non-blocking loop updates UI and pumps Win32 messages
-    assert "ProcessSystemMessages;" in iss_content
-    assert "WizardForm.Refresh;" in iss_content
-    assert "WizardForm.ProgressGauge.Position := CurPercent;" in iss_content
-    assert "WizardForm.StatusLabel.Caption :=" in iss_content
-
-    # Cancel button disabled during container provisioning for safety
-    assert "WizardForm.CancelButton.Enabled := False;" in iss_content
+    """Verify Go installer engine CLI supports progress reporting milestones."""
+    main_code = (REPO_ROOT / "packaging" / "engine" / "main.go").read_text(encoding="utf-8")
+    assert "writeProgressFile" in main_code
+    assert "progress-file" in main_code
 
 
 def test_inno_setup_failure_state_machine_and_browser_guard() -> None:
-    """Verify failure state machine never shows success finish page or runs browser launch."""
+    """Verify Inno Setup launches Manager only post-install without hardcoded browser URLs."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Browser launch is strictly guarded by Check: IsInstallSuccessful
-    assert "Check: IsInstallSuccessful" in iss_content
-    assert "function IsInstallSuccessful: Boolean;" in iss_content
-
-    # Finished page handles failure state distinctly from success
-    assert "CurPageID = wpFinished" in iss_content
-    assert "if not InstallSucceeded then" in iss_content
-    assert "WizardForm.FinishedHeadingLabel.Caption := 'Altr Stream Setup Incomplete';" in iss_content
-    assert "WizardForm.RunList.Visible := False;" in iss_content
-    assert "start notepad.exe" in iss_content
+    assert 'Filename: "{app}\\Altr Stream Manager.exe"' in iss_content
+    assert "http://localhost:8000" not in iss_content
 
 
 def test_go_engine_progress_file_and_error_formatting(tmp_path: Path) -> None:
@@ -383,99 +334,41 @@ def test_go_engine_progress_file_and_error_formatting(tmp_path: Path) -> None:
 
 
 def test_inno_setup_use_previous_app_dir_disabled() -> None:
-    """Verify Inno Setup disables UsePreviousAppDir to avoid preserving stale OneDrive paths."""
+    """Verify Inno Setup defines standard Program Files target."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # UsePreviousAppDir must be set to no
-    assert "UsePreviousAppDir=no" in iss_content
-
-    # DirEdit.Text is explicitly initialized in InitializeWizard
-    assert "WizardForm.DirEdit.Text := GetDefaultInstallDir('');" in iss_content
-
-    # wpSelectDir page entry checks and clears any OneDrive pre-fill
-    assert "if CurPageID = wpSelectDir then" in iss_content
-    assert "WizardForm.DirEdit.Text := GetDefaultInstallDir('');" in iss_content
+    assert r"DefaultDirName={autopf}\Altr Stream" in iss_content
 
 
 def test_inno_setup_multi_layered_completion_and_error_capture() -> None:
-    """Verify RunEngineWithProgress validates engine DoneFile, cmd !ERRORLEVEL!, progress, and output."""
+    """Verify Inno Setup uninstallation protects user data and volumes."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Delayed expansion /v:on and engine --done-file
-    assert "/v:on" in iss_content
-    assert "--done-file" in iss_content
-    assert "!ERRORLEVEL!" in iss_content
-
-    # Multi-point result validation
-    assert "Pos('0|', DoneCodeStr) = 1" in iss_content
-    assert "Pos('-1|', ProgLine)" in iss_content
-    assert "Pos('|Failed|', ProgLine)" in iss_content
-    assert "Pos('Installation failed:', FullOutput)" in iss_content
+    assert "CurUninstallStepChanged" in iss_content
+    assert "altr_stream_data" in iss_content
 
 
 def test_inno_setup_heading_height_and_dpi_scaling() -> None:
-    """Verify status heading and finish heading have explicit DPI-scaled heights preventing text clipping."""
+    """Verify Inno Setup uses modern wizard style for high-DPI displays."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # DockerStatusLabel has explicit height scaled with ScaleY
-    assert "DockerStatusLabel.Height := ScaleY(30);" in iss_content
-    assert "DockerStatusLabel.Font.Size := 11;" in iss_content
-    assert "DockerDetailLabel.Top := ScaleY(48);" in iss_content
-    assert "DockerDetailLabel.Height := ScaleY(120);" in iss_content
-
-    # Finished page labels have enlarged height to avoid clipping multi-line explanations
-    assert "WizardForm.FinishedHeadingLabel.Height := ScaleY(48);" in iss_content
-    assert "WizardForm.FinishedLabel.Height := ScaleY(220);" in iss_content
+    assert "WizardStyle=modern" in iss_content
 
 
 def test_inno_setup_prerequisite_human_readable_and_no_raw_json() -> None:
-    """Verify prerequisite UI uses human-readable explanations and hides raw diagnostic JSON."""
-    iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Buttons for user actions
-    assert "StartDockerBtn := TNewButton.Create(WizardForm);" in iss_content
-    assert "StartDockerBtn.Caption := 'Start Docker Desktop';" in iss_content
-    assert "RetryPrereqBtn := TNewButton.Create(WizardForm);" in iss_content
-    assert "RetryPrereqBtn.Caption := 'Retry Check';" in iss_content
-    assert "ViewPrereqDetailsBtn := TNewButton.Create(WizardForm);" in iss_content
-    assert "ViewPrereqDetailsBtn.Caption := 'Technical Details...';" in iss_content
-
-    # Technical diagnostics stored separately and only shown on demand
-    assert "LastDockerDiagText := Trim(OutputStr);" in iss_content
-    assert "Technical Diagnostic Details:" in iss_content
-
-    # Human-readable state texts
-    assert "Docker Desktop is Stopped" in iss_content
-    assert "Docker Engine is currently offline" in iss_content
-    assert "Docker Desktop is Not Installed" in iss_content
-    assert "Docker Status: Attention Required" in iss_content
-
-    # Primary label is never assigned raw OutputStr directly
-    assert "DockerDetailLabel.Caption :=\n        'Docker was found, but reported an issue:' +\n        OutputStr" not in iss_content
+    """Verify Go installer engine emits structured diagnostics with human-readable state."""
+    types_code = (REPO_ROOT / "packaging" / "engine" / "types.go").read_text(encoding="utf-8")
+    assert "type DockerDiagnostics struct" in types_code
+    assert "State" in types_code
 
 
 def test_inno_setup_docker_not_ready_strictly_blocks_next() -> None:
-    """Verify NextButtonClick strictly blocks proceeding if Docker is not ready."""
+    """Verify Inno Setup is pure app installer and does not block on Docker during install."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    assert "if not DockerReady then" in iss_content
-    assert "StartDockerBtnClick(nil);" in iss_content
-    assert "Docker Engine must be running before installation can continue." in iss_content
+    assert "check-docker" not in iss_content
 
 
 def test_inno_setup_failure_page_has_clean_error_and_view_log_button() -> None:
-    """Verify failure page isolates actionable error from milestones and includes View Log button."""
+    """Verify Inno Setup does not contain custom Delphi failure pages."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Clean actionable error isolated in RunEngineWithProgress
-    assert "DoneCodeStr, 3, Length(DoneCodeStr)" in iss_content
-    assert "Pos('|Failed|', ProgLine)" in iss_content
-
-    # View Log button on Finished page
-    assert "ViewLogBtn := TNewButton.Create(WizardForm);" in iss_content
-    assert "ViewLogBtn.Caption := 'View Installation Log';" in iss_content
-    assert "ViewLogBtn.Parent := WizardForm.FinishedPage;" in iss_content
-    assert "start notepad.exe" in iss_content
+    assert "FinishedHeadingLabel" not in iss_content
 
 
 def test_lifecycle_manager_file_sharing_recovery_state() -> None:
@@ -502,26 +395,9 @@ def test_lifecycle_manager_file_sharing_recovery_state() -> None:
 
 
 def test_inno_setup_file_sharing_recovery_flow() -> None:
-    """Verify Inno Setup script implements user-controlled file-sharing recovery dialog and explicit retry."""
+    """Verify engine and Manager handle file sharing recovery rather than Inno Setup."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Recovery Dialog Form and Controls
-    assert "ShowFileSharingRecoveryDialog" in iss_content
-    assert "IsFileSharingRequired" in iss_content
-    assert "RecovOpenBtn.Caption := 'Open Docker Settings';" in iss_content
-    assert "RecovRetryBtn.Caption := 'Retry';" in iss_content
-    assert "RecovDetailsBtn.Caption := 'Technical Details';" in iss_content
-    assert "RecovCancelBtn.Caption := 'Cancel';" in iss_content
-
-    # Launcher via engine and direct executable fallback
-    assert "open-docker-settings" in iss_content
-    assert "Docker Desktop.exe" in iss_content
-    assert "BringDockerToFront" in iss_content
-
-    # User-controlled retry loop in ssPostInstall
-    assert "KeepRetrying := True;" in iss_content
-    assert "while KeepRetrying do" in iss_content
-    assert "UserChoice = CHOICE_RETRY" in iss_content
+    assert "ShowFileSharingRecoveryDialog" not in iss_content
 
 
 def test_open_docker_settings_fallback_and_no_false_claim() -> None:
@@ -530,7 +406,6 @@ def test_open_docker_settings_fallback_and_no_false_claim() -> None:
     docker_code = (REPO_ROOT / "packaging" / "engine" / "docker.go").read_text(encoding="utf-8")
     win_code = (REPO_ROOT / "packaging" / "engine" / "platform_windows.go").read_text(encoding="utf-8")
     darwin_code = (REPO_ROOT / "packaging" / "engine" / "platform_darwin.go").read_text(encoding="utf-8")
-    iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
 
     # 1. Engine OpenDockerSettings executes LaunchDockerDesktop fallback
     assert "launchErr := d.LaunchDockerDesktop(ctx)" in docker_code
@@ -539,63 +414,21 @@ def test_open_docker_settings_fallback_and_no_false_claim() -> None:
 
     # 2. No false claim that Settings was opened directly
     assert "Opened Docker Desktop settings." not in main_code
-    assert "Docker Desktop Settings is opening." not in iss_content
-    assert "Docker Desktop is opening." in iss_content
     assert "Docker Desktop launched. Please navigate to Settings" in main_code
-
-    # 3. Inno Setup brings Docker Desktop to foreground with Win32 APIs
-    assert "function FindWindow" in iss_content
-    assert "function SetForegroundWindow" in iss_content
-    assert "function ShowWindow" in iss_content
-    assert "BringDockerToFront;" in iss_content
 
 
 def test_inno_setup_recovery_dialog_valid_custom_form() -> None:
-    """Verify recovery dialog avoids TSetupForm.Create (Resource TSetupForm not found) and uses CreateCustomForm."""
+    """Verify Inno Setup avoids custom Delphi form creation."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # Guard against invalid Delphi .dfm resource lookup
-    assert "TSetupForm.Create" not in iss_content, (
-        "TSetupForm.Create must NOT be used in Inno Setup Pascal Script; "
-        "it causes runtime error 'Resource TSetupForm not found'. Use CreateCustomForm instead."
-    )
-    assert "TForm.Create" not in iss_content
-
-    # Correct Inno Setup form API with dimension and scaling parameters
-    assert "CreateCustomForm(ScaleX(520), ScaleY(340), False, False)" in iss_content
-    assert "FlipAndCenterIfNeeded(True, WizardForm, False)" in iss_content
-    assert "RecovPathEdit := TNewEdit.Create(RecoveryForm);" in iss_content
-    assert "RecovRetryBtn.Default := True;" in iss_content
-    assert "RecovCancelBtn.Cancel := True;" in iss_content
-
-    # Stale log file cleanup before installation retry loop
-    assert "DeleteFile(ExpandConstant('{app}\\.docker_start.log'));" in iss_content
+    assert "TSetupForm" not in iss_content
+    assert "TForm" not in iss_content
+    assert "CreateCustomForm" not in iss_content
 
 
 def test_inno_setup_docker_startup_lifecycle_nonblocking_and_responsive() -> None:
-    """Verify Inno Setup uses non-blocking execution, message pumping, and bounded polling for Docker startup."""
+    """Verify Inno Setup does not attempt Docker startup during setup."""
     iss_content = (REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss").read_text(encoding="utf-8")
-
-    # 1. RunEngineCapture must use ewNoWait with message pumping instead of blocking ewWaitUntilTerminated
-    assert "RunEngineCapture" in iss_content
-    assert "ewNoWait" in iss_content
-    assert "while (not FileExists(DoneFile)) and (GetTickCount - StartTick < 15000) do" in iss_content
-    assert "ProcessSystemMessages;" in iss_content
-
-    # 2. StartDockerBtnClick must implement bounded polling with active message pumping
-    assert "procedure StartDockerBtnClick(Sender: TObject);" in iss_content
-    assert "RunEngineCapture(EngineTmp, 'launch-docker', OutputStr);" in iss_content
-    assert "MaxWaitMs := 75000;" in iss_content
-    assert "while (GetTickCount - StartTick < MaxWaitMs) and (not DockerBecameReady) do" in iss_content
-    assert "RunEngineCapture(EngineTmp, 'check-docker', OutputStr);" in iss_content
-    assert "Pos('\"state\": \"ready\"', OutputStr) > 0" in iss_content
-    assert "DockerBecameReady := True;" in iss_content
-
-    # 3. Transitions to ready and enables NextButton
-    assert "WizardForm.NextButton.Enabled := True;" in iss_content
-
-    # 4. Monolithic blocking wait-docker with 60s freeze must NOT be in StartDockerBtnClick
-    assert "RunEngineCapture(EngineTmp, 'wait-docker --timeout 60', OutputStr);" not in iss_content
+    assert "launch-docker" not in iss_content
 
 
 def test_go_installer_engine_detached_launch_no_pipe_deadlocks() -> None:
@@ -731,26 +564,11 @@ def test_go_engine_detect_environment_paths_and_temp_rejection(tmp_path: Path) -
 
 
 def test_inno_setup_docker_start_and_conflict_handling() -> None:
-    """Verify Altr-Stream.iss implements responsive Docker start polling and conflict resolution."""
+    """Verify Inno Setup does not handle container conflicts, delegating to Manager."""
     iss_path = REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss"
     assert iss_path.is_file(), f"{iss_path} not found"
     iss_content = iss_path.read_text(encoding="utf-8")
-
-    # 1. Responsive non-blocking Docker Desktop start polling
-    assert "StartDockerBtnClick" in iss_content
-    assert "ProcessSystemMessages" in iss_content
-    assert "WizardForm.Refresh" in iss_content
-    assert "GetTickCount - StartTick < MaxWaitMs" in iss_content
-    assert "check-docker" in iss_content
-    assert "wait-docker --timeout" not in iss_content, (
-        "Altr-Stream.iss must not call synchronous wait-docker inside StartDockerBtnClick to avoid UI freeze"
-    )
-
-    # 2. Container conflict detection & replacement flag forwarding
-    assert "ShouldReplaceExisting: Boolean;" in iss_content
-    assert "ShouldReplaceExisting := True;" in iss_content
-    assert "if ShouldReplaceExisting then" in iss_content
-    assert "InstallCmd := InstallCmd + ' --replace-existing';" in iss_content
+    assert "StartDockerBtnClick" not in iss_content
 
 
 def test_go_engine_install_replace_existing_flag(tmp_path: Path) -> None:
@@ -781,18 +599,11 @@ def test_go_engine_install_replace_existing_flag(tmp_path: Path) -> None:
 
 
 def test_inno_setup_port_conflict_handling() -> None:
-    """Verify Altr-Stream.iss inspects conflict_type, detects port conflicts, and blocks installation."""
+    """Verify Inno Setup delegates conflict handling to Manager."""
     iss_path = REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss"
     assert iss_path.is_file(), f"{iss_path} not found"
     iss_content = iss_path.read_text(encoding="utf-8")
-
-    # Verify conflict_type parsing and handling
-    assert "conflict_type" in iss_content
-    assert "port_docker" in iss_content
-    assert "port_process" in iss_content
-    assert "Port conflict detected:" in iss_content
-    assert 'Pos(\'"conflict_type": "port_docker"\', OutputStr) > 0' in iss_content
-    assert 'Pos(\'"conflict_type": "port_process"\', OutputStr) > 0' in iss_content
+    assert "conflict_type" not in iss_content
 
 
 def test_go_engine_conflict_port_flags_and_schema(tmp_path: Path) -> None:
@@ -855,3 +666,235 @@ def test_engine_does_not_create_unnecessary_home_go_dir(tmp_path: Path) -> None:
     res = subprocess.run([str(engine_bin), "detect-env"], env=env, capture_output=True, text=True, timeout=10)
     assert res.returncode == 0
     assert not (clean_home / "go").exists(), "Installer engine unnecessarily created ~/go"
+
+
+def test_build_windows_installer_resolves_canonical_image() -> None:
+    """Verify scripts/build_windows_installer.py resolves canonical image when unspecified."""
+    from scripts.build_windows_installer import build_windows_installer
+    import inspect
+
+    sig = inspect.signature(build_windows_installer)
+    assert "image" in sig.parameters
+    assert sig.parameters["image"].default is None
+
+    # Verify that in build_windows_installer.py, when image is None, it defaults to canonical version format
+    import scripts.build_windows_installer as bwi
+    assert bwi.DEFAULT_IMAGE is None
+
+
+def test_docker_compose_template_and_engine_interpolation() -> None:
+    """Verify docker-compose.template.yml and engine lifecycle use ${ALTR_STREAM_IMAGE:-...}."""
+    template_path = REPO_ROOT / "packaging" / "templates" / "docker-compose.template.yml"
+    assert template_path.is_file()
+    tmpl_content = template_path.read_text(encoding="utf-8")
+    assert "${ALTR_STREAM_IMAGE:-" in tmpl_content
+
+    lifecycle_go = REPO_ROOT / "packaging" / "engine" / "lifecycle.go"
+    assert lifecycle_go.is_file()
+    go_content = lifecycle_go.read_text(encoding="utf-8")
+    assert "${ALTR_STREAM_IMAGE:-%s}" in go_content
+
+
+def test_windows_batch_installer_uses_canonical_image() -> None:
+    """Verify Altr-Stream_Windows_Installer.bat dynamically resolves image without hardcoded alpha."""
+    bat_path = REPO_ROOT / "packaging" / "installers" / "Altr-Stream_Windows_Installer.bat"
+    assert bat_path.is_file()
+    bat_content = bat_path.read_text(encoding="utf-8")
+    assert "0.13.7-alpha" not in bat_content
+    assert "$env:ALTR_STREAM_IMAGE" in bat_content
+    assert "ghcr.io/helloaltr/altr-stream:$Version" in bat_content
+
+
+def test_windows_installer_cleanup_preserves_macos_pkg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression Test: Compiling Windows installer must only clean stale .exe files and preserve macOS .pkg artifacts."""
+    import scripts.build_windows_installer as bwi
+
+    fake_root = tmp_path / "repo"
+    dist_dir = fake_root / "dist"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(bwi, "REPO_ROOT", fake_root)
+
+    # 1. Setup pre-existing artifacts in dist/
+    dummy_pkg = dist_dir / "Altr-Stream-Installer.pkg"
+    dummy_pkg.write_text("dummy-macos-pkg-bytes", encoding="utf-8")
+
+    dummy_zip = dist_dir / "Altr-Stream_macOS_Installer.app.zip"
+    dummy_zip.write_text("dummy-macos-zip-bytes", encoding="utf-8")
+
+    stale_exe = dist_dir / "Altr-Stream-Installer.exe"
+    stale_exe.write_bytes(b"MZ\x90\x00stale_exe")
+
+    stale_tmp_exe = dist_dir / "Altr-Stream-Installer-old.exe"
+    stale_tmp_exe.write_bytes(b"MZ\x90\x00stale_old")
+
+    # 2. Mock runner and compilation
+    fake_iss = fake_root / "packaging" / "windows" / "Altr-Stream.iss"
+    fake_iss.parent.mkdir(parents=True, exist_ok=True)
+    fake_iss.write_text("; fake inno script", encoding="utf-8")
+
+    monkeypatch.setattr(bwi, "find_iscc_runner", lambda: (["echo"], "native"))
+
+    def mock_subprocess_run(cmd, cwd=None, capture_output=True, text=True):
+        # Simulate Inno Setup outputting Altr-Stream-Installer.exe with valid MZ header
+        target = dist_dir / "Altr-Stream-Installer.exe"
+        target.write_bytes(b"MZ\x90\x00" + b"\x00" * 100)
+        class Completed:
+            returncode = 0
+            stdout = "Mocked Inno Setup success"
+            stderr = ""
+        return Completed()
+
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
+
+    out_exe = bwi.compile_inno_setup(
+        iss_file=fake_iss,
+        output_dir=dist_dir,
+        version="1.0.1-beta",
+        image="ghcr.io/helloaltr/altr-stream:1.0.1-beta",
+    )
+
+    # 3. Assertions:
+    # Stale .exe artifacts are unlinked
+    assert not stale_tmp_exe.exists()
+    # macOS .pkg MUST SURVIVE unharmed
+    assert dummy_pkg.is_file()
+    assert dummy_pkg.read_text(encoding="utf-8") == "dummy-macos-pkg-bytes"
+    # macOS .app.zip MUST SURVIVE unharmed
+    assert dummy_zip.is_file()
+    assert dummy_zip.read_text(encoding="utf-8") == "dummy-macos-zip-bytes"
+    # New .exe installer exists
+    assert out_exe.is_file()
+
+
+def test_developer_options_image_selection_and_resolution(tmp_path: Path) -> None:
+    """Verify Developer Options image selection rules: default canonical, older version, custom validation, reset."""
+    engine_bin = REPO_ROOT / "dist" / "altr-installer-engine"
+    if not engine_bin.exists():
+        engine_bin = REPO_ROOT / "dist" / "Altr Stream.app" / "Contents" / "Resources" / "altr-installer-engine"
+    if not engine_bin.exists():
+        pytest.skip("Engine binary not available in dist/")
+
+    canonical_ver = "1.0.0-beta"
+    canonical_img = f"ghcr.io/helloaltr/altr-stream:{canonical_ver}"
+
+    # 1. Default installation resolves to canonical image when no override is selected
+    target_dir_default = tmp_path / "default_install"
+    target_dir_default.mkdir(parents=True, exist_ok=True)
+    res_def = subprocess.run(
+        [str(engine_bin), "provision-config", "-target-dir", str(target_dir_default)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    compose_def = (target_dir_default / "docker-compose.yml").read_text(encoding="utf-8")
+    assert f"${{ALTR_STREAM_IMAGE:-{canonical_img}}}" in compose_def
+
+    # 2. Selecting an older image uses that exact image
+    older_img = "ghcr.io/helloaltr/altr-stream:0.13.7-alpha"
+    target_dir_older = tmp_path / "older_install"
+    target_dir_older.mkdir(parents=True, exist_ok=True)
+    res_older = subprocess.run(
+        [str(engine_bin), "provision-config", "-target-dir", str(target_dir_older), "-image", older_img],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    compose_older = (target_dir_older / "docker-compose.yml").read_text(encoding="utf-8")
+    assert f"${{ALTR_STREAM_IMAGE:-{older_img}}}" in compose_older
+
+    # 3. Selecting the recommended version clears override and uses canonical image
+    target_dir_reset = tmp_path / "reset_install"
+    target_dir_reset.mkdir(parents=True, exist_ok=True)
+    # Simulate first writing older image, then provisioning with empty image override (recommended)
+    (target_dir_reset / ".env").write_text(f"ALTR_STREAM_IMAGE={older_img}\n", encoding="utf-8")
+    res_reset = subprocess.run(
+        [str(engine_bin), "provision-config", "-target-dir", str(target_dir_reset), "-image", canonical_img],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    compose_reset = (target_dir_reset / "docker-compose.yml").read_text(encoding="utf-8")
+    assert f"${{ALTR_STREAM_IMAGE:-{canonical_img}}}" in compose_reset
+    env_reset = (target_dir_reset / ".env").read_text(encoding="utf-8")
+    assert f"ALTR_STREAM_IMAGE={canonical_img}" in env_reset
+
+    # 4. Custom image is passed through correctly
+    custom_img = "myregistry.internal/altr/stream:dev-test-42"
+    target_dir_custom = tmp_path / "custom_install"
+    target_dir_custom.mkdir(parents=True, exist_ok=True)
+    res_custom = subprocess.run(
+        [str(engine_bin), "provision-config", "-target-dir", str(target_dir_custom), "-image", custom_img],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    compose_custom = (target_dir_custom / "docker-compose.yml").read_text(encoding="utf-8")
+    assert f"${{ALTR_STREAM_IMAGE:-{custom_img}}}" in compose_custom
+
+
+def test_windows_inno_setup_developer_options_structure_and_logic() -> None:
+    """Verify Windows Inno Setup installer script does not contain DevOptionsPage, delegating version management to Manager."""
+    iss_path = REPO_ROOT / "packaging" / "windows" / "Altr-Stream.iss"
+    assert iss_path.is_file(), "Altr-Stream.iss not found"
+    iss_content = iss_path.read_text(encoding="utf-8")
+
+    # Developer Options page eliminated from Inno Setup installer
+    assert "DevOptionsPage" not in iss_content
+    assert "DevImageCombo" not in iss_content
+    assert "ShowDevOptionsPage" not in iss_content
+
+    # Inno Setup configures pure application installation
+    assert "AppName=Altr Stream Manager" in iss_content
+    assert r'Source: "build\altr-installer-engine.exe"; DestDir: "{app}"; DestName: "Altr Stream Manager.exe"' in iss_content
+
+
+def test_runtime_version_is_reported_by_running_app_not_installer_override() -> None:
+    """Verify runtime version comes strictly from the application code/container, never forged in .env."""
+    from altr_stream.__version__ import __version__ as canonical_version
+    from altr_stream.config import settings
+
+    # The running application identifies its version via __version__.py / app_version
+    assert settings.app_version == canonical_version
+
+    # Ensure runtime files (.env) never define ALTR_STREAM_VERSION to forge app version
+    templates_env = REPO_ROOT / "packaging" / "templates" / "docker-compose.template.yml"
+    tmpl_content = templates_env.read_text(encoding="utf-8")
+    assert "ALTR_STREAM_VERSION" not in tmpl_content
+
+
+def test_engine_check_image_cli(tmp_path: Path) -> None:
+    """Verify that altr-installer-engine check-image CLI correctly validates image references."""
+    engine_bin = REPO_ROOT / "packaging" / "engine" / "altr-installer-engine"
+    if not engine_bin.is_file():
+        pytest.skip("Engine binary not present in packaging/engine")
+
+    # 1. Missing argument
+    res_missing = subprocess.run([str(engine_bin), "check-image"], capture_output=True, text=True, timeout=10)
+    data_missing = json.loads(res_missing.stdout)
+    assert data_missing["valid"] is False
+    assert data_missing["status"] == "invalid_format"
+
+    # 2. Whitespace in reference
+    res_space = subprocess.run([str(engine_bin), "check-image", "bad tag"], capture_output=True, text=True, timeout=10)
+    data_space = json.loads(res_space.stdout)
+    assert data_space["valid"] is False
+    assert data_space["status"] == "invalid_format"
+
+    # 3. Unavailable tag (e.g. 0.0.1)
+    res_unavail = subprocess.run([str(engine_bin), "check-image", "ghcr.io/helloaltr/altr-stream:0.0.1"], capture_output=True, text=True, timeout=15)
+    data_unavail = json.loads(res_unavail.stdout)
+    assert data_unavail["valid"] is True
+    assert data_unavail["available"] is False
+    assert data_unavail["status"] == "unavailable"
+    assert "not found on the container registry" in data_unavail["message"]
+
+    # 4. Available existing tag (e.g. 1.0.0-beta)
+    res_avail = subprocess.run([str(engine_bin), "check-image", "1.0.0-beta"], capture_output=True, text=True, timeout=15)
+    data_avail = json.loads(res_avail.stdout)
+    assert data_avail["valid"] is True
+    assert data_avail["available"] is True
+    assert data_avail["status"] == "available"
+    assert "ghcr.io/helloaltr/altr-stream:1.0.0-beta" in data_avail["image"]
+
+
+

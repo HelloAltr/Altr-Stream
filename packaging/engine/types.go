@@ -63,18 +63,23 @@ type ConflictInfo struct {
 	RemediationHint  string       `json:"remediation_hint"`
 	Details          string       `json:"details,omitempty"`
 	RawInspect       string       `json:"raw_inspect,omitempty"`
+	DataVolumeName   string       `json:"data_volume_name,omitempty"`
+	MountType        string       `json:"mount_type,omitempty"`
+	ComposeProject   string       `json:"compose_project,omitempty"`
 }
 
 // InstallStage represents discrete milestones during execution.
 type InstallStage string
 
 const (
-	StagePreparingConfig  InstallStage = "Preparing configuration"
-	StagePreparingVolume  InstallStage = "Preparing storage volume"
-	StagePullingImage     InstallStage = "Pulling Altr Stream image"
+	StagePreparingConfig   InstallStage = "Preparing configuration"
+	StagePreparingVolume   InstallStage = "Preparing storage volume"
+	StagePullingImage      InstallStage = "Pulling Altr Stream image"
 	StageStartingContainer InstallStage = "Starting container"
-	StageWaitingHealth    InstallStage = "Waiting for health check"
-	StageVerifying        InstallStage = "Verifying installation"
+	StageWaitingHealth     InstallStage = "Waiting for health check"
+	StageVerifying         InstallStage = "Verifying installation"
+	StageValidatingImage   InstallStage = "Validating target image"
+	StageRollingBack       InstallStage = "Rolling back to previous version"
 )
 
 // InstallProgress reports real-time step progress.
@@ -92,6 +97,10 @@ type InstallConfig struct {
 	Version         string `json:"version"`
 	Image           string `json:"image"`
 	Port            int    `json:"port"`
+	ContainerName   string `json:"container_name,omitempty"`
+	DataVolume      string `json:"data_volume,omitempty"`
+	NetworkName     string `json:"network_name,omitempty"`
+	Environment     string `json:"environment,omitempty"`
 	FeedbackURL     string `json:"feedback_url"`
 	FeedbackKey     string `json:"feedback_key"`
 	HealthTimeout   int    `json:"health_timeout"` // seconds
@@ -103,12 +112,15 @@ type InstallConfig struct {
 type NodeStatus struct {
 	InstallDir      string            `json:"install_dir"`
 	TargetVersion   string            `json:"target_version"`
+	ActiveImage     string            `json:"active_image,omitempty"`
+	ActiveVersion   string            `json:"active_version,omitempty"`
 	ContainerState  string            `json:"container_state"`
 	Port            int               `json:"port"`
 	WebURL          string            `json:"web_url"`
 	DockerDiag      DockerDiagnostics `json:"docker_diag"`
 	Healthy         bool              `json:"healthy"`
 	HealthResponse  string            `json:"health_response,omitempty"`
+	DataVolumeName  string            `json:"data_volume_name,omitempty"`
 	TechnicalIssues []string          `json:"technical_issues,omitempty"`
 }
 

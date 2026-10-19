@@ -18,7 +18,7 @@ import (
 // Build-time injected variables (via -ldflags)
 var (
 	DefaultVersion = "1.0.0-beta"
-	DefaultImage   = "ghcr.io/helloaltr/altr-stream:0.13.7-alpha" // Configurable; defaults to current E2E target
+	DefaultImage   = "ghcr.io/helloaltr/altr-stream:1.0.0-beta"
 )
 
 // OSCommandExecutor runs real system processes.
@@ -77,7 +77,22 @@ func writeProgressFile(path string, p InstallProgress) {
 	_ = os.WriteFile(path, []byte(line), 0644)
 }
 
-func resolveConfig(targetDir, version, image string, port int) InstallConfig {
+func resolveConfig(targetDir, version, image string, port int, containerName, dataVolume, environment string) InstallConfig {
+	// 1. Resolve explicit image tag or version cross-derivation
+	if version == "" && image != "" {
+		if strings.Contains(image, ":") {
+			parts := strings.Split(image, ":")
+			tag := parts[len(parts)-1]
+			if tag != "" && tag != "latest" {
+				version = strings.TrimPrefix(tag, "v")
+			}
+		}
+	} else if image == "" && version != "" {
+		cleanVer := strings.TrimPrefix(version, "v")
+		image = "ghcr.io/helloaltr/altr-stream:" + cleanVer
+	}
+
+	// 2. Fall back to environment overrides or build-time defaults if still unresolved
 	if version == "" {
 		if envVer := os.Getenv("ALTR_STREAM_VERSION"); envVer != "" {
 			version = envVer
@@ -95,11 +110,37 @@ func resolveConfig(targetDir, version, image string, port int) InstallConfig {
 	if port <= 0 {
 		port = DefaultPort
 	}
+	if containerName == "" {
+		if envC := os.Getenv("ALTR_STREAM_CONTAINER_NAME"); envC != "" {
+			containerName = envC
+		} else if targetDir != "" {
+			containerName = DetectContainerName(targetDir)
+		}
+	}
+	if dataVolume == "" {
+		if envV := os.Getenv("ALTR_STREAM_DATA_VOLUME"); envV != "" {
+			dataVolume = envV
+		} else if targetDir != "" {
+			dataVolume = DetectDataVolume(targetDir)
+		}
+	}
+	if environment == "" {
+		if envE := os.Getenv("ALTR_STREAM_ENVIRONMENT"); envE != "" {
+			environment = envE
+		} else if strings.Contains(strings.ToLower(containerName), "test") || (containerName != ContainerName && containerName != "") {
+			environment = "test"
+		} else {
+			environment = "production"
+		}
+	}
 	return InstallConfig{
 		TargetDir:     targetDir,
 		Version:       version,
 		Image:         image,
 		Port:          port,
+		ContainerName: containerName,
+		DataVolume:    dataVolume,
+		Environment:   environment,
 		FeedbackURL:   os.Getenv("ALTR_STREAM_FEEDBACK_SERVICE_URL"),
 		FeedbackKey:   os.Getenv("ALTR_FEEDBACK_API_KEY"),
 		HealthTimeout: 60,
@@ -121,8 +162,10 @@ func main() {
 		fmt.Println("  start-container  Start existing container")
 		fmt.Println("  unpause-container Resume paused container")
 		fmt.Println("  install          Execute installation pipeline")
+		fmt.Println("  provision-config Write runtime configuration files without requiring Docker")
 		fmt.Println("  repair           Repair configuration and recreate container")
 		fmt.Println("  uninstall        Remove container and optionally delete data")
+		fmt.Println("  check-image      Validate container image reference against registry")
 		fmt.Println("  status           Query live node status and health")
 		fmt.Println("  launch-browser   Open web UI in default browser")
 		os.Exit(0)
@@ -239,30 +282,111 @@ func main() {
 		printJSON(conflict)
 
 	case "remove-container":
-		err := engine.RemoveExistingContainer(ctx)
+		fs := flag.NewFlagSet("remove-container", flag.ExitOnError)
+		name := fs.String("name", "", "Container name to remove")
+		_ = fs.Parse(os.Args[2:])
+		cName := *name
+		if cName == "" {
+			cName = ContainerName
+		}
+		err := engine.RemoveContainerByName(ctx, cName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error removing container: %v\n", err)
 			os.Exit(1)
 		}
-		printJSON(map[string]interface{}{"success": true, "message": "Container 'altr-stream' removed successfully. Persistent data preserved."})
+		printJSON(map[string]interface{}{"success": true, "message": fmt.Sprintf("Container '%s' removed successfully. Persistent data preserved.", cName)})
 		os.Exit(0)
 
 	case "start-container":
-		err := engine.StartExistingContainer(ctx)
+		fs := flag.NewFlagSet("start-container", flag.ExitOnError)
+		name := fs.String("name", "", "Container name to start")
+		_ = fs.Parse(os.Args[2:])
+		cName := *name
+		if cName == "" {
+			cName = ContainerName
+		}
+		err := engine.lifecycleManager.StartExistingContainerByName(ctx, cName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error starting container: %v\n", err)
 			os.Exit(1)
 		}
-		printJSON(map[string]interface{}{"success": true, "message": "Container 'altr-stream' started successfully."})
+		printJSON(map[string]interface{}{"success": true, "message": fmt.Sprintf("Container '%s' started successfully.", cName)})
+		os.Exit(0)
+
+	case "pause-container":
+		fs := flag.NewFlagSet("pause-container", flag.ExitOnError)
+		name := fs.String("name", "", "Container name to pause")
+		_ = fs.Parse(os.Args[2:])
+		cName := *name
+		if cName == "" {
+			cName = ContainerName
+		}
+		err := engine.lifecycleManager.PauseContainerByName(ctx, cName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error pausing container: %v\n", err)
+			os.Exit(1)
+		}
+		printJSON(map[string]interface{}{"success": true, "message": fmt.Sprintf("Container '%s' paused successfully.", cName)})
 		os.Exit(0)
 
 	case "unpause-container":
-		err := engine.UnpauseContainer(ctx)
+		fs := flag.NewFlagSet("unpause-container", flag.ExitOnError)
+		name := fs.String("name", "", "Container name to unpause")
+		_ = fs.Parse(os.Args[2:])
+		cName := *name
+		if cName == "" {
+			cName = ContainerName
+		}
+		err := engine.lifecycleManager.UnpauseContainerByName(ctx, cName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error unpausing container: %v\n", err)
 			os.Exit(1)
 		}
-		printJSON(map[string]interface{}{"success": true, "message": "Container 'altr-stream' unpaused successfully."})
+		printJSON(map[string]interface{}{"success": true, "message": fmt.Sprintf("Container '%s' unpaused successfully.", cName)})
+		os.Exit(0)
+
+	case "stop-container":
+		fs := flag.NewFlagSet("stop-container", flag.ExitOnError)
+		name := fs.String("name", "", "Container name or ID to stop")
+		_ = fs.Parse(os.Args[2:])
+
+		if *name == "" {
+			fmt.Fprintf(os.Stderr, "Error: --name is required\n")
+			os.Exit(1)
+		}
+
+		err := engine.StopSpecificContainer(ctx, *name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error stopping container: %v\n", err)
+			os.Exit(1)
+		}
+		printJSON(map[string]interface{}{"success": true, "message": fmt.Sprintf("Container '%s' stopped successfully.", *name)})
+		os.Exit(0)
+
+	case "provision-config":
+		fs := flag.NewFlagSet("provision-config", flag.ExitOnError)
+		targetDir := fs.String("target-dir", "", "Target install directory")
+		version := fs.String("version", "", "Altr Stream version")
+		image := fs.String("image", "", "Docker image reference")
+		port := fs.Int("port", DefaultPort, "Host port binding")
+		containerName := fs.String("container-name", "", "Isolated container name")
+		dataVolume := fs.String("data-volume", "", "Isolated data volume name")
+		environment := fs.String("environment", "", "Deployment environment (production, test)")
+		_ = fs.Parse(os.Args[2:])
+
+		if *targetDir == "" {
+			env, _ := engine.DetectEnvironment()
+			if env != nil {
+				*targetDir = env.EffectiveDir
+			}
+		}
+
+		cfg := resolveConfig(*targetDir, *version, *image, *port, *containerName, *dataVolume, *environment)
+		if err := engine.ProvisionConfig(*targetDir, cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Error provisioning config: %v\n", err)
+			os.Exit(1)
+		}
+		printJSON(map[string]interface{}{"success": true, "target_dir": *targetDir})
 		os.Exit(0)
 
 	case "install":
@@ -271,6 +395,9 @@ func main() {
 		version := fs.String("version", "", "Altr Stream version")
 		image := fs.String("image", "", "Docker image reference")
 		port := fs.Int("port", DefaultPort, "Host port binding")
+		containerName := fs.String("container-name", "", "Isolated container name")
+		dataVolume := fs.String("data-volume", "", "Isolated data volume name")
+		environment := fs.String("environment", "", "Deployment environment (production, test)")
 		replaceExisting := fs.Bool("replace-existing", false, "Safely remove conflicting container before installing")
 		jsonOut := fs.Bool("json", false, "Stream JSON progress")
 		progressFile := fs.String("progress-file", "", "Path to write real-time stage progress")
@@ -284,7 +411,7 @@ func main() {
 			}
 		}
 
-		cfg := resolveConfig(*targetDir, *version, *image, *port)
+		cfg := resolveConfig(*targetDir, *version, *image, *port, *containerName, *dataVolume, *environment)
 		cfg.ReplaceExisting = *replaceExisting
 
 		err := engine.Install(ctx, cfg, func(p InstallProgress) {
@@ -342,6 +469,9 @@ func main() {
 		version := fs.String("version", "", "Altr Stream version")
 		image := fs.String("image", "", "Docker image reference")
 		port := fs.Int("port", DefaultPort, "Host port binding")
+		containerName := fs.String("container-name", "", "Isolated container name")
+		dataVolume := fs.String("data-volume", "", "Isolated data volume name")
+		environment := fs.String("environment", "", "Deployment environment (production, test)")
 		jsonOut := fs.Bool("json", false, "Stream JSON progress")
 		progressFile := fs.String("progress-file", "", "Path to write real-time stage progress")
 		doneFile := fs.String("done-file", "", "Path to write completion status code")
@@ -354,7 +484,7 @@ func main() {
 			}
 		}
 
-		cfg := resolveConfig(*targetDir, *version, *image, *port)
+		cfg := resolveConfig(*targetDir, *version, *image, *port, *containerName, *dataVolume, *environment)
 
 		err := engine.Repair(ctx, *targetDir, cfg, func(p InstallProgress) {
 			if *progressFile != "" {
@@ -429,6 +559,77 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Browser launched successfully.")
+
+	case "check-image":
+		if len(os.Args) < 3 {
+			res := ImageValidationResult{
+				Valid:     false,
+				Available: false,
+				Status:    "invalid_format",
+				Message:   "Missing required image reference argument.",
+			}
+			printJSON(res)
+			os.Exit(0)
+		}
+		targetImg := os.Args[2]
+		res := engine.dockerManager.InspectImageRegistry(ctx, targetImg)
+		printJSON(res)
+
+	case "switch-version":
+		fs := flag.NewFlagSet("switch-version", flag.ExitOnError)
+		targetDir := fs.String("target-dir", "", "Target install directory")
+		version := fs.String("version", "", "Altr Stream version")
+		image := fs.String("image", "", "Docker image reference")
+		port := fs.Int("port", DefaultPort, "Host port binding")
+		containerName := fs.String("container-name", "", "Isolated container name")
+		dataVolume := fs.String("data-volume", "", "Isolated data volume name")
+		environment := fs.String("environment", "", "Deployment environment (production, test)")
+		jsonOut := fs.Bool("json", false, "Stream JSON progress")
+		progressFile := fs.String("progress-file", "", "Path to write real-time stage progress")
+		doneFile := fs.String("done-file", "", "Path to write completion status code")
+		_ = fs.Parse(os.Args[2:])
+
+		if *targetDir == "" {
+			env, _ := engine.DetectEnvironment()
+			if env != nil {
+				*targetDir = env.EffectiveDir
+			}
+		}
+
+		cfg := resolveConfig(*targetDir, *version, *image, *port, *containerName, *dataVolume, *environment)
+
+		err := engine.SwitchVersion(ctx, *targetDir, cfg, func(p InstallProgress) {
+			if *progressFile != "" {
+				writeProgressFile(*progressFile, p)
+			}
+			if *jsonOut {
+				data, _ := json.Marshal(p)
+				fmt.Println(string(data))
+			} else {
+				fmt.Printf("[%d/%d] %s (%d%%): %s\n", p.StageIndex, p.TotalStages, p.Stage, p.Percent, p.Message)
+			}
+		})
+
+		if err != nil {
+			if *progressFile != "" {
+				errLine := fmt.Sprintf("-1|0|5|Failed|%s\n", err.Error())
+				_ = os.WriteFile(*progressFile, []byte(errLine), 0644)
+			}
+			if *doneFile != "" {
+				doneLine := fmt.Sprintf("1|%s\n", err.Error())
+				_ = os.WriteFile(*doneFile, []byte(doneLine), 0644)
+			}
+			fmt.Fprintf(os.Stderr, "Version switch failed: %v\n", err)
+			os.Exit(1)
+		}
+		if *progressFile != "" {
+			doneLine := "100|5|5|Done|Version switched successfully.\n"
+			_ = os.WriteFile(*progressFile, []byte(doneLine), 0644)
+		}
+		if *doneFile != "" {
+			_ = os.WriteFile(*doneFile, []byte("0|Success\n"), 0644)
+		}
+		fmt.Println("Version switched successfully.")
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", command)

@@ -55,3 +55,8 @@ func (d *DockerManager) unpausePlatformDockerDesktop(ctx context.Context) error 
 	return d.LaunchDockerDesktop(ctx)
 }
 
+func (d *DockerManager) isPlatformDockerDesktopProcessRunning(ctx context.Context) bool {
+	return false
+}
+
+

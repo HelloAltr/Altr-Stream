@@ -1,0 +1,8 @@
+# Clangd configuration for Flutter desktop development
+# Suppresses Windows-specific SDK header diagnostics when indexing on macOS/Linux hosts.
+If:
+  PathMatch: .*/windows/.*
+Diagnostics:
+  Suppress:
+    - "pp_file_not_found"
+    - "drv_unknown_argument"

@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -103,6 +105,29 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 		diag.TechnicalError = strings.TrimSpace(stderr + "\n" + stdout)
 	}
 
+	// If initial probe failed on Darwin due to connection/socket issues (and not a paused state), probe fallback socket ~/.docker/run/docker.sock
+	isExplicitDaemonResponse := strings.Contains(strings.ToLower(diag.TechnicalError), "manually paused") ||
+		strings.Contains(strings.ToLower(diag.TechnicalError), "docker desktop is paused")
+
+	if !diag.EngineRunning && !isExplicitDaemonResponse && runtime.GOOS == "darwin" {
+		if _, isReal := d.executor.(*OSCommandExecutor); isReal {
+			home, _ := os.UserHomeDir()
+			if home != "" {
+				fallbackSock := filepath.Join(home, ".docker", "run", "docker.sock")
+				if fi, err := d.stat(fallbackSock); err == nil && !fi.IsDir() {
+					fbCtx, fbCancel := context.WithTimeout(ctx, 4*time.Second)
+					_, _, fbExit, _ := d.executor.Run(fbCtx, infoCLI, "-H", "unix://"+fallbackSock, "info")
+					fbCancel()
+					if fbExit == 0 {
+						diag.EngineRunning = true
+						diag.TechnicalError = ""
+						_ = os.Setenv("DOCKER_HOST", "unix://"+fallbackSock)
+					}
+				}
+			}
+		}
+	}
+
 	// Probe compose
 	composeCmd := d.resolveComposeCommand(ctx, infoCLI)
 	if composeCmd != "" {
@@ -128,6 +153,9 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 	// Engine not running
 	tech := strings.ToLower(diag.TechnicalError)
 
+	_, isReal := d.executor.(*OSCommandExecutor)
+	isProcessRunning := d.isPlatformDockerDesktopProcessRunning(ctx)
+
 	// Check if Docker Desktop is paused/suspended
 	isPaused := strings.Contains(tech, "manually paused") ||
 		strings.Contains(tech, "docker desktop is manually paused") ||
@@ -138,8 +166,8 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 		isPaused = d.isPlatformDockerDesktopPaused(ctx)
 	}
 
-	if !isPaused {
-		// Probe via docker desktop CLI plugin if present
+	if !isPaused && !isReal {
+		// Probe via docker desktop CLI plugin if present in mock/unit-test environment
 		statusCtx, statusCancel := context.WithTimeout(ctx, 2*time.Second)
 		pStdout, _, pExit, _ := d.executor.Run(statusCtx, infoCLI, "desktop", "status", "--format", "json")
 		statusCancel()
@@ -159,38 +187,60 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 		return diag
 	}
 
+	if isProcessRunning {
+		diag.State = DockerStateStarting
+		diag.StatusText = "Docker Desktop is Starting"
+		diag.ActionHint = "Waiting for Docker daemon to become ready..."
+		diag.FailureReason = "Docker Desktop application is running, but the Docker daemon is still initializing."
+		return diag
+	}
+
 	if strings.Contains(tech, "virtualization") || strings.Contains(tech, "hyper-v") ||
 		strings.Contains(tech, "hypervisor") || strings.Contains(tech, "wsl") {
 		diag.State = DockerStateError
 		diag.StatusText = "Virtualization Unavailable"
 		diag.ActionHint = "Enable Virtualization / WSL 2 in Windows Features"
 		diag.FailureReason = "Docker Desktop requires hardware virtualization or WSL 2 to be enabled."
-	} else if diag.DesktopInstalled || diag.CliInstalled {
+		return diag
+	}
+
+	if diag.DesktopInstalled {
 		diag.State = DockerStateStopped
 		diag.StatusText = "Docker Desktop is Stopped"
 		diag.ActionHint = "Start Docker Desktop"
 		diag.FailureReason = "Docker is installed, but the Docker Desktop daemon is not currently running."
-	} else {
-		diag.State = DockerStateError
-		diag.StatusText = "Engine Offline"
-		diag.ActionHint = "Start Docker Engine"
-		diag.FailureReason = "Docker CLI is present, but the Docker daemon is unreachable."
+		return diag
 	}
 
-	_ = desktopPath
+	if diag.CliInstalled {
+		diag.State = DockerStateStopped
+		diag.StatusText = "Docker Desktop is Stopped"
+		diag.ActionHint = "Start Docker Desktop"
+		diag.FailureReason = "Docker CLI is present, but the Docker daemon is not running."
+		return diag
+	}
+
+	diag.State = DockerStateNotInstalled
+	diag.StatusText = "Not Installed"
+	diag.ActionHint = "Install Docker Desktop"
+	diag.FailureReason = "Docker Desktop was not found on this system."
 	return diag
 }
 
 func (d *DockerManager) resolveComposeCommand(ctx context.Context, dockerCLI string) string {
 	// Try `docker compose version`
-	_, _, exitCode, _ := d.executor.Run(ctx, dockerCLI, "compose", "version")
+	composeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	_, _, exitCode, _ := d.executor.Run(composeCtx, dockerCLI, "compose", "version")
 	if exitCode == 0 {
 		return dockerCLI + " compose"
 	}
 
 	// Try standalone `docker-compose`
 	if p, err := d.lookPath("docker-compose"); err == nil && p != "" {
-		_, _, ec2, _ := d.executor.Run(ctx, p, "version")
+		standaloneCtx, standaloneCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer standaloneCancel()
+		_, _, ec2, _ := d.executor.Run(standaloneCtx, p, "version")
 		if ec2 == 0 {
 			return p
 		}
@@ -278,4 +328,147 @@ func (d *DockerManager) OpenDockerSettings(ctx context.Context) error {
 	}
 	log.Printf("[OpenDockerSettings] Both launch and deep link failed: launchErr=%v, deepLinkErr=%v", launchErr, deepLinkErr)
 	return launchErr
+}
+
+// ImageValidationResult represents the verification of a Docker image reference.
+type ImageValidationResult struct {
+	Valid     bool   `json:"valid"`
+	Available bool   `json:"available"`
+	Image     string `json:"image"`
+	Status    string `json:"status"` // "available", "unavailable", "invalid_format", "network_error", "auth_error"
+	Message   string `json:"message"`
+	Details   string `json:"details,omitempty"`
+}
+
+func normalizeImageReference(ref string) (string, error) {
+	trimmed := strings.TrimSpace(ref)
+	if trimmed == "" {
+		return "", errors.New("image reference cannot be empty")
+	}
+	if strings.ContainsAny(trimmed, " \t\r\n") {
+		return "", errors.New("image reference cannot contain whitespace")
+	}
+	for _, r := range trimmed {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' || r == '/' || r == ':') {
+			return "", fmt.Errorf("invalid character in image reference: %c", r)
+		}
+	}
+	if !strings.Contains(trimmed, "/") && !strings.Contains(trimmed, ":") {
+		trimmed = "ghcr.io/helloaltr/altr-stream:" + trimmed
+	} else if strings.HasPrefix(trimmed, ":") {
+		trimmed = "ghcr.io/helloaltr/altr-stream" + trimmed
+	}
+	return trimmed, nil
+}
+
+// InspectImageRegistry verifies whether a container image exists locally or in the remote registry.
+func (d *DockerManager) InspectImageRegistry(ctx context.Context, imageRef string) ImageValidationResult {
+	norm, err := normalizeImageReference(imageRef)
+	if err != nil {
+		return ImageValidationResult{
+			Valid:     false,
+			Available: false,
+			Image:     imageRef,
+			Status:    "invalid_format",
+			Message:   err.Error(),
+		}
+	}
+
+	cli := d.ResolveDockerCLI()
+	if cli == "" {
+		return ImageValidationResult{
+			Valid:     true,
+			Available: false,
+			Image:     norm,
+			Status:    "network_error",
+			Message:   "Docker CLI is not available to verify registry manifests.",
+		}
+	}
+
+	isOfficial := strings.HasPrefix(norm, "ghcr.io/helloaltr/altr-stream:") || norm == "ghcr.io/helloaltr/altr-stream"
+
+	// 1. For custom or local images, check local Docker cache first
+	if !isOfficial {
+		localOut, _, localExit, _ := d.executor.Run(ctx, cli, "images", "-q", norm)
+		if localExit == 0 && strings.TrimSpace(localOut) != "" {
+			return ImageValidationResult{
+				Valid:     true,
+				Available: true,
+				Image:     norm,
+				Status:    "available",
+				Message:   fmt.Sprintf("Image '%s' is present in local Docker cache.", norm),
+			}
+		}
+	}
+
+	// 2. Query remote registry via manifest inspect
+	stdout, stderr, exitCode, _ := d.executor.Run(ctx, cli, "manifest", "inspect", norm)
+	combined := strings.TrimSpace(stdout + "\n" + stderr)
+	lower := strings.ToLower(combined)
+
+	if exitCode == 0 {
+		return ImageValidationResult{
+			Valid:     true,
+			Available: true,
+			Image:     norm,
+			Status:    "available",
+			Message:   fmt.Sprintf("Image '%s' verified and available on registry.", norm),
+		}
+	}
+
+	// For official images, if manifest unknown or not found, it is unavailable on the registry.
+	// A local image must never shadow this failure.
+
+	if strings.Contains(lower, "manifest unknown") || strings.Contains(lower, "not found") || strings.Contains(lower, "404") || strings.Contains(lower, "tag does not exist") {
+		return ImageValidationResult{
+			Valid:     true,
+			Available: false,
+			Image:     norm,
+			Status:    "unavailable",
+			Message:   fmt.Sprintf("Image '%s' was not found on the container registry.", norm),
+			Details:   combined,
+		}
+	}
+
+	if strings.Contains(lower, "invalid reference") || strings.Contains(lower, "reference format") {
+		return ImageValidationResult{
+			Valid:     false,
+			Available: false,
+			Image:     norm,
+			Status:    "invalid_format",
+			Message:   fmt.Sprintf("Invalid image reference format: '%s'.", norm),
+			Details:   combined,
+		}
+	}
+
+	if strings.Contains(lower, "unauthorized") || strings.Contains(lower, "denied") || strings.Contains(lower, "authentication required") {
+		return ImageValidationResult{
+			Valid:     true,
+			Available: false,
+			Image:     norm,
+			Status:    "auth_error",
+			Message:   fmt.Sprintf("Authentication or access denied for registry image '%s'.", norm),
+			Details:   combined,
+		}
+	}
+
+	if strings.Contains(lower, "connection refused") || strings.Contains(lower, "timeout") || strings.Contains(lower, "no such host") || strings.Contains(lower, "dial tcp") || strings.Contains(lower, "network") {
+		return ImageValidationResult{
+			Valid:     true,
+			Available: false,
+			Image:     norm,
+			Status:    "network_error",
+			Message:   fmt.Sprintf("Network connection to registry failed while verifying '%s'.", norm),
+			Details:   combined,
+		}
+	}
+
+	return ImageValidationResult{
+		Valid:     false,
+		Available: false,
+		Image:     norm,
+		Status:    "unavailable",
+		Message:   fmt.Sprintf("Failed to inspect image '%s': %s", norm, combined),
+		Details:   combined,
+	}
 }

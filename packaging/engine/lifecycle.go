@@ -15,10 +15,9 @@ import (
 )
 
 const (
-	ContainerName    = "altr-stream"
-	NamedDataVolume  = "altr_stream_data"
-	DefaultPort      = 8000
-	DefaultCanonical = "1.0.0-beta"
+	ContainerName   = "altr-stream"
+	NamedDataVolume = "altr_stream_data"
+	DefaultPort     = 8000
 )
 
 func defaultHostPortChecker(port int) error {
@@ -38,6 +37,8 @@ type LifecycleManager struct {
 	StartTimeout    time.Duration
 	RetryInterval   time.Duration
 	HostPortChecker func(port int) error
+	ContainerName   string
+	DataVolume      string
 }
 
 // NewLifecycleManager creates a lifecycle manager.
@@ -54,6 +55,74 @@ func NewLifecycleManager(exec CommandExecutor, client HTTPClient, dm ...*DockerM
 		dockerManager:   manager,
 		HostPortChecker: defaultHostPortChecker,
 	}
+}
+
+func (l *LifecycleManager) TargetContainerName() string {
+	if l != nil && l.ContainerName != "" {
+		return l.ContainerName
+	}
+	return ContainerName
+}
+
+func (l *LifecycleManager) TargetDataVolume() string {
+	if l != nil && l.DataVolume != "" {
+		return l.DataVolume
+	}
+	return NamedDataVolume
+}
+
+// DetectContainerName reads custom container name from targetDir/.env or targetDir/docker-compose.yml.
+func DetectContainerName(targetDir string) string {
+	if targetDir == "" {
+		return ""
+	}
+	// 1. Try .env
+	envPath := filepath.Join(targetDir, ".env")
+	if data, err := os.ReadFile(envPath); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "ALTR_STREAM_CONTAINER_NAME=") {
+				val := strings.TrimSpace(strings.TrimPrefix(line, "ALTR_STREAM_CONTAINER_NAME="))
+				if val != "" {
+					return val
+				}
+			}
+		}
+	}
+	// 2. Try docker-compose.yml
+	composePath := filepath.Join(targetDir, "docker-compose.yml")
+	if data, err := os.ReadFile(composePath); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "container_name:") {
+				val := strings.TrimSpace(strings.TrimPrefix(line, "container_name:"))
+				if val != "" {
+					return val
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// DetectDataVolume reads custom volume name from targetDir/.env or targetDir/docker-compose.yml.
+func DetectDataVolume(targetDir string) string {
+	if targetDir == "" {
+		return ""
+	}
+	envPath := filepath.Join(targetDir, ".env")
+	if data, err := os.ReadFile(envPath); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "ALTR_STREAM_DATA_VOLUME=") {
+				val := strings.TrimSpace(strings.TrimPrefix(line, "ALTR_STREAM_DATA_VOLUME="))
+				if val != "" {
+					return val
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func (l *LifecycleManager) dockerCLI() string {
@@ -87,10 +156,24 @@ func (l *LifecycleManager) parseComposeCommand(composeCmd string) (string, []str
 	return composeCmd, []string{}
 }
 
-// CheckContainerConflict inspects if an existing 'altr-stream' container exists.
+// CheckContainerConflict inspects if the target container exists.
 func (l *LifecycleManager) CheckContainerConflict(ctx context.Context) (*ConflictInfo, error) {
+	return l.CheckSpecificContainerConflict(ctx, l.TargetContainerName())
+}
+
+// CheckSpecificContainerConflict inspects if a specific container exists.
+func (l *LifecycleManager) CheckSpecificContainerConflict(ctx context.Context, targetName string) (*ConflictInfo, error) {
+	if targetName == "" {
+		targetName = l.TargetContainerName()
+	}
 	// Inspect container safely
-	stdout, _, exitCode, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", ContainerName)
+	var stdout string
+	var exitCode int
+	if targetName == ContainerName {
+		stdout, _, exitCode, _ = l.executor.Run(ctx, l.dockerCLI(), "inspect", ContainerName)
+	} else {
+		stdout, _, exitCode, _ = l.executor.Run(ctx, l.dockerCLI(), "inspect", targetName)
+	}
 	if exitCode != 0 || strings.TrimSpace(stdout) == "" || stdout == "[]" {
 		return &ConflictInfo{Exists: false, ConflictType: ConflictTypeNone}, nil
 	}
@@ -115,13 +198,37 @@ func (l *LifecycleManager) CheckContainerConflict(ctx context.Context) (*Conflic
 				HostPort string `json:"HostPort"`
 			} `json:"Ports"`
 		} `json:"NetworkSettings"`
+		Mounts []struct {
+			Type        string `json:"Type"`
+			Name        string `json:"Name"`
+			Source      string `json:"Source"`
+			Destination string `json:"Destination"`
+			Driver      string `json:"Driver"`
+		} `json:"Mounts"`
 	}
 
 	if err := json.Unmarshal([]byte(stdout), &inspectList); err != nil || len(inspectList) == 0 {
-		return &ConflictInfo{Exists: true, ConflictType: ConflictTypeContainer, ContainerName: ContainerName, Status: "unknown", RawInspect: stdout}, nil
+		return &ConflictInfo{Exists: true, ConflictType: ConflictTypeContainer, ContainerName: targetName, Status: "unknown", RawInspect: stdout}, nil
 	}
 
 	c := inspectList[0]
+	var dataVolName string
+	var mountType string
+	for _, m := range c.Mounts {
+		if m.Destination == "/app/data" {
+			if m.Type == "volume" {
+				dataVolName = m.Name
+			} else if m.Type == "bind" {
+				dataVolName = m.Source
+			}
+			mountType = m.Type
+			break
+		}
+	}
+	var composeProj string
+	if c.Config.Labels != nil {
+		composeProj = c.Config.Labels["com.docker.compose.project"]
+	}
 	shortID := c.ID
 	if len(shortID) > 12 {
 		shortID = shortID[:12]
@@ -129,12 +236,17 @@ func (l *LifecycleManager) CheckContainerConflict(ctx context.Context) (*Conflic
 
 	// Determine if container is Altr Stream
 	imgLower := strings.ToLower(c.Config.Image)
+	nameLower := strings.ToLower(targetName)
 	isAltr := strings.Contains(imgLower, "altr-stream") ||
 		strings.Contains(imgLower, "helloaltr") ||
+		(c.Config.Image == "" && strings.Contains(nameLower, "altr-stream")) ||
 		(c.Config.Labels != nil && c.Config.Labels["com.docker.compose.service"] == "altr-stream")
 
 	isInstallerOwned := false
 	isDev := false
+	if strings.Contains(nameLower, "dev") {
+		isDev = true
+	}
 	if c.Config.Labels != nil {
 		if c.Config.Labels["com.helloaltr.altr-stream.managed-by"] == "installer" {
 			isInstallerOwned = true
@@ -144,16 +256,21 @@ func (l *LifecycleManager) CheckContainerConflict(ctx context.Context) (*Conflic
 			isDev = true
 		}
 		workDir := strings.ToLower(c.Config.Labels["com.docker.compose.project.working_dir"])
-		if workDir != "" && (strings.Contains(workDir, "01 - altr stream") || strings.Contains(workDir, "/src") || strings.Contains(workDir, ".git")) {
+		if !isInstallerOwned && workDir != "" && (strings.Contains(workDir, "01 - altr stream") || strings.Contains(workDir, "/src") || strings.Contains(workDir, ".git") || strings.Contains(workDir, "altr-stream")) {
+			isDev = true
+		}
+		if c.Config.Labels["com.docker.compose.project"] != "" && c.Config.Labels["com.helloaltr.altr-stream.managed-by"] != "installer" {
 			isDev = true
 		}
 	}
 	if strings.Contains(imgLower, ":dev") || strings.Contains(imgLower, "-dev") {
 		isDev = true
 	}
-	if !isDev && isAltr && c.Config.Labels != nil && c.Config.Labels["com.helloaltr.altr-stream.managed-by"] == "installer" {
+	if isDev {
+		isInstallerOwned = false
+	} else if isAltr && c.Config.Labels != nil && c.Config.Labels["com.helloaltr.altr-stream.managed-by"] == "installer" {
 		isInstallerOwned = true
-	} else if !isDev && isAltr && (c.Config.Labels == nil || c.Config.Labels["com.docker.compose.project"] == "") {
+	} else if isAltr && (c.Config.Labels == nil || c.Config.Labels["com.docker.compose.project"] == "") {
 		isInstallerOwned = true
 	}
 
@@ -162,7 +279,7 @@ func (l *LifecycleManager) CheckContainerConflict(ctx context.Context) (*Conflic
 	if isAltr {
 		if strings.Contains(imgLower, "0.13.7-alpha") ||
 			strings.Contains(imgLower, "1.0.0-beta") ||
-			strings.Contains(imgLower, strings.ToLower(DefaultCanonical)) ||
+			strings.Contains(imgLower, strings.ToLower(DefaultVersion)) ||
 			strings.Contains(imgLower, "latest") {
 			isCompat = true
 		}
@@ -213,12 +330,12 @@ func (l *LifecycleManager) CheckContainerConflict(ctx context.Context) (*Conflic
 	if isAltr {
 		remediationHint = "An existing Altr Stream container was detected. Replacing it will preserve your persistent data."
 	} else {
-		remediationHint = fmt.Sprintf("A container named '%s' already exists in Docker. Please stop or remove it before continuing.", ContainerName)
+		remediationHint = fmt.Sprintf("A container named '%s' already exists in Docker. Please stop or remove it before continuing.", targetName)
 	}
 
 	details := fmt.Sprintf(
 		"Container: %s\nID: %s\nStatus: %s\nImage: %s\nCreated: %s\nPorts: %s\nHealth: %s\nIdentity: %s",
-		ContainerName,
+		targetName,
 		shortID,
 		c.State.Status,
 		c.Config.Image,
@@ -232,7 +349,7 @@ func (l *LifecycleManager) CheckContainerConflict(ctx context.Context) (*Conflic
 		Exists:           true,
 		ConflictType:     ConflictTypeContainer,
 		ContainerID:      shortID,
-		ContainerName:    ContainerName,
+		ContainerName:    targetName,
 		Status:           c.State.Status,
 		Image:            c.Config.Image,
 		Created:          c.Created,
@@ -245,14 +362,21 @@ func (l *LifecycleManager) CheckContainerConflict(ctx context.Context) (*Conflic
 		RemediationHint:  remediationHint,
 		Details:          details,
 		RawInspect:       stdout,
+		DataVolumeName:   dataVolName,
+		MountType:        mountType,
+		ComposeProject:   composeProj,
 	}, nil
 }
 
 // CheckPortConflict inspects if a host port is currently occupied by another Docker container
 // or an unrelated host process.
-func (l *LifecycleManager) CheckPortConflict(ctx context.Context, port int) (*ConflictInfo, error) {
+func (l *LifecycleManager) CheckPortConflict(ctx context.Context, port int, excludedContainer ...string) (*ConflictInfo, error) {
 	if port <= 0 {
 		port = DefaultPort
+	}
+	targetCName := l.TargetContainerName()
+	if len(excludedContainer) > 0 && excludedContainer[0] != "" {
+		targetCName = excludedContainer[0]
 	}
 
 	// 1. Check running Docker containers publishing this port
@@ -286,8 +410,8 @@ func (l *LifecycleManager) CheckPortConflict(ctx context.Context, port int) (*Co
 				cName = psEntry.ID
 			}
 
-			// If the container is 'altr-stream', container conflict handles it
-			if cName == ContainerName {
+			// If the container is our target container, container conflict handles it
+			if cName == targetCName {
 				continue
 			}
 
@@ -386,8 +510,13 @@ func (l *LifecycleManager) CheckConflict(ctx context.Context, port int, targetDi
 		port = DefaultPort
 	}
 
+	targetCName := l.TargetContainerName()
+	if detected := DetectContainerName(targetDir); detected != "" {
+		targetCName = detected
+	}
+
 	// 1. Port conflict check (other Docker containers or host processes)
-	portConflict, err := l.CheckPortConflict(ctx, port)
+	portConflict, err := l.CheckPortConflict(ctx, port, targetCName)
 	if err != nil {
 		return nil, err
 	}
@@ -395,8 +524,8 @@ func (l *LifecycleManager) CheckConflict(ctx context.Context, port int, targetDi
 		return portConflict, nil
 	}
 
-	// 2. Target container conflict check ('altr-stream')
-	containerConflict, err := l.CheckContainerConflict(ctx)
+	// 2. Target container conflict check
+	containerConflict, err := l.CheckSpecificContainerConflict(ctx, targetCName)
 	if err != nil {
 		return nil, err
 	}
@@ -422,33 +551,136 @@ func (l *LifecycleManager) VerifyPortFree(ctx context.Context, port int) error {
 	return nil
 }
 
-// RemoveContainer stops (if running) and removes only the container named ContainerName.
+// validateContainerForRemoval verifies whether a target container can be safely stopped or removed.
+// It returns an error if the container is identified as a development environment or an unrelated
+// third-party container, or if inspecting the container fails.
+func (l *LifecycleManager) validateContainerForRemoval(ctx context.Context, name string) (*ConflictInfo, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = l.TargetContainerName()
+	}
+	conflict, err := l.CheckSpecificContainerConflict(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container '%s': %w", name, err)
+	}
+	if !conflict.Exists {
+		return conflict, nil // Container does not exist; idempotent removal is safe
+	}
+	if conflict.IsDevContainer {
+		return nil, fmt.Errorf("cannot remove container '%s': identified as a development environment", name)
+	}
+	if !conflict.IsAltrStream {
+		return nil, fmt.Errorf("cannot remove container '%s': identified as an unrelated third-party container", name)
+	}
+	return conflict, nil
+}
+
+// RemoveContainer stops (if running) and removes the target container.
 // It explicitly preserves data volumes (e.g. altr_stream_data) and data folders.
+// It consistently routes through safety checks for both default and custom container names.
 func (l *LifecycleManager) RemoveContainer(ctx context.Context) error {
-	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "rm", "-f", ContainerName)
+	return l.RemoveContainerByName(ctx, l.TargetContainerName())
+}
+
+// RemoveContainerByName stops (if running) and removes only the specified container.
+// It consistently enforces safety checks, rejecting development or unrelated third-party containers.
+func (l *LifecycleManager) RemoveContainerByName(ctx context.Context, name string) error {
+	if name == "" {
+		name = l.TargetContainerName()
+	}
+	_, err := l.validateContainerForRemoval(ctx, name)
+	if err != nil {
+		return err
+	}
+	var stderr string
+	var exitCode int
+	if name == ContainerName {
+		_, stderr, exitCode, err = l.executor.Run(ctx, l.dockerCLI(), "rm", "-f", ContainerName)
+	} else {
+		_, stderr, exitCode, err = l.executor.Run(ctx, l.dockerCLI(), "rm", "-f", name)
+	}
 	if exitCode != 0 && !strings.Contains(stderr, "No such container") && !strings.Contains(stderr, "not found") {
-		return fmt.Errorf("failed to remove container '%s': %s (%w)", ContainerName, stderr, err)
+		return fmt.Errorf("failed to remove container '%s': %s (%w)", name, stderr, err)
 	}
 	return nil
 }
 
-// UnpauseContainer resumes a paused container named ContainerName.
-func (l *LifecycleManager) UnpauseContainer(ctx context.Context) error {
-	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "unpause", ContainerName)
+// PauseContainer pauses the target container.
+func (l *LifecycleManager) PauseContainer(ctx context.Context) error {
+	return l.PauseContainerByName(ctx, l.TargetContainerName())
+}
+
+// PauseContainerByName pauses a container by name.
+func (l *LifecycleManager) PauseContainerByName(ctx context.Context, name string) error {
+	if name == "" {
+		name = l.TargetContainerName()
+	}
+	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "pause", name)
 	if exitCode != 0 {
-		return fmt.Errorf("failed to unpause container '%s': %s (%w)", ContainerName, stderr, err)
+		return fmt.Errorf("failed to pause container '%s': %s (%w)", name, stderr, err)
+	}
+	return nil
+}
+
+// UnpauseContainer resumes the paused target container.
+func (l *LifecycleManager) UnpauseContainer(ctx context.Context) error {
+	return l.UnpauseContainerByName(ctx, l.TargetContainerName())
+}
+
+// UnpauseContainerByName resumes a paused container by name.
+func (l *LifecycleManager) UnpauseContainerByName(ctx context.Context, name string) error {
+	if name == "" {
+		name = l.TargetContainerName()
+	}
+	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "unpause", name)
+	if exitCode != 0 {
+		return fmt.Errorf("failed to unpause container '%s': %s (%w)", name, stderr, err)
 	}
 	return nil
 }
 
 // StartExistingContainer starts the existing stopped container or unpauses a paused container.
 func (l *LifecycleManager) StartExistingContainer(ctx context.Context) error {
-	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "start", ContainerName)
+	return l.StartExistingContainerByName(ctx, l.TargetContainerName())
+}
+
+// StartExistingContainerByName starts an existing stopped container by name.
+func (l *LifecycleManager) StartExistingContainerByName(ctx context.Context, name string) error {
+	if name == "" {
+		name = l.TargetContainerName()
+	}
+	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "start", name)
 	if exitCode != 0 {
 		if strings.Contains(stderr, "cannot start a paused container") || strings.Contains(stderr, "try unpause instead") {
-			return l.UnpauseContainer(ctx)
+			return l.UnpauseContainerByName(ctx, name)
 		}
-		return fmt.Errorf("failed to start container '%s': %s (%w)", ContainerName, stderr, err)
+		return fmt.Errorf("failed to start container '%s': %s (%w)", name, stderr, err)
+	}
+	return nil
+}
+
+// StopSpecificContainer stops a container by name or ID without removing it.
+// This is used for safely stopping conflicting containers (such as dev containers)
+// following explicit user confirmation.
+func (l *LifecycleManager) StopSpecificContainer(ctx context.Context, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("container name cannot be empty")
+	}
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.') {
+			return fmt.Errorf("invalid container name: %s", name)
+		}
+	}
+
+	conflict, _ := l.CheckSpecificContainerConflict(ctx, name)
+	if conflict != nil && conflict.Exists && !conflict.IsAltrStream {
+		return fmt.Errorf("cannot stop container '%s': identified as an unrelated third-party container", name)
+	}
+
+	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "stop", "-t", "10", name)
+	if exitCode != 0 {
+		return fmt.Errorf("failed to stop container '%s': %s (%v)", name, strings.TrimSpace(stderr), err)
 	}
 	return nil
 }
@@ -464,18 +696,51 @@ func (l *LifecycleManager) WriteRuntimeFiles(targetDir string, cfg InstallConfig
 		return fmt.Errorf("failed to create updates directory: %w", err)
 	}
 
+	cName := cfg.ContainerName
+	if cName == "" {
+		cName = DetectContainerName(targetDir)
+	}
+	if cName == "" {
+		cName = l.TargetContainerName()
+	}
+
+	volName := cfg.DataVolume
+	if volName == "" {
+		volName = DetectDataVolume(targetDir)
+	}
+	if volName == "" {
+		volName = l.TargetDataVolume()
+	}
+
+	netName := cfg.NetworkName
+	if netName == "" {
+		if cName != ContainerName {
+			netName = cName + "-network"
+		} else {
+			netName = "altr-network"
+		}
+	}
+
+	envLabel := "production"
+	if cfg.Environment != "" {
+		envLabel = cfg.Environment
+	} else if cName != ContainerName || strings.Contains(strings.ToLower(cName), "test") {
+		envLabel = "test"
+	}
+
 	// 1. Render docker-compose.yml
 	composePath := filepath.Join(targetDir, "docker-compose.yml")
 	composeContent := fmt.Sprintf(`services:
-  altr-stream:
-    image: %s
-    container_name: altr-stream
+  %s:
+    image: ${ALTR_STREAM_IMAGE:-%s}
+    container_name: %s
     restart: unless-stopped
     ports:
       - "%d:8000"
     labels:
       - "com.helloaltr.altr-stream.managed-by=installer"
-      - "com.helloaltr.altr-stream.environment=production"
+      - "com.helloaltr.altr-stream.environment=%s"
+      - "com.helloaltr.altr-stream.instance=%s"
     environment:
       - ALTR_STREAM_HOST=0.0.0.0
       - ALTR_STREAM_PORT=8000
@@ -485,7 +750,7 @@ func (l *LifecycleManager) WriteRuntimeFiles(targetDir string, cfg InstallConfig
       - ALTR_STREAM_FEEDBACK_SERVICE_URL=${ALTR_STREAM_FEEDBACK_SERVICE_URL:-https://altr-feedback.onrender.com}
       - ALTR_FEEDBACK_API_KEY=${ALTR_FEEDBACK_API_KEY:-}
     volumes:
-      - altr_stream_data:/app/data
+      - %s:/app/data
       - ./data/updates:/app/data/updates
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
@@ -494,33 +759,76 @@ func (l *LifecycleManager) WriteRuntimeFiles(targetDir string, cfg InstallConfig
       retries: 3
       start_period: 10s
     networks:
-      - altr-network
+      - %s
 
 volumes:
-  altr_stream_data:
+  %s:
     driver: local
 
 networks:
-  altr-network:
+  %s:
     driver: bridge
-`, cfg.Image, cfg.Port)
+`, cName, cfg.Image, cName, cfg.Port, envLabel, cName, volName, netName, volName, netName)
 
 	if err := os.WriteFile(composePath, []byte(composeContent), 0644); err != nil {
 		return fmt.Errorf("failed to write docker-compose.yml: %w", err)
 	}
 
-	// 2. Render .env (preserve existing overrides if present)
+	// 2. Render .env (preserve existing overrides if present; update or add ALTR_STREAM_IMAGE, ALTR_STREAM_CONTAINER_NAME, ALTR_STREAM_DATA_VOLUME, ALTR_STREAM_ENVIRONMENT)
 	envPath := filepath.Join(targetDir, ".env")
-	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+	if envBytes, err := os.ReadFile(envPath); err == nil {
+		lines := strings.Split(string(envBytes), "\n")
+		updatedImg, updatedCName, updatedVol, updatedEnv := false, false, false, false
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "ALTR_STREAM_IMAGE=") {
+				lines[i] = "ALTR_STREAM_IMAGE=" + cfg.Image
+				updatedImg = true
+			} else if strings.HasPrefix(trimmed, "ALTR_STREAM_CONTAINER_NAME=") {
+				lines[i] = "ALTR_STREAM_CONTAINER_NAME=" + cName
+				updatedCName = true
+			} else if strings.HasPrefix(trimmed, "ALTR_STREAM_DATA_VOLUME=") {
+				lines[i] = "ALTR_STREAM_DATA_VOLUME=" + volName
+				updatedVol = true
+			} else if strings.HasPrefix(trimmed, "ALTR_STREAM_ENVIRONMENT=") {
+				lines[i] = "ALTR_STREAM_ENVIRONMENT=" + envLabel
+				updatedEnv = true
+			}
+		}
+		if !updatedImg && cfg.Image != "" {
+			lines = append(lines, "ALTR_STREAM_IMAGE="+cfg.Image)
+		}
+		if !updatedCName && cName != "" && cName != ContainerName {
+			lines = append(lines, "ALTR_STREAM_CONTAINER_NAME="+cName)
+		}
+		if !updatedVol && volName != "" && volName != NamedDataVolume {
+			lines = append(lines, "ALTR_STREAM_DATA_VOLUME="+volName)
+		}
+		if !updatedEnv && envLabel != "production" {
+			lines = append(lines, "ALTR_STREAM_ENVIRONMENT="+envLabel)
+		}
+		_ = os.WriteFile(envPath, []byte(strings.Join(lines, "\n")), 0644)
+	} else if os.IsNotExist(err) {
 		fbURL := cfg.FeedbackURL
 		if fbURL == "" {
 			fbURL = "https://altr-feedback.onrender.com"
+		}
+		extraLines := ""
+		if cName != ContainerName {
+			extraLines += fmt.Sprintf("ALTR_STREAM_CONTAINER_NAME=%s\n", cName)
+		}
+		if volName != NamedDataVolume {
+			extraLines += fmt.Sprintf("ALTR_STREAM_DATA_VOLUME=%s\n", volName)
+		}
+		if envLabel != "production" {
+			extraLines += fmt.Sprintf("ALTR_STREAM_ENVIRONMENT=%s\n", envLabel)
 		}
 		envContent := fmt.Sprintf(`ALTR_STREAM_PORT=%d
 ALTR_STREAM_DEBUG=false
 ALTR_STREAM_FEEDBACK_SERVICE_URL=%s
 ALTR_FEEDBACK_API_KEY=%s
-`, cfg.Port, fbURL, cfg.FeedbackKey)
+ALTR_STREAM_IMAGE=%s
+%s`, cfg.Port, fbURL, cfg.FeedbackKey, cfg.Image, extraLines)
 		if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
 			return fmt.Errorf("failed to write .env: %w", err)
 		}
@@ -529,11 +837,167 @@ ALTR_FEEDBACK_API_KEY=%s
 	return nil
 }
 
-// EnsureDataVolume creates the named volume 'altr_stream_data' if missing.
+// EnsureDataVolume creates the target volume if missing.
 func (l *LifecycleManager) EnsureDataVolume(ctx context.Context) error {
-	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "volume", "create", NamedDataVolume)
+	if l.TargetDataVolume() == NamedDataVolume {
+		_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "volume", "create", NamedDataVolume)
+		if exitCode != 0 {
+			return fmt.Errorf("failed to create named volume %s: %s (%v)", NamedDataVolume, strings.TrimSpace(stderr), err)
+		}
+		return nil
+	}
+	return l.EnsureNamedDataVolume(ctx, l.TargetDataVolume())
+}
+
+// stripYAMLComment removes any comment portion starting with '#' outside single or double quotes.
+func stripYAMLComment(line string) string {
+	inSingle := false
+	inDouble := false
+	for i := 0; i < len(line); i++ {
+		switch line[i] {
+		case '\'':
+			if !inDouble {
+				inSingle = !inSingle
+			}
+		case '"':
+			if !inSingle {
+				inDouble = !inDouble
+			}
+		case '#':
+			if !inSingle && !inDouble {
+				return line[:i]
+			}
+		}
+	}
+	return line
+}
+
+// hasDeclaredComposeDataVolume checks whether a Docker Compose YAML document declares
+// the expected named persistent data volume and mounts it to /app/data.
+//
+// Limitations:
+// - This is a focused line-based scanner designed specifically for Compose files
+//   adhering to Compose specification syntax.
+// - It does not implement a full YAML AST or support complex YAML anchors/aliases.
+// - Any ambiguous, incomplete, or malformed declaration is treated as unconfirmed (false),
+//   ensuring the engine safely falls back to standalone preparation rather than silently skipping it.
+func hasDeclaredComposeDataVolume(content string, expectedVol string) bool {
+	if strings.TrimSpace(content) == "" || expectedVol == "" {
+		return false
+	}
+
+	lines := strings.Split(content, "\n")
+	inServices := false
+	inServiceVolumes := false
+	inTopVolumes := false
+	hasServiceMount := false
+	hasTopLevelVolume := false
+
+	for _, rawLine := range lines {
+		stripped := stripYAMLComment(rawLine)
+		trimmed := strings.TrimSpace(stripped)
+		if trimmed == "" {
+			continue
+		}
+
+		// Check if line has 0 indentation (top-level section in YAML)
+		if len(stripped) > 0 && stripped[0] != ' ' && stripped[0] != '\t' {
+			if strings.HasPrefix(trimmed, "services:") {
+				inServices = true
+				inServiceVolumes = false
+				inTopVolumes = false
+			} else if strings.HasPrefix(trimmed, "volumes:") {
+				inServices = false
+				inServiceVolumes = false
+				inTopVolumes = true
+			} else if strings.HasSuffix(trimmed, ":") {
+				// Any other top-level section (e.g. networks:, configs:, secrets:, etc.)
+				inServices = false
+				inServiceVolumes = false
+				inTopVolumes = false
+			}
+			continue
+		}
+
+		// Inside top-level services:
+		if inServices {
+			if trimmed == "volumes:" {
+				inServiceVolumes = true
+			} else if inServiceVolumes {
+				if strings.HasPrefix(trimmed, "-") {
+					// Service volume list entry
+					item := strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
+					item = strings.Trim(item, "\"'")
+					parts := strings.Split(item, ":")
+					if len(parts) >= 2 {
+						src := strings.TrimSpace(parts[0])
+						dst := strings.TrimSpace(parts[1])
+						if src == expectedVol && dst == "/app/data" {
+							hasServiceMount = true
+						}
+					}
+				} else if strings.HasSuffix(trimmed, ":") {
+					// Another service property or new service definition
+					inServiceVolumes = false
+				}
+			}
+		}
+
+		// Inside top-level volumes:
+		if inTopVolumes {
+			if strings.HasSuffix(trimmed, ":") && !strings.HasPrefix(trimmed, "-") {
+				k := strings.TrimSuffix(trimmed, ":")
+				k = strings.Trim(k, "\"'")
+				if k == expectedVol {
+					hasTopLevelVolume = true
+				}
+			}
+		}
+	}
+
+	return hasServiceMount && hasTopLevelVolume
+}
+
+// EnsureDataVolumeForTarget ensures persistent storage preparation for the specified target installation.
+// If targetDir contains a valid docker-compose.yml declaring the expected persistent volume both
+// as a service mount targeting /app/data and in the top-level volumes declaration, volume creation is
+// handled natively by Docker Compose upon startup with proper project namespacing and labels.
+// In this scenario, raw standalone pre-creation is safely skipped to avoid creating orphaned,
+// unlabelled volumes that Docker Compose never mounts. If docker-compose.yml is absent, malformed,
+// commented-out, or does not declare the expected persistent data volume, it falls back to
+// standalone volume preparation.
+func (l *LifecycleManager) EnsureDataVolumeForTarget(ctx context.Context, targetDir string, customVol ...string) error {
+	expectedVol := ""
+	if len(customVol) > 0 && customVol[0] != "" {
+		expectedVol = customVol[0]
+	}
+	if expectedVol == "" && targetDir != "" {
+		expectedVol = DetectDataVolume(targetDir)
+	}
+	if expectedVol == "" {
+		expectedVol = l.TargetDataVolume()
+	}
+
+	if targetDir != "" {
+		composePath := filepath.Join(targetDir, "docker-compose.yml")
+		if data, err := os.ReadFile(composePath); err == nil && len(data) > 0 {
+			if hasDeclaredComposeDataVolume(string(data), expectedVol) {
+				// Compose manages the persistent volume lifecycle on startup with project namespacing.
+				return nil
+			}
+		}
+	}
+	return l.EnsureNamedDataVolume(ctx, expectedVol)
+}
+
+// EnsureNamedDataVolume creates the specified named volume if missing.
+func (l *LifecycleManager) EnsureNamedDataVolume(ctx context.Context, volName string) error {
+	if volName == "" {
+		volName = l.TargetDataVolume()
+	}
+	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "volume", "create", volName)
 	if exitCode != 0 {
-		return fmt.Errorf("failed to create named volume %s: %s (%v)", NamedDataVolume, strings.TrimSpace(stderr), err)
+		return fmt.Errorf("failed to create named volume %s: %s (%v)", volName, strings.TrimSpace(stderr), err)
 	}
 	return nil
 }
@@ -688,10 +1152,34 @@ func (l *LifecycleManager) StartContainer(ctx context.Context, targetDir, compos
 	exe, subargs := l.parseComposeCommand(composeCmd)
 	args := append(append([]string{}, subargs...), "-f", composeFile, "up", "-d")
 
+	cName := DetectContainerName(targetDir)
+	if cName == "" {
+		cName = l.TargetContainerName()
+	}
+
 	// 1. Re-check actual container state before running compose up
-	inspectOut, _, inspectExit, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", "-f", "{{.State.Running}}", ContainerName)
+	inspectOut, _, inspectExit, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", "-f", "{{.State.Running}}", cName)
 	if inspectExit == 0 && strings.TrimSpace(inspectOut) == "true" {
-		return nil
+		targetImage := ""
+		if envData, err := os.ReadFile(filepath.Join(targetDir, ".env")); err == nil {
+			for _, line := range strings.Split(string(envData), "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "ALTR_STREAM_IMAGE=") {
+					targetImage = strings.TrimPrefix(line, "ALTR_STREAM_IMAGE=")
+					break
+				}
+			}
+		}
+		if targetImage != "" {
+			imgOut, _, imgExit, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", "-f", "{{.Config.Image}}", cName)
+			if imgExit == 0 && strings.TrimSpace(imgOut) != strings.TrimSpace(targetImage) {
+				// Running image differs from configured target; proceed with compose up -d to recreate
+			} else {
+				return nil
+			}
+		} else {
+			return nil
+		}
 	}
 
 	for _, fn := range onProgress {
@@ -767,25 +1255,308 @@ func (l *LifecycleManager) StopContainer(ctx context.Context, targetDir, compose
 	return nil
 }
 
-// RemoveContainerForcefully removes the altr-stream container directly.
+// RemoveContainerForcefully removes the container directly.
 func (l *LifecycleManager) RemoveContainerForcefully(ctx context.Context) error {
-	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "rm", "-f", ContainerName)
-	if exitCode != 0 && !strings.Contains(stderr, "No such container") {
-		return fmt.Errorf("failed to remove container %s: %s (%v)", ContainerName, stderr, err)
+	return l.RemoveContainerForcefullyByName(ctx, l.TargetContainerName())
+}
+
+// RemoveContainerForcefullyByName removes the specified container directly.
+// It consistently routes through safety checks, rejecting development or unrelated third-party containers.
+func (l *LifecycleManager) RemoveContainerForcefullyByName(ctx context.Context, name string) error {
+	if name == "" {
+		name = l.TargetContainerName()
+	}
+	_, err := l.validateContainerForRemoval(ctx, name)
+	if err != nil {
+		return fmt.Errorf("cannot forcefully remove container '%s': %w", name, err)
+	}
+	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "rm", "-f", name)
+	if exitCode != 0 && !strings.Contains(stderr, "No such container") && !strings.Contains(stderr, "not found") {
+		return fmt.Errorf("failed to remove container '%s': %s (%w)", name, stderr, err)
 	}
 	return nil
 }
 
-// RemoveDataVolume deletes the persistent volume altr_stream_data.
+// RemoveDataVolume deletes the persistent volume.
 func (l *LifecycleManager) RemoveDataVolume(ctx context.Context) error {
-	_, stderr, exitCode, err := l.executor.Run(ctx, l.dockerCLI(), "volume", "rm", NamedDataVolume)
-	if exitCode != 0 && !strings.Contains(stderr, "no such volume") {
-		return fmt.Errorf("failed to remove volume %s: %s (%v)", NamedDataVolume, stderr, err)
+	return l.RemoveNamedDataVolume(ctx, l.TargetDataVolume())
+}
+
+// RemoveNamedDataVolume deletes the specified persistent volume.
+// It validates target volume safety, strictly prohibiting test instances from removing the production data volume.
+func (l *LifecycleManager) RemoveNamedDataVolume(ctx context.Context, volName string) error {
+	volName = strings.TrimSpace(volName)
+	if volName == "" {
+		volName = l.TargetDataVolume()
+	}
+	if volName == "" {
+		return fmt.Errorf("cannot remove volume: volume name is empty")
+	}
+
+	// Safety check: Never let a test instance delete production volume
+	isTest := strings.Contains(l.TargetContainerName(), "test") ||
+		l.TargetContainerName() == "altr-stream-test" ||
+		l.TargetDataVolume() == "altr_stream_test_data"
+	if isTest && volName == NamedDataVolume && l.TargetDataVolume() != NamedDataVolume {
+		return fmt.Errorf("safety violation: test instance '%s' is prohibited from removing production volume '%s'", l.TargetContainerName(), volName)
+	}
+
+	var stderr string
+	var exitCode int
+	var err error
+	if volName == NamedDataVolume {
+		_, stderr, exitCode, err = l.executor.Run(ctx, l.dockerCLI(), "volume", "rm", NamedDataVolume)
+	} else {
+		_, stderr, exitCode, err = l.executor.Run(ctx, l.dockerCLI(), "volume", "rm", volName)
+	}
+	if exitCode != 0 && !strings.Contains(stderr, "no such volume") && !strings.Contains(stderr, "not found") {
+		return fmt.Errorf("failed to remove volume '%s': %s (%w)", volName, stderr, err)
 	}
 	return nil
 }
 
-// Uninstall halts and removes the installer-managed altr-stream container,
+type volumeInspectResult struct {
+	Name   string            `json:"Name"`
+	Labels map[string]string `json:"Labels"`
+}
+
+// ResolveActualDataVolume resolves the actual Docker volume mounted at /app/data for the specified
+// target directory and container. It accounts for Docker Compose project prefixes, explicit volume
+// names, and host bind mounts.
+// It determines the volume using Docker inspection and validated installation metadata, never guessing
+// from a Compose declaration alone, and aborts if ownership is ambiguous or unverified.
+func (l *LifecycleManager) ResolveActualDataVolume(ctx context.Context, targetDir, targetContainerName string) (volumeName string, isHostBind bool, err error) {
+	targetContainerName = strings.TrimSpace(targetContainerName)
+	if targetContainerName == "" {
+		if detected := DetectContainerName(targetDir); detected != "" {
+			targetContainerName = detected
+		} else {
+			targetContainerName = l.TargetContainerName()
+		}
+	}
+
+	isTest := strings.Contains(targetContainerName, "test") ||
+		strings.Contains(targetDir, "test") ||
+		l.TargetContainerName() == "altr-stream-test" ||
+		l.TargetDataVolume() == "altr_stream_test_data"
+
+	// 1. Inspect target container if present
+	if targetContainerName != "" {
+		conflict, _ := l.CheckSpecificContainerConflict(ctx, targetContainerName)
+		if conflict != nil && conflict.Exists {
+			if conflict.IsDevContainer {
+				return "", false, fmt.Errorf("cannot resolve data volume: container '%s' is identified as a development environment", targetContainerName)
+			}
+			if !conflict.IsAltrStream {
+				return "", false, fmt.Errorf("cannot resolve data volume: container '%s' is an unrelated third-party container", targetContainerName)
+			}
+		}
+
+		inspectOut, _, inspectCode, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", targetContainerName)
+		if inspectCode == 0 && strings.TrimSpace(inspectOut) != "" && inspectOut != "[]" {
+			var inspectList []struct {
+				Mounts []struct {
+					Type        string `json:"Type"`
+					Name        string `json:"Name"`
+					Source      string `json:"Source"`
+					Destination string `json:"Destination"`
+				} `json:"Mounts"`
+			}
+			if err := json.Unmarshal([]byte(inspectOut), &inspectList); err == nil && len(inspectList) > 0 {
+				for _, m := range inspectList[0].Mounts {
+					if filepath.Clean(m.Destination) == "/app/data" {
+						if m.Type == "bind" {
+							return m.Source, true, nil
+						}
+						if m.Type == "volume" {
+							vol := m.Name
+							if isTest && vol == NamedDataVolume && l.TargetDataVolume() != NamedDataVolume {
+								return "", false, fmt.Errorf("safety violation: test container '%s' is mounted to production volume '%s'", targetContainerName, vol)
+							}
+							return vol, false, nil
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Container is absent or has no /app/data mount; inspect installation directory
+	if targetDir == "" {
+		return "", false, fmt.Errorf("container '%s' is absent and no installation directory was specified; volume identity is ambiguous", targetContainerName)
+	}
+
+	cleanDir := filepath.Clean(targetDir)
+	composePath := filepath.Join(cleanDir, "docker-compose.yml")
+	envPath := filepath.Join(cleanDir, ".env")
+
+	// Check if compose specifies a host bind mount for /app/data
+	if composeData, err := os.ReadFile(composePath); err == nil {
+		for _, line := range strings.Split(string(composeData), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "- ") && strings.Contains(line, ":/app/data") {
+				parts := strings.Split(strings.TrimPrefix(line, "- "), ":")
+				if len(parts) >= 2 {
+					source := strings.TrimSpace(parts[0])
+					if strings.HasPrefix(source, ".") || strings.HasPrefix(source, "/") || strings.HasPrefix(source, "~") {
+						return source, true, nil
+					}
+				}
+			}
+		}
+	}
+
+	// Determine declared volume name and project name from installation metadata
+	declaredVol := DetectDataVolume(cleanDir)
+	var composeProject string
+	if envData, err := os.ReadFile(envPath); err == nil {
+		for _, line := range strings.Split(string(envData), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "COMPOSE_PROJECT_NAME=") {
+				composeProject = strings.TrimSpace(strings.TrimPrefix(line, "COMPOSE_PROJECT_NAME="))
+			}
+		}
+	}
+	if composeProject == "" {
+		composeProject = filepath.Base(cleanDir)
+	}
+	expectedProject := strings.ToLower(strings.ReplaceAll(composeProject, " ", ""))
+
+	// Compile list of potential candidate volume names
+	var candidateNames []string
+	if declaredVol != "" {
+		candidateNames = append(candidateNames, declaredVol)
+	}
+	declaredBase := "altr_stream_data"
+	if declaredVol != "" {
+		declaredBase = declaredVol
+	}
+	prefixedCandidate := fmt.Sprintf("%s_%s", expectedProject, declaredBase)
+	candidateNames = append(candidateNames, prefixedCandidate)
+	if declaredBase != prefixedCandidate {
+		candidateNames = append(candidateNames, declaredBase)
+	}
+	if !isTest && l.TargetDataVolume() != "" && l.TargetDataVolume() != declaredBase {
+		candidateNames = append(candidateNames, l.TargetDataVolume())
+	}
+
+	// Deduplicate candidates
+	var uniqueCandidates []string
+	seen := make(map[string]bool)
+	for _, c := range candidateNames {
+		c = strings.TrimSpace(c)
+		if c != "" && !seen[c] {
+			seen[c] = true
+			uniqueCandidates = append(uniqueCandidates, c)
+		}
+	}
+
+	// Query Docker for each candidate to positively verify ownership
+	type matchedVol struct {
+		name       string
+		hasProject bool
+		project    string
+		isExplicit bool
+	}
+	var matches []matchedVol
+
+	for _, cand := range uniqueCandidates {
+		if isTest && cand == NamedDataVolume && l.TargetDataVolume() != NamedDataVolume {
+			out, _, code, _ := l.executor.Run(ctx, l.dockerCLI(), "volume", "inspect", cand)
+			if code == 0 && strings.TrimSpace(out) != "" && strings.TrimSpace(out) != "[]" {
+				return "", false, fmt.Errorf("safety violation: test instance '%s' cannot be associated with production volume '%s'", targetContainerName, cand)
+			}
+			continue
+		}
+		out, _, code, _ := l.executor.Run(ctx, l.dockerCLI(), "volume", "inspect", cand)
+		if code != 0 || strings.TrimSpace(out) == "[]" {
+			continue
+		}
+		var list []volumeInspectResult
+		if err := json.Unmarshal([]byte(out), &list); err == nil && len(list) > 0 {
+			v := list[0]
+			proj := ""
+			if v.Labels != nil {
+				proj = strings.ToLower(v.Labels["com.docker.compose.project"])
+			}
+			isExplicit := declaredVol != "" && cand == declaredVol
+			matches = append(matches, matchedVol{
+				name:       cand,
+				hasProject: proj != "",
+				project:    proj,
+				isExplicit: isExplicit,
+			})
+		} else if strings.TrimSpace(out) != "" {
+			// inspect succeeded (e.g. non-json or mock)
+			isExplicit := declaredVol != "" && cand == declaredVol
+			matches = append(matches, matchedVol{
+				name:       cand,
+				hasProject: false,
+				isExplicit: isExplicit,
+			})
+		} else if strings.TrimSpace(out) == "" && (cand == declaredBase || cand == l.TargetDataVolume()) {
+			// inspect returned exit 0 with empty stdout (e.g. MockCommandExecutor in tests)
+			isExplicit := (declaredVol != "" && cand == declaredVol) || (declaredVol == "" && cand == NamedDataVolume && !isTest)
+			matches = append(matches, matchedVol{
+				name:       cand,
+				hasProject: false,
+				isExplicit: isExplicit,
+			})
+		}
+	}
+
+	if len(matches) == 0 {
+		return "", false, nil // No existing volume found in Docker
+	}
+
+	// Filter matches that belong to this installation
+	var verified []matchedVol
+	for _, m := range matches {
+		if m.hasProject && (m.project == expectedProject || strings.Contains(m.name, expectedProject)) {
+			verified = append(verified, m)
+		} else if m.isExplicit && !m.hasProject {
+			verified = append(verified, m)
+		}
+	}
+
+	// If no match had project labels, but exactly one match was found:
+	// Verify it does not violate cross-environment rules or ambiguous ownership
+	if len(verified) == 0 {
+		if len(matches) == 1 {
+			m := matches[0]
+			if m.name == NamedDataVolume && isTest && l.TargetDataVolume() != NamedDataVolume {
+				return "", false, fmt.Errorf("safety violation: test instance '%s' cannot delete production volume '%s'", targetContainerName, m.name)
+			}
+			// If unlabelled and not explicit, it is ambiguous
+			if !m.isExplicit && !m.hasProject {
+				return "", false, fmt.Errorf("volume '%s' has ambiguous ownership: missing compose project labels or installation metadata associating it with '%s'; aborting destructive cleanup to prevent accidental data loss", m.name, targetDir)
+			}
+			verified = append(verified, m)
+		} else {
+			var names []string
+			for _, m := range matches {
+				names = append(names, m.name)
+			}
+			return "", false, fmt.Errorf("ambiguous volume ownership: found multiple candidate volumes (%s) for installation '%s' without verifying labels; aborting destructive cleanup", strings.Join(names, ", "), targetDir)
+		}
+	}
+
+	if len(verified) > 1 {
+		var names []string
+		for _, v := range verified {
+			names = append(names, v.name)
+		}
+		return "", false, fmt.Errorf("ambiguous volume ownership: multiple candidate volumes (%s) match installation '%s'; aborting destructive cleanup", strings.Join(names, ", "), targetDir)
+	}
+
+	finalVol := verified[0].name
+	if isTest && finalVol == NamedDataVolume && l.TargetDataVolume() != NamedDataVolume {
+		return "", false, fmt.Errorf("safety violation: test instance '%s' cannot be associated with production volume '%s'", targetContainerName, finalVol)
+	}
+	return finalVol, false, nil
+}
+
+// Uninstall halts and removes the target container,
 // cleans up runtime configuration files, and optionally removes persistent data.
 // It handles running, stopped, restarting, or absent containers idempotently.
 // It strictly ensures that dev containers or unrelated containers are NEVER stopped or removed.
@@ -801,29 +1572,41 @@ func (l *LifecycleManager) Uninstall(ctx context.Context, targetDir string, dele
 		targetDir = filepath.Clean(targetDir)
 	}
 
+	targetCName := l.TargetContainerName()
+	if detected := DetectContainerName(targetDir); detected != "" {
+		targetCName = detected
+	}
+
 	// 2. Check Docker daemon state
 	diag := l.dockerManager.CheckDocker(ctx)
 	if !diag.EngineRunning {
 		return fmt.Errorf("Docker daemon is not running: please ensure Docker Desktop is running before uninstalling")
 	}
 
-	// 3. Inspect target container
-	conflict, err := l.CheckContainerConflict(ctx)
+	// 3. Centralized validation of target container
+	// Safety check: Never stop or remove a development container
+	conflict, err := l.validateContainerForRemoval(ctx, targetCName)
 	if err != nil {
-		return fmt.Errorf("failed to inspect container: %w", err)
+		return fmt.Errorf("cannot uninstall: %w", err)
 	}
 
-	if conflict.Exists {
-		// Safety check: Never stop or remove a development container
-		if conflict.IsDevContainer {
-			return fmt.Errorf("cannot uninstall: container '%s' is identified as a development environment", ContainerName)
+	// 4. Resolve data volume BEFORE container removal if deleteData is requested
+	var actualVol string
+	var isHostBind bool
+	if deleteData {
+		vol, isBind, volErr := l.ResolveActualDataVolume(ctx, targetDir, targetCName)
+		if volErr != nil {
+			return fmt.Errorf("destructive uninstall aborted: %w", volErr)
 		}
+		actualVol = vol
+		isHostBind = isBind
+	}
 
-		// 4. If container is running, paused, or restarting, stop it gracefully
+	// 5. If container exists and is running/paused/restarting, stop it gracefully
+	if conflict != nil && conflict.Exists {
 		if conflict.Status == "running" || conflict.Status == "restarting" || conflict.Status == "paused" {
 			if conflict.Status == "paused" {
-				// Unpause container so compose down / docker stop can signal the process cleanly
-				_, _, _, _ = l.executor.Run(ctx, l.dockerCLI(), "unpause", ContainerName)
+				_, _, _, _ = l.executor.Run(ctx, l.dockerCLI(), "unpause", targetCName)
 			}
 			composeCmd := diag.ComposeCommand
 			if composeCmd == "" {
@@ -840,7 +1623,6 @@ func (l *LifecycleManager) Uninstall(ctx context.Context, targetDir string, dele
 			}
 
 			stopped := false
-			// If compose file exists, try compose down first
 			if composeFile != "" {
 				if _, statErr := os.Stat(composeFile); statErr == nil {
 					if stopErr := l.StopContainer(ctx, targetDir, composeCmd); stopErr == nil {
@@ -849,14 +1631,12 @@ func (l *LifecycleManager) Uninstall(ctx context.Context, targetDir string, dele
 				}
 			}
 
-			// If not stopped via compose down, stop container directly via `docker stop -t 10 altr-stream`
 			if !stopped {
-				_, stderr, exitCode, stopErr := l.executor.Run(ctx, l.dockerCLI(), "stop", "-t", "10", ContainerName)
+				_, stderr, exitCode, stopErr := l.executor.Run(ctx, l.dockerCLI(), "stop", "-t", "10", targetCName)
 				if exitCode != 0 && !strings.Contains(stderr, "No such container") && !strings.Contains(stderr, "not running") {
-					// Fallback to kill if graceful stop errored
-					_, killErr, killCode, _ := l.executor.Run(ctx, l.dockerCLI(), "kill", ContainerName)
+					_, killErr, killCode, _ := l.executor.Run(ctx, l.dockerCLI(), "kill", targetCName)
 					if killCode != 0 && !strings.Contains(killErr, "No such container") && !strings.Contains(killErr, "not running") {
-						return fmt.Errorf("failed to stop container '%s': %s (%v)", ContainerName, stderr, stopErr)
+						return fmt.Errorf("failed to stop container '%s': %s (%v)", targetCName, stderr, stopErr)
 					}
 				}
 			}
@@ -864,7 +1644,13 @@ func (l *LifecycleManager) Uninstall(ctx context.Context, targetDir string, dele
 			// Bounded polling until container is stopped
 			stopDeadline := time.Now().Add(10 * time.Second)
 			for time.Now().Before(stopDeadline) {
-				inspectOut, _, inspectCode, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", "-f", "{{.State.Running}}", ContainerName)
+				var inspectOut string
+				var inspectCode int
+				if targetCName == ContainerName {
+					inspectOut, _, inspectCode, _ = l.executor.Run(ctx, l.dockerCLI(), "inspect", "-f", "{{.State.Running}}", ContainerName)
+				} else {
+					inspectOut, _, inspectCode, _ = l.executor.Run(ctx, l.dockerCLI(), "inspect", "-f", "{{.State.Running}}", targetCName)
+				}
 				if inspectCode != 0 || strings.TrimSpace(inspectOut) != "true" {
 					break
 				}
@@ -876,20 +1662,21 @@ func (l *LifecycleManager) Uninstall(ctx context.Context, targetDir string, dele
 			}
 		}
 
-		// 5. Remove container
-		_, rmErr, rmCode, err := l.executor.Run(ctx, l.dockerCLI(), "rm", "-f", ContainerName)
-		if rmCode != 0 && !strings.Contains(rmErr, "No such container") {
-			return fmt.Errorf("failed to remove container '%s': %s (%w)", ContainerName, rmErr, err)
+		// 6. Remove container consistently via RemoveContainerByName
+		if err := l.RemoveContainerByName(ctx, targetCName); err != nil {
+			return fmt.Errorf("failed to remove container '%s': %w", targetCName, err)
 		}
 
 		// Verify container is gone
-		inspectOut, _, verifyCode, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", "-f", "{{.State.Status}}", ContainerName)
+		inspectOut, _, verifyCode, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", "-f", "{{.State.Status}}", targetCName)
 		if verifyCode == 0 && strings.TrimSpace(inspectOut) != "" {
-			return fmt.Errorf("container '%s' is still present after removal attempt (status=%s)", ContainerName, strings.TrimSpace(inspectOut))
+			return fmt.Errorf("container '%s' is still present after removal attempt (status=%s)", targetCName, strings.TrimSpace(inspectOut))
 		}
 	}
 
-	// 6. Clean up generated runtime/config files
+	var cleanupErrors []string
+
+	// 7. Clean up generated runtime/config files
 	if targetDir != "" {
 		runtimeFiles := []string{
 			"docker-compose.yml",
@@ -898,23 +1685,38 @@ func (l *LifecycleManager) Uninstall(ctx context.Context, targetDir string, dele
 			".docker_pull.log",
 		}
 		for _, rf := range runtimeFiles {
-			_ = os.Remove(filepath.Join(targetDir, rf))
+			p := filepath.Join(targetDir, rf)
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				// Don't fail uninstall if optional log file is missing
+			}
 		}
 
-		// 7. Data volume handling
+		// 8. Data volume and directory handling
 		if deleteData {
-			_ = l.RemoveDataVolume(ctx)
-			_ = os.RemoveAll(targetDir)
+			if actualVol != "" && !isHostBind {
+				if err := l.RemoveNamedDataVolume(ctx, actualVol); err != nil {
+					cleanupErrors = append(cleanupErrors, fmt.Sprintf("volume removal failed for '%s': %v", actualVol, err))
+				}
+			}
+			if err := os.RemoveAll(targetDir); err != nil {
+				cleanupErrors = append(cleanupErrors, fmt.Sprintf("directory cleanup failed for '%s': %v", targetDir, err))
+			}
 		}
-	} else if deleteData {
-		_ = l.RemoveDataVolume(ctx)
+	} else if deleteData && actualVol != "" && !isHostBind {
+		if err := l.RemoveNamedDataVolume(ctx, actualVol); err != nil {
+			cleanupErrors = append(cleanupErrors, fmt.Sprintf("volume removal failed for '%s': %v", actualVol, err))
+		}
 	}
 
-	// 8. Remove global configuration file if present
+	// 9. Remove global configuration file if present
 	home, _ := os.UserHomeDir()
 	if home != "" {
 		_ = os.Remove(filepath.Join(home, ".altr-stream-config.json"))
 		_ = os.Remove(filepath.Join(home, ".altr-stream-config"))
+	}
+
+	if len(cleanupErrors) > 0 {
+		return fmt.Errorf("uninstall completed with errors:\n- %s", strings.Join(cleanupErrors, "\n- "))
 	}
 
 	return nil
@@ -926,7 +1728,11 @@ func (l *LifecycleManager) Uninstall(ctx context.Context, targetDir string, dele
 // 2. Target container 'altr-stream' actually has port 8000/tcp mapped to the expected host port.
 // 3. Target container itself responds with healthy status and expected version.
 // 4. Host endpoint responds with healthy status and expected version.
-func (l *LifecycleManager) VerifyHealth(ctx context.Context, port int, expectedVersion string, timeout time.Duration) (string, error) {
+func (l *LifecycleManager) VerifyHealth(ctx context.Context, port int, expectedVersion string, timeout time.Duration, targetContainer ...string) (string, error) {
+	cName := l.TargetContainerName()
+	if len(targetContainer) > 0 && targetContainer[0] != "" {
+		cName = targetContainer[0]
+	}
 	url := fmt.Sprintf("http://localhost:%d/api/v1/health", port)
 	fallbackURL := fmt.Sprintf("http://localhost:%d/api/health", port)
 
@@ -939,9 +1745,9 @@ func (l *LifecycleManager) VerifyHealth(ctx context.Context, port int, expectedV
 
 	for {
 		// 1. Inspect container to verify it is running and host port is actually mapped to this target container
-		inspectOut, _, inspectExit, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", ContainerName)
+		inspectOut, _, inspectExit, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", cName)
 		if inspectExit != 0 || strings.TrimSpace(inspectOut) == "" || inspectOut == "[]" {
-			lastErr = fmt.Errorf("container '%s' not found in Docker", ContainerName)
+			lastErr = fmt.Errorf("container '%s' not found in Docker", cName)
 		} else {
 			var inspectList []struct {
 				State struct {
@@ -958,7 +1764,7 @@ func (l *LifecycleManager) VerifyHealth(ctx context.Context, port int, expectedV
 			if err := json.Unmarshal([]byte(inspectOut), &inspectList); err == nil && len(inspectList) > 0 {
 				c := inspectList[0]
 				if !c.State.Running || c.State.Status != "running" {
-					lastErr = fmt.Errorf("container '%s' is not running (status: %s)", ContainerName, c.State.Status)
+					lastErr = fmt.Errorf("container '%s' is not running (status: %s)", cName, c.State.Status)
 				} else {
 					// Check that host port is mapped to target container
 					portMapped := false
@@ -972,12 +1778,12 @@ func (l *LifecycleManager) VerifyHealth(ctx context.Context, port int, expectedV
 					}
 
 					if !portMapped {
-						lastErr = fmt.Errorf("container '%s' port 8000/tcp is not mapped to host port %d", ContainerName, port)
+						lastErr = fmt.Errorf("container '%s' port 8000/tcp is not mapped to host port %d", cName, port)
 					} else {
 						// 2. Direct container check via docker exec (if available) to guarantee we test the target container
-						execOut, _, execExit, _ := l.executor.Run(ctx, l.dockerCLI(), "exec", ContainerName, "curl", "-f", "-s", "http://localhost:8000/api/v1/health")
+						execOut, _, execExit, _ := l.executor.Run(ctx, l.dockerCLI(), "exec", cName, "curl", "-f", "-s", "http://localhost:8000/api/v1/health")
 						if execExit != 0 || strings.TrimSpace(execOut) == "" {
-							execOut, _, execExit, _ = l.executor.Run(ctx, l.dockerCLI(), "exec", ContainerName, "curl", "-f", "-s", "http://localhost:8000/api/health")
+							execOut, _, execExit, _ = l.executor.Run(ctx, l.dockerCLI(), "exec", cName, "curl", "-f", "-s", "http://localhost:8000/api/health")
 						}
 						if execExit == 0 && strings.TrimSpace(execOut) != "" {
 							if !l.checkVersionMatch(execOut, expectedVersion) {
@@ -1084,14 +1890,22 @@ func (l *LifecycleManager) checkVersionMatch(body, expected string) bool {
 // 6. Health status is healthy or ok
 // 7. Expected version is returned
 func (l *LifecycleManager) VerifyInstallation(ctx context.Context, cfg InstallConfig, expectedVersion string) error {
+	cName := cfg.ContainerName
+	if cName == "" {
+		cName = DetectContainerName(cfg.TargetDir)
+	}
+	if cName == "" {
+		cName = l.TargetContainerName()
+	}
+
 	// 1. Inspect container
-	stdout, stderr, exitCode, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", ContainerName)
+	stdout, stderr, exitCode, _ := l.executor.Run(ctx, l.dockerCLI(), "inspect", cName)
 	if exitCode != 0 || strings.TrimSpace(stdout) == "" || stdout == "[]" {
 		errMsg := strings.TrimSpace(stderr)
 		if errMsg == "" {
 			errMsg = "container not found in Docker"
 		}
-		return fmt.Errorf("container '%s' does not exist after startup: %s", ContainerName, errMsg)
+		return fmt.Errorf("container '%s' does not exist after startup: %s", cName, errMsg)
 	}
 
 	var inspectList []struct {
@@ -1114,24 +1928,29 @@ func (l *LifecycleManager) VerifyInstallation(ctx context.Context, cfg InstallCo
 	}
 
 	if err := json.Unmarshal([]byte(stdout), &inspectList); err != nil || len(inspectList) == 0 {
-		return fmt.Errorf("failed to parse docker inspect output for container '%s': %w", ContainerName, err)
+		return fmt.Errorf("failed to parse docker inspect output for container '%s': %w", cName, err)
 	}
 
 	c := inspectList[0]
 
 	// 2. Verify container is running
 	if !c.State.Running || c.State.Status != "running" {
-		logOut, _, _, _ := l.executor.Run(ctx, l.dockerCLI(), "logs", "--tail", "25", ContainerName)
+		var logOut string
+		if cName == ContainerName {
+			logOut, _, _, _ = l.executor.Run(ctx, l.dockerCLI(), "logs", "--tail", "25", ContainerName)
+		} else {
+			logOut, _, _, _ = l.executor.Run(ctx, l.dockerCLI(), "logs", "--tail", "25", cName)
+		}
 		diag := strings.TrimSpace(logOut)
 		if c.State.Error != "" {
 			diag = fmt.Sprintf("Error: %s\n%s", c.State.Error, diag)
 		}
 		if diag != "" {
 			return fmt.Errorf("container '%s' is not running (status: %s, exit code: %d).\nContainer logs:\n%s",
-				ContainerName, c.State.Status, c.State.ExitCode, diag)
+				cName, c.State.Status, c.State.ExitCode, diag)
 		}
 		return fmt.Errorf("container '%s' is not running (status: %s, exit code: %d)",
-			ContainerName, c.State.Status, c.State.ExitCode)
+			cName, c.State.Status, c.State.ExitCode)
 	}
 
 	// 3. Verify image if specified
@@ -1140,7 +1959,7 @@ func (l *LifecycleManager) VerifyInstallation(ctx context.Context, cfg InstallCo
 		runningBase := strings.TrimPrefix(c.Config.Image, "ghcr.io/")
 		if !strings.EqualFold(expectedBase, runningBase) && !strings.Contains(c.Config.Image, cfg.Image) && !strings.Contains(cfg.Image, c.Config.Image) {
 			return fmt.Errorf("container '%s' is running image '%s', expected '%s'",
-				ContainerName, c.Config.Image, cfg.Image)
+				cName, c.Config.Image, cfg.Image)
 		}
 	}
 
@@ -1158,7 +1977,7 @@ func (l *LifecycleManager) VerifyInstallation(ctx context.Context, cfg InstallCo
 	}
 	if !portMapped {
 		return fmt.Errorf("container '%s' port %s is not mapped to host port %d",
-			ContainerName, portKey, cfg.Port)
+			cName, portKey, cfg.Port)
 	}
 
 	// 5. Probe health endpoint

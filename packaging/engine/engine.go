@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -175,6 +176,18 @@ func (e *InstallerEngine) SaveInstallDirectory(dir string) error {
 	return os.WriteFile(env.ConfigFile, []byte(strings.TrimSpace(dir)), 0644)
 }
 
+// ProvisionConfig writes runtime files and saves the active install directory without requiring Docker daemon.
+func (e *InstallerEngine) ProvisionConfig(targetDir string, cfg InstallConfig) error {
+	if cfg.Port <= 0 {
+		cfg.Port = DefaultPort
+	}
+	cfg.TargetDir = targetDir
+	if err := e.lifecycleManager.WriteRuntimeFiles(targetDir, cfg); err != nil {
+		return fmt.Errorf("failed to write runtime files: %w", err)
+	}
+	return e.SaveInstallDirectory(targetDir)
+}
+
 // Install executes the 6-stage installation pipeline.
 func (e *InstallerEngine) Install(ctx context.Context, cfg InstallConfig, progress ProgressFunc) error {
 	if cfg.Port <= 0 {
@@ -204,6 +217,19 @@ func (e *InstallerEngine) Install(ctx context.Context, cfg InstallConfig, progre
 		return fmt.Errorf("docker engine is not ready: %s (%s)", diag.StatusText, diag.FailureReason)
 	}
 
+	if cfg.ContainerName == "" {
+		cfg.ContainerName = DetectContainerName(cfg.TargetDir)
+	}
+	if cfg.DataVolume == "" {
+		cfg.DataVolume = DetectDataVolume(cfg.TargetDir)
+	}
+	if cfg.ContainerName != "" {
+		e.lifecycleManager.ContainerName = cfg.ContainerName
+	}
+	if cfg.DataVolume != "" {
+		e.lifecycleManager.DataVolume = cfg.DataVolume
+	}
+
 	// Pre-flight 2: check container and port conflicts before touching disk or containers
 	conflict, err := e.lifecycleManager.CheckConflict(ctx, cfg.Port, cfg.TargetDir)
 	if err != nil {
@@ -214,13 +240,15 @@ func (e *InstallerEngine) Install(ctx context.Context, cfg InstallConfig, progre
 		if conflict.ConflictType == ConflictTypePortDocker || conflict.ConflictType == ConflictTypePortProcess {
 			return fmt.Errorf("pre-flight check failed: %s", conflict.RemediationHint)
 		}
-		// Target container 'altr-stream' exists
+		// Target container exists
 		if conflict.ConflictType == ConflictTypeContainer {
 			if !cfg.ReplaceExisting {
-				return fmt.Errorf("container '%s' already exists. Re-run with --replace-existing to overwrite", ContainerName)
+				return fmt.Errorf("container '%s' already exists. Re-run with --replace-existing to overwrite", e.lifecycleManager.TargetContainerName())
 			}
 			// User explicitly authorized replacing existing container
-			_ = e.lifecycleManager.RemoveContainer(ctx)
+			if err := e.lifecycleManager.RemoveContainer(ctx); err != nil {
+				return fmt.Errorf("failed to remove existing container: %w", err)
+			}
 
 			// Verify port is free after removing the container
 			if portErr := e.lifecycleManager.VerifyPortFree(ctx, cfg.Port); portErr != nil {
@@ -228,7 +256,9 @@ func (e *InstallerEngine) Install(ctx context.Context, cfg InstallConfig, progre
 			}
 		}
 	} else if cfg.ReplaceExisting {
-		_ = e.lifecycleManager.RemoveContainer(ctx)
+		if err := e.lifecycleManager.RemoveContainer(ctx); err != nil {
+			return fmt.Errorf("failed to remove existing container: %w", err)
+		}
 	}
 
 	composeCmd := diag.ComposeCommand
@@ -248,8 +278,12 @@ func (e *InstallerEngine) Install(ctx context.Context, cfg InstallConfig, progre
 	_ = e.SaveInstallDirectory(cfg.TargetDir)
 
 	// Stage 2: Persistent storage volume
-	report(StagePreparingVolume, 2, 25, "Ensuring persistent volume 'altr_stream_data'...")
-	if err := e.lifecycleManager.EnsureDataVolume(ctx); err != nil {
+	targetVol := cfg.DataVolume
+	if targetVol == "" {
+		targetVol = e.lifecycleManager.TargetDataVolume()
+	}
+	report(StagePreparingVolume, 2, 25, fmt.Sprintf("Ensuring persistent volume '%s'...", targetVol))
+	if err := e.lifecycleManager.EnsureDataVolumeForTarget(ctx, cfg.TargetDir, cfg.DataVolume); err != nil {
 		return fmt.Errorf("stage '%s' failed: %w", StagePreparingVolume, err)
 	}
 
@@ -281,7 +315,7 @@ func (e *InstallerEngine) Install(ctx context.Context, cfg InstallConfig, progre
 			expectedVer = cfg.Version + "|" + tag
 		}
 	}
-	healthResp, err := e.lifecycleManager.VerifyHealth(ctx, cfg.Port, expectedVer, healthTimeout)
+	healthResp, err := e.lifecycleManager.VerifyHealth(ctx, cfg.Port, expectedVer, healthTimeout, e.lifecycleManager.TargetContainerName())
 	if err != nil {
 		return fmt.Errorf("stage '%s' failed: %w", StageWaitingHealth, err)
 	}
@@ -306,6 +340,19 @@ func (e *InstallerEngine) Repair(ctx context.Context, targetDir string, cfg Inst
 		cfg.HealthTimeout = 60
 	}
 	cfg.TargetDir = targetDir
+
+	if cfg.ContainerName == "" {
+		cfg.ContainerName = DetectContainerName(targetDir)
+	}
+	if cfg.DataVolume == "" {
+		cfg.DataVolume = DetectDataVolume(targetDir)
+	}
+	if cfg.ContainerName != "" {
+		e.lifecycleManager.ContainerName = cfg.ContainerName
+	}
+	if cfg.DataVolume != "" {
+		e.lifecycleManager.DataVolume = cfg.DataVolume
+	}
 
 	totalStages := 4
 	report := func(stage InstallStage, idx, percent int, msg string) {
@@ -349,7 +396,7 @@ func (e *InstallerEngine) Repair(ctx context.Context, targetDir string, cfg Inst
 
 	// Stage 2: Ensure data volume exists (without touching data)
 	report(StagePreparingVolume, 2, 50, "Checking persistent volume...")
-	if err := e.lifecycleManager.EnsureDataVolume(ctx); err != nil {
+	if err := e.lifecycleManager.EnsureDataVolumeForTarget(ctx, targetDir); err != nil {
 		return fmt.Errorf("failed to verify persistent volume: %w", err)
 	}
 
@@ -375,7 +422,7 @@ func (e *InstallerEngine) Repair(ctx context.Context, targetDir string, cfg Inst
 			expectedVer = cfg.Version + "|" + tag
 		}
 	}
-	if _, err := e.lifecycleManager.VerifyHealth(ctx, cfg.Port, expectedVer, healthTimeout); err != nil {
+	if _, err := e.lifecycleManager.VerifyHealth(ctx, cfg.Port, expectedVer, healthTimeout, e.lifecycleManager.TargetContainerName()); err != nil {
 		return fmt.Errorf("repair health verification failed: %w", err)
 	}
 	if err := e.lifecycleManager.VerifyInstallation(ctx, cfg, expectedVer); err != nil {
@@ -427,17 +474,71 @@ func (e *InstallerEngine) GetStatus(ctx context.Context, targetDir string) (*Nod
 	containerState := "not_installed"
 
 	var technicalIssues []string
+	var activeImage string
+	var activeVersion string
+	var dataVolName string
+
+	cName := DetectContainerName(targetDir)
+	if cName == "" {
+		cName = e.lifecycleManager.TargetContainerName()
+	}
+
+	composePath := filepath.Join(targetDir, "docker-compose.yml")
+	envPath := filepath.Join(targetDir, ".env")
+	_, composeErr := os.Stat(composePath)
+	_, envErr := os.Stat(envPath)
+	hasInstalledConfig := composeErr == nil || envErr == nil
 
 	if diag.EngineRunning {
-		conflict, err := e.lifecycleManager.CheckContainerConflict(ctx)
+		conflict, err := e.lifecycleManager.CheckSpecificContainerConflict(ctx, cName)
 		if err == nil && conflict.Exists {
-			containerState = conflict.Status
+			if conflict.IsDevContainer {
+				technicalIssues = append(technicalIssues, fmt.Sprintf("A development container '%s' is running in Docker. The Manager does not adopt or manage development instances.", cName))
+			} else if !hasInstalledConfig && !conflict.IsInstallerOwned {
+				technicalIssues = append(technicalIssues, fmt.Sprintf("Container '%s' is unmanaged by this installation directory.", cName))
+			} else {
+				containerState = conflict.Status
+				activeImage = conflict.Image
+			}
+			if conflict.DataVolumeName != "" {
+				dataVolName = conflict.DataVolumeName
+			}
+		}
+
+		if containerState == "not_installed" {
+			portConflict, err := e.lifecycleManager.CheckPortConflict(ctx, port, cName)
+			if err == nil && portConflict.Exists {
+				if portConflict.IsDevContainer {
+					technicalIssues = append(technicalIssues, fmt.Sprintf("Port %d is occupied by development container '%s'. The Manager cannot start on this port.", port, portConflict.ContainerName))
+				} else {
+					technicalIssues = append(technicalIssues, fmt.Sprintf("Port %d is occupied by '%s'.", port, portConflict.ContainerName))
+				}
+			}
 		}
 	} else {
+		if hasInstalledConfig {
+			containerState = "stopped"
+		} else {
+			containerState = "not_installed"
+		}
 		if diag.State == DockerStatePaused {
 			technicalIssues = append(technicalIssues, "Docker Desktop is paused.")
+		} else if diag.State == DockerStateStopped {
+			technicalIssues = append(technicalIssues, "Docker Desktop is stopped.")
+		} else if diag.State == DockerStateStarting {
+			technicalIssues = append(technicalIssues, "Docker Desktop is starting...")
+		} else if diag.State == DockerStateNotInstalled {
+			technicalIssues = append(technicalIssues, "Docker Desktop is not installed.")
 		} else {
-			technicalIssues = append(technicalIssues, "Docker daemon is not running.")
+			technicalIssues = append(technicalIssues, "Docker daemon is unreachable.")
+		}
+	}
+
+	if dataVolName == "" {
+		if detectedVol := DetectDataVolume(targetDir); detectedVol != "" {
+			dataVolName = detectedVol
+		} else {
+			dataVolName = e.lifecycleManager.TargetDataVolume()
 		}
 	}
 
@@ -451,18 +552,35 @@ func (e *InstallerEngine) GetStatus(ctx context.Context, targetDir string) (*Nod
 		if err == nil {
 			healthy = true
 			healthResp = resp
+			var hData map[string]interface{}
+			if err := json.Unmarshal([]byte(resp), &hData); err == nil {
+				if v, ok := hData["version"].(string); ok && v != "" {
+					activeVersion = strings.TrimPrefix(v, "v")
+				}
+			}
+		}
+	}
+
+	if activeVersion == "" && activeImage != "" && strings.Contains(activeImage, ":") {
+		parts := strings.Split(activeImage, ":")
+		tag := parts[len(parts)-1]
+		if tag != "" && tag != "latest" {
+			activeVersion = strings.TrimPrefix(tag, "v")
 		}
 	}
 
 	return &NodeStatus{
 		InstallDir:      targetDir,
-		TargetVersion:   DefaultCanonical,
+		TargetVersion:   DefaultVersion,
+		ActiveImage:     activeImage,
+		ActiveVersion:   activeVersion,
 		ContainerState:  containerState,
 		Port:            port,
 		WebURL:          webURL,
 		DockerDiag:      diag,
 		Healthy:         healthy,
 		HealthResponse:  healthResp,
+		DataVolumeName:  dataVolName,
 		TechnicalIssues: technicalIssues,
 	}, nil
 }
@@ -477,12 +595,226 @@ func (e *InstallerEngine) RemoveExistingContainer(ctx context.Context) error {
 	return e.lifecycleManager.RemoveContainer(ctx)
 }
 
+// RemoveContainerByName stops and removes a specific container by name, preserving data.
+func (e *InstallerEngine) RemoveContainerByName(ctx context.Context, name string) error {
+	return e.lifecycleManager.RemoveContainerByName(ctx, name)
+}
+
 // StartExistingContainer starts the existing stopped container.
 func (e *InstallerEngine) StartExistingContainer(ctx context.Context) error {
 	return e.lifecycleManager.StartExistingContainer(ctx)
+}
+
+// PauseContainer pauses the existing running container.
+func (e *InstallerEngine) PauseContainer(ctx context.Context) error {
+	return e.lifecycleManager.PauseContainer(ctx)
 }
 
 // UnpauseContainer resumes the existing paused container.
 func (e *InstallerEngine) UnpauseContainer(ctx context.Context) error {
 	return e.lifecycleManager.UnpauseContainer(ctx)
 }
+
+// StopSpecificContainer stops a container by name without removing it.
+func (e *InstallerEngine) StopSpecificContainer(ctx context.Context, name string) error {
+	return e.lifecycleManager.StopSpecificContainer(ctx, name)
+}
+
+// SwitchVersion performs a safe in-place version switch with pre-validation, pre-pull, cutover, and automated rollback.
+func (e *InstallerEngine) SwitchVersion(ctx context.Context, targetDir string, cfg InstallConfig, progress ProgressFunc) error {
+	if cfg.Port <= 0 {
+		cfg.Port = DefaultPort
+	}
+	if cfg.HealthTimeout <= 0 {
+		cfg.HealthTimeout = 60
+	}
+	if targetDir == "" {
+		env, err := e.DetectEnvironment()
+		if err != nil {
+			return err
+		}
+		targetDir = env.EffectiveDir
+	}
+	cfg.TargetDir = targetDir
+
+	cName := cfg.ContainerName
+	if cName == "" {
+		cName = DetectContainerName(targetDir)
+	}
+	if cName == "" {
+		cName = e.lifecycleManager.TargetContainerName()
+	}
+	cfg.ContainerName = cName
+
+	volName := cfg.DataVolume
+	if volName == "" {
+		volName = DetectDataVolume(targetDir)
+	}
+	if volName == "" {
+		volName = e.lifecycleManager.TargetDataVolume()
+	}
+	cfg.DataVolume = volName
+
+	e.lifecycleManager.ContainerName = cName
+	e.lifecycleManager.DataVolume = volName
+
+	totalStages := 5
+	report := func(stage InstallStage, idx, percent int, msg string) {
+		if progress != nil {
+			progress(InstallProgress{
+				Stage:       stage,
+				StageIndex:  idx,
+				TotalStages: totalStages,
+				Percent:     percent,
+				Message:     msg,
+			})
+		}
+	}
+
+	// Stage 1: Validate target image before touching anything
+	report(StageValidatingImage, 1, 15, fmt.Sprintf("Validating target image %s...", cfg.Image))
+	valRes := e.dockerManager.InspectImageRegistry(ctx, cfg.Image)
+	if !valRes.Valid || !valRes.Available {
+		return fmt.Errorf("target image validation failed: %s", valRes.Message)
+	}
+
+	diag := e.dockerManager.CheckDocker(ctx)
+	if diag.State != DockerStateReady {
+		return fmt.Errorf("docker engine is not ready: %s (%s)", diag.StatusText, diag.FailureReason)
+	}
+
+	composeCmd := diag.ComposeCommand
+	if composeCmd == "" {
+		cli := e.dockerManager.ResolveDockerCLI()
+		if cli == "" {
+			cli = "docker"
+		}
+		composeCmd = cli + " compose"
+	}
+
+	// Stage 2: Pre-pull the target image before disrupting the running container
+	report(StagePullingImage, 2, 35, fmt.Sprintf("Pre-pulling target image %s...", cfg.Image))
+	cli := e.dockerManager.ResolveDockerCLI()
+	if cli == "" {
+		cli = "docker"
+	}
+	pullOut, pullErr, pullCode, _ := e.executor.Run(ctx, cli, "pull", cfg.Image)
+	if pullCode != 0 {
+		combined := strings.TrimSpace(pullOut + "\n" + pullErr)
+		lower := strings.ToLower(combined)
+		isOfficial := strings.HasPrefix(cfg.Image, "ghcr.io/helloaltr/altr-stream:") || cfg.Image == "ghcr.io/helloaltr/altr-stream"
+		if isOfficial && (strings.Contains(lower, "manifest unknown") || strings.Contains(lower, "not found") || strings.Contains(lower, "404")) {
+			return fmt.Errorf("failed to pre-pull target image %s: image not found on container registry", cfg.Image)
+		}
+		imgOut, _, imgCode, _ := e.executor.Run(ctx, cli, "images", "-q", cfg.Image)
+		if imgCode != 0 || strings.TrimSpace(imgOut) == "" {
+			return fmt.Errorf("failed to pre-pull target image %s: %s", cfg.Image, extractActionableError(combined))
+		}
+	}
+
+	// Stage 3: Record current configuration and cutover
+	report(StageStartingContainer, 3, 60, "Recording rollback state and switching container...")
+	composePath := filepath.Join(targetDir, "docker-compose.yml")
+	envPath := filepath.Join(targetDir, ".env")
+
+	var prevComposeBytes []byte
+	if data, err := os.ReadFile(composePath); err == nil {
+		prevComposeBytes = data
+	}
+	var prevEnvBytes []byte
+	if data, err := os.ReadFile(envPath); err == nil {
+		prevEnvBytes = data
+	}
+
+	prevImage := ""
+	inspectOut, _, inspectCode, _ := e.executor.Run(ctx, cli, "inspect", "-f", "{{.Config.Image}}", cName)
+	if inspectCode == 0 && strings.TrimSpace(inspectOut) != "" {
+		prevImage = strings.TrimSpace(inspectOut)
+	}
+
+	// Write new configuration files
+	if err := e.lifecycleManager.WriteRuntimeFiles(targetDir, cfg); err != nil {
+		return fmt.Errorf("failed to write updated runtime configuration: %w", err)
+	}
+	_ = e.SaveInstallDirectory(targetDir)
+
+	// Stop and remove current container (NEVER deletes named data volume)
+	if err := e.lifecycleManager.RemoveContainerByName(ctx, cName); err != nil {
+		if prevComposeBytes != nil {
+			_ = os.WriteFile(composePath, prevComposeBytes, 0644)
+		}
+		if prevEnvBytes != nil {
+			_ = os.WriteFile(envPath, prevEnvBytes, 0644)
+		}
+		return fmt.Errorf("failed to stop current container during switch: %w", err)
+	}
+
+	// Start new container with updated image
+	if cfg.StartTimeout > 0 {
+		e.lifecycleManager.StartTimeout = time.Duration(cfg.StartTimeout) * time.Second
+	}
+	if err := e.lifecycleManager.StartContainer(ctx, targetDir, composeCmd, func(msg string) {
+		report(StageStartingContainer, 3, 65, msg)
+	}); err != nil {
+		report(StageRollingBack, 3, 70, "Startup failed. Initiating automatic rollback...")
+		rbErr := e.rollbackVersion(ctx, targetDir, composeCmd, cName, prevComposeBytes, prevEnvBytes, prevImage, cfg.Port)
+		if rbErr != nil {
+			return fmt.Errorf("failed to start container with %s: %w. CRITICAL: Rollback failed: %v", cfg.Image, err, rbErr)
+		}
+		return fmt.Errorf("failed to start container with %s: %w. Successfully rolled back to %s", cfg.Image, err, prevImage)
+	}
+
+	// Stage 4: Poll health check and verify version
+	report(StageWaitingHealth, 4, 85, fmt.Sprintf("Waiting for health check on port %d...", cfg.Port))
+	healthTimeout := time.Duration(cfg.HealthTimeout) * time.Second
+	expectedVer := cfg.Version
+	if strings.Contains(cfg.Image, ":") {
+		parts := strings.Split(cfg.Image, ":")
+		tag := parts[len(parts)-1]
+		if tag != "" && tag != "latest" && tag != cfg.Version {
+			expectedVer = cfg.Version + "|" + tag
+		}
+	}
+	_, err := e.lifecycleManager.VerifyHealth(ctx, cfg.Port, expectedVer, healthTimeout, cName)
+	if err != nil {
+		report(StageRollingBack, 4, 90, "Health check failed. Initiating automatic rollback...")
+		rbErr := e.rollbackVersion(ctx, targetDir, composeCmd, cName, prevComposeBytes, prevEnvBytes, prevImage, cfg.Port)
+		if rbErr != nil {
+			return fmt.Errorf("health check failed for %s: %w. CRITICAL: Rollback failed: %v", cfg.Image, err, rbErr)
+		}
+		return fmt.Errorf("health check failed for %s: %w. Successfully rolled back to %s", cfg.Image, err, prevImage)
+	}
+
+	// Stage 5: Final verification
+	report(StageVerifying, 5, 100, fmt.Sprintf("Successfully switched to %s.", cfg.Image))
+	return nil
+}
+
+func (e *InstallerEngine) rollbackVersion(ctx context.Context, targetDir, composeCmd, cName string, prevCompose, prevEnv []byte, prevImage string, port int) error {
+	composePath := filepath.Join(targetDir, "docker-compose.yml")
+	envPath := filepath.Join(targetDir, ".env")
+
+	_ = e.lifecycleManager.RemoveContainerByName(ctx, cName)
+
+	if prevCompose != nil {
+		_ = os.WriteFile(composePath, prevCompose, 0644)
+	}
+	if prevEnv != nil {
+		_ = os.WriteFile(envPath, prevEnv, 0644)
+	}
+
+	if prevCompose == nil {
+		return fmt.Errorf("no previous docker-compose.yml available for rollback")
+	}
+
+	if err := e.lifecycleManager.StartContainer(ctx, targetDir, composeCmd); err != nil {
+		return fmt.Errorf("failed to restart rolled-back container: %w", err)
+	}
+
+	_, err := e.lifecycleManager.VerifyHealth(ctx, port, "", 30*time.Second, cName)
+	if err != nil {
+		return fmt.Errorf("restored container failed health check: %w", err)
+	}
+	return nil
+}
+

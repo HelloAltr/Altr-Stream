@@ -1,6 +1,6 @@
 services:
   altr-stream:
-    image: ghcr.io/helloaltr/altr-stream:{{VERSION}}
+    image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:{{VERSION}}}
     container_name: altr-stream
     restart: unless-stopped
     ports:
