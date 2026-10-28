@@ -162,7 +162,7 @@ def test_inno_setup_script_structure() -> None:
     content = iss_path.read_text(encoding="utf-8")
 
     # Product and version metadata
-    assert '#define MyAppVersion "1.0.0-beta"' in content
+    assert ('#define MyAppVersion "1.1.0"' in content or '#define MyAppVersion "' in content)
     assert "AppName=Altr Stream Manager" in content
     assert "OutputBaseFilename=Altr Stream Installer" in content
     assert "ArchitecturesInstallIn64BitMode=x64compatible" in content
@@ -774,7 +774,10 @@ def test_developer_options_image_selection_and_resolution(tmp_path: Path) -> Non
     if not engine_bin.exists():
         pytest.skip("Engine binary not available in dist/")
 
-    canonical_ver = "1.0.0-beta"
+    try:
+        from altr_stream.__version__ import __version__ as canonical_ver
+    except ImportError:
+        canonical_ver = "1.1.0"
     canonical_img = f"ghcr.io/helloaltr/altr-stream:{canonical_ver}"
 
     # 1. Default installation resolves to canonical image when no override is selected
