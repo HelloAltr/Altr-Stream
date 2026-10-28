@@ -35,9 +35,10 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 try:
     from altr_stream.__version__ import __version__ as CANONICAL_VERSION
 except ImportError:
-    CANONICAL_VERSION = "1.0.0-beta"
+    CANONICAL_VERSION = "1.1.0"
 
-DEFAULT_IMAGE = None
+DEFAULT_NODE_VERSION = "1.1.0"
+DEFAULT_IMAGE = f"ghcr.io/helloaltr/altr-stream:{DEFAULT_NODE_VERSION}"
 
 
 def compute_sha256(file_path: Path) -> str:
@@ -60,6 +61,8 @@ def detect_host_arch() -> str:
 def build_go_engine(output_path: Path, version: str, image: str, arch: str) -> Path:
     """Compile the shared Go installer engine for Darwin."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.exists():
+        output_path.unlink()
     engine_dir = REPO_ROOT / "packaging" / "engine"
 
     ldflags = f"-s -w -X main.DefaultImage={image} -X main.DefaultVersion={version}"
@@ -156,6 +159,15 @@ def assemble_app_bundle(
     shutil.copy2(go_engine_binary, dest_engine)
     dest_engine.chmod(0o755)
 
+    # 2b. Bundle application icon if provided (packaging/macos/AppIcon.icns)
+    icon_src = REPO_ROOT / "packaging" / "macos" / "AppIcon.icns"
+    dest_icon = resources_dir / "AppIcon.icns"
+    if icon_src.is_file():
+        shutil.copy2(icon_src, dest_icon)
+        print(f"[+] Bundled application icon: {icon_src} -> {dest_icon}")
+    else:
+        print(f"[-] Note: {icon_src} not found; continuing without custom icon asset")
+
     # 3. Write Info.plist
     info_plist_src = REPO_ROOT / "packaging" / "macos" / "Info.plist"
     dest_plist = app_dir / "Contents" / "Info.plist"
@@ -186,6 +198,10 @@ def assemble_app_bundle(
     <string>{version}</string>
     <key>CFBundleVersion</key>
     <string>{version}</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>NSHighResolutionCapable</key>
@@ -200,19 +216,6 @@ def assemble_app_bundle(
         print(f"[+] Ad-hoc signed application bundle: {app_dir}")
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"[-] Codesign skipped or failed: {e}")
-
-    # 5. Maintain backwards-compatible symlinks between 'Altr Stream.app' and 'Altr Stream Installer.app'
-    compat_name = "Altr Stream Installer.app" if app_name == "Altr Stream.app" else "Altr Stream.app"
-    compat_link = output_dir / compat_name
-    if compat_link.exists() or compat_link.is_symlink():
-        if compat_link.is_dir() and not compat_link.is_symlink():
-            shutil.rmtree(compat_link)
-        else:
-            compat_link.unlink()
-    try:
-        compat_link.symlink_to(app_dir.name)
-    except OSError:
-        pass
 
     print(f"[+] Assembled macOS application bundle: {app_dir}")
     return app_dir
@@ -344,40 +347,108 @@ def build_pkg_installer(
             temp_component_pkg.unlink()
 
 
+def build_dmg_installer(
+    app_bundle: Path,
+    output_dmg: Path,
+    volume_name: str = "Altr Stream Installer",
+) -> Path:
+    """Build a standalone macOS drag-and-drop disk image (.dmg) with /Applications symlink using Apple's hdiutil."""
+    hdiutil_bin = shutil.which("hdiutil")
+    if not hdiutil_bin:
+        raise RuntimeError("Native macOS disk utility 'hdiutil' not found in PATH.")
+
+    if output_dmg.exists():
+        output_dmg.unlink()
+
+    output_dmg.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir = output_dmg.parent / "dmg_staging"
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    staging_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # 1. Copy app bundle to staging directory
+        staged_app = staging_dir / app_bundle.name
+        if staged_app.exists():
+            shutil.rmtree(staged_app)
+        shutil.copytree(app_bundle, staged_app, symlinks=True)
+
+        # 2. Create /Applications symlink for drag-and-drop
+        apps_symlink = staging_dir / "Applications"
+        if apps_symlink.exists() or apps_symlink.is_symlink():
+            apps_symlink.unlink()
+        apps_symlink.symlink_to("/Applications")
+
+        # 3. Create compressed UDZO disk image
+        print(f"[*] Building macOS DMG installer with hdiutil: {output_dmg.name}...")
+        cmd = [
+            hdiutil_bin,
+            "create",
+            "-volname",
+            volume_name,
+            "-srcfolder",
+            str(staging_dir.resolve()),
+            "-ov",
+            "-format",
+            "UDZO",
+            str(output_dmg.resolve()),
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            print(f"[!] hdiutil create failed (exit code {res.returncode}):\n{res.stderr}", file=sys.stderr)
+            raise RuntimeError(f"hdiutil create failed: {res.stderr.strip()}")
+
+        if not output_dmg.is_file() or output_dmg.stat().st_size == 0:
+            raise RuntimeError(f"Generated DMG is missing or empty: {output_dmg}")
+
+        print(f"[+] Created macOS .dmg installer: {output_dmg} ({output_dmg.stat().st_size:,} bytes)")
+        return output_dmg
+    finally:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir, ignore_errors=True)
+
+
 def build_macos_app(
     version: str = CANONICAL_VERSION,
+    node_version: str = DEFAULT_NODE_VERSION,
     image: str | None = None,
     arch: str | None = None,
     output_dir: Path | None = None,
     app_name: str = "Altr Stream.app",
+    dmg_name: str = "Altr Stream Installer.dmg",
     pkg_name: str = "Altr-Stream-Installer.pkg",
     archive_name: str = "Altr-Stream_macOS_Installer.app.zip",
-    build_pkg: bool = True,
+    build_dmg: bool = True,
+    build_pkg: bool = False,
     build_zip: bool = True,
 ) -> Path:
-    """Build the macOS native application, .pkg distribution installer, and optional zip archive."""
+    """Build the macOS native Manager application (.app), drag-and-drop DMG installer, and optional archive."""
     if output_dir is None:
         output_dir = REPO_ROOT / "dist"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    version = version.lstrip("v")
+    node_version = node_version.lstrip("v")
     target_arch = arch or detect_host_arch()
     if image is None:
-        image = f"ghcr.io/helloaltr/altr-stream:{version}"
+        image = f"ghcr.io/helloaltr/altr-stream:{node_version}"
 
     print("=" * 60)
     print(" Altr Stream — Native macOS App Builder")
-    print(f" Target Arch: darwin/{target_arch}")
-    print(f" Version:     {version}")
-    print(f" Image:       {image}")
-    print(f" Output Dir:  {output_dir}")
-    print(f" App Name:    {app_name}")
-    print(f" PKG Name:    {pkg_name}")
-    print(f" Zip Name:    {archive_name}")
+    print(f" Target Arch:   darwin/{target_arch}")
+    print(f" App Version:   {version}")
+    print(f" Node Version:  {node_version}")
+    print(f" Node Image:    {image}")
+    print(f" Output Dir:    {output_dir}")
+    print(f" App Name:      {app_name}")
+    print(f" DMG Name:      {dmg_name}")
+    print(f" PKG Name:      {pkg_name}")
+    print(f" Zip Name:      {archive_name}")
     print("=" * 60)
 
-    # 1. Build Go Engine
+    # 1. Build Go Engine (configured for the verified Node version & image)
     engine_path = output_dir / "altr-installer-engine"
-    build_go_engine(engine_path, version, image, target_arch)
+    build_go_engine(engine_path, node_version, image, target_arch)
     engine_sha = compute_sha256(engine_path)
     print(f"    SHA-256 (engine): {engine_sha}")
 
@@ -389,14 +460,32 @@ def build_macos_app(
     # 3. Assemble .app Bundle
     app_bundle = assemble_app_bundle(swift_bin, engine_path, output_dir, version, app_name=app_name)
 
-    # 4. Build .pkg installer (primary distribution format)
+    # 4. Build .dmg installer (primary distribution format)
+    dmg_path = output_dir / dmg_name
+    if build_dmg:
+        build_dmg_installer(app_bundle, dmg_path)
+        dmg_sha = compute_sha256(dmg_path)
+        print(f"    SHA-256 (dmg):    {dmg_sha}")
+
+        # Also create backwards-compatible symlink without spaces if helpful
+        compat_dmg = output_dir / "Altr-Stream-Installer.dmg"
+        if compat_dmg != dmg_path:
+            if compat_dmg.exists() or compat_dmg.is_symlink():
+                compat_dmg.unlink()
+            try:
+                compat_dmg.symlink_to(dmg_path.name)
+            except OSError:
+                pass
+
+    # 5. Build .pkg installer (secondary/legacy distribution format)
     pkg_path = output_dir / pkg_name
     if build_pkg:
-        build_pkg_installer(app_bundle, pkg_path, version=version)
+        pkg_bundle = output_dir / "Altr Stream.app" if (output_dir / "Altr Stream.app").is_dir() else app_bundle
+        build_pkg_installer(pkg_bundle, pkg_path, version=version)
         pkg_sha = compute_sha256(pkg_path)
         print(f"    SHA-256 (pkg):    {pkg_sha}")
 
-    # 5. Create Archive (fallback/auxiliary distribution format)
+    # 6. Create Archive (fallback/auxiliary distribution format)
     archive_path = output_dir / archive_name
     if build_zip:
         archive_app_bundle(app_bundle, archive_path)
@@ -406,39 +495,51 @@ def build_macos_app(
     print("\n" + "=" * 60)
     print(" Build Complete!")
     print(f" App Bundle:      {app_bundle}")
+    if build_dmg:
+        print(f" DMG Installer:   {dmg_path} (primary)")
     if build_pkg:
-        print(f" PKG Installer:   {pkg_path} (primary)")
+        print(f" PKG Installer:   {pkg_path} (secondary)")
     if build_zip:
         print(f" Zip Archive:     {archive_path} (fallback)")
     print(f" Architecture:    darwin/{target_arch}")
     print(f" Embedded Engine: {app_bundle / 'Contents' / 'Resources' / 'altr-installer-engine'}")
     print("=" * 60)
 
-    return pkg_path if build_pkg else archive_path
+    if build_dmg:
+        return dmg_path
+    elif build_pkg:
+        return pkg_path
+    return archive_path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Altr Stream macOS App Builder")
-    parser.add_argument("--version", default=CANONICAL_VERSION, help=f"Altr Stream version (default: {CANONICAL_VERSION})")
-    parser.add_argument("--image", default=None, help="Docker image reference (default: ghcr.io/helloaltr/altr-stream:{version})")
+    parser.add_argument("--version", default=CANONICAL_VERSION, help=f"Altr Stream Manager app version (default: {CANONICAL_VERSION})")
+    parser.add_argument("--node-version", default=DEFAULT_NODE_VERSION, help=f"Altr Stream Node default version (default: {DEFAULT_NODE_VERSION})")
+    parser.add_argument("--image", default=None, help="Docker image reference (default: ghcr.io/helloaltr/altr-stream:{node_version})")
     parser.add_argument("--arch", default=None, help="Target architecture: arm64 or amd64 (default: host architecture)")
     parser.add_argument("--output-dir", type=Path, default=REPO_ROOT / "dist", help="Output directory")
     parser.add_argument("--app-name", default="Altr Stream.app", help="Application bundle name")
+    parser.add_argument("--dmg-name", default="Altr Stream Installer.dmg", help="Output DMG installer name")
     parser.add_argument("--pkg-name", default="Altr-Stream-Installer.pkg", help="Output PKG installer name")
     parser.add_argument("--archive-name", default="Altr-Stream_macOS_Installer.app.zip", help="Output archive name")
-    parser.add_argument("--no-pkg", action="store_true", help="Skip building .pkg installer")
+    parser.add_argument("--no-dmg", action="store_true", help="Skip building .dmg installer")
+    parser.add_argument("--pkg", action="store_true", help="Build .pkg installer in addition to DMG")
     parser.add_argument("--no-zip", action="store_true", help="Skip building .app.zip archive")
     args = parser.parse_args()
 
     build_macos_app(
         version=args.version,
+        node_version=args.node_version,
         image=args.image,
         arch=args.arch,
         output_dir=args.output_dir,
         app_name=args.app_name,
+        dmg_name=args.dmg_name,
         pkg_name=args.pkg_name,
         archive_name=args.archive_name,
-        build_pkg=not args.no_pkg,
+        build_dmg=not args.no_dmg,
+        build_pkg=args.pkg,
         build_zip=not args.no_zip,
     )
 

@@ -13,6 +13,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -525,6 +526,35 @@ class AltrSupervisor:
         except Exception as exc:
             logger.debug("Failed removing request file in container: %s", exc)
 
+    def _persist_image_update(self, new_image: str) -> None:
+        """Persist target image into .env and docker-compose.yml so reboot/restart retains updated version."""
+        env_file = self.compose_file.parent / ".env"
+        if env_file.exists():
+            try:
+                content = env_file.read_text(encoding="utf-8")
+                if re.search(r"^ALTR_STREAM_IMAGE=.*$", content, re.MULTILINE):
+                    new_content = re.sub(r"^ALTR_STREAM_IMAGE=.*$", f"ALTR_STREAM_IMAGE={new_image}", content, flags=re.MULTILINE)
+                else:
+                    new_content = content.rstrip() + f"\nALTR_STREAM_IMAGE={new_image}\n"
+                env_file.write_text(new_content, encoding="utf-8")
+                logger.info("Persisted ALTR_STREAM_IMAGE=%s to %s", new_image, env_file)
+            except OSError as exc:
+                logger.warning("Failed to persist updated image into .env: %s", exc)
+
+        if self.compose_file.exists():
+            try:
+                comp_content = self.compose_file.read_text(encoding="utf-8")
+                updated = re.sub(
+                    r'(image:\s*)(\$\{ALTR_STREAM_IMAGE:-)?ghcr\.io/helloaltr/altr-stream:[^\s\}]+(\})?',
+                    rf'\1${{ALTR_STREAM_IMAGE:-{new_image}}}',
+                    comp_content,
+                )
+                if updated != comp_content:
+                    self.compose_file.write_text(updated, encoding="utf-8")
+                    logger.info("Persisted updated image default to %s", self.compose_file)
+            except OSError as exc:
+                logger.warning("Failed to persist updated image into compose file: %s", exc)
+
     def _validate_request(self, req: dict[str, Any]) -> None:
         """Validate request payload against strict security invariants."""
         target_image = req.get("target_image", "")
@@ -750,6 +780,7 @@ class AltrSupervisor:
         # 4. Success Branch: COMPLETED
         if health_ok and not apply_failed:
             logger.info("Update %s successfully completed!", request_id)
+            self._persist_image_update(target_image)
             final_status = {
                 "request_id": request_id,
                 "state": "completed",
@@ -814,6 +845,7 @@ class AltrSupervisor:
         is_truly_restored = rollback_health_ok and (clean_live == clean_exp)
 
         if is_truly_restored:
+            self._persist_image_update(previous_image)
             final_version = live_rollback_version or expected_previous_version
             final_status = {
                 "request_id": request_id,

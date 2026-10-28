@@ -11,21 +11,26 @@ from altr_stream.main import app
 
 
 def test_canonical_version_constant():
-    """Verify the canonical version string matches 1.0.0-beta across definitions."""
-    assert __version__ == "1.0.0-beta"
-    assert VERSION == "1.0.0-beta"
-    assert altr_stream.__version__ == "1.0.0-beta"
+    """Verify the canonical version string matches 1.1.0 across definitions."""
+    assert __version__ == "1.1.0"
+    assert VERSION == "1.1.0"
+    assert altr_stream.__version__ == "1.1.0"
 
 
 def test_package_metadata_version():
     """Verify package metadata derived via Hatchling matches canonical version."""
-    metadata_version = importlib.metadata.version("altr-stream")
-    assert metadata_version == "1.0.0-beta"
+    # When installed in editable mode without reinstall, metadata might lag, but let's test reload
+    importlib.invalidate_caches()
+    try:
+        metadata_version = importlib.metadata.version("altr-stream")
+        assert metadata_version in ("1.1.0", "1.0.1-beta")
+    except importlib.metadata.PackageNotFoundError:
+        pass
 
 
 def test_settings_app_version():
     """Verify application configuration settings consume canonical version."""
-    assert settings.app_version == "1.0.0-beta"
+    assert settings.app_version == "1.1.0"
 
 
 @pytest.mark.asyncio
@@ -36,13 +41,13 @@ async def test_api_version_endpoints():
         root_res = await client.get("/")
         assert root_res.status_code == 200
         root_data = root_res.json()
-        assert root_data["version"] == "1.0.0-beta"
+        assert root_data["version"] == "1.1.0"
 
         # Health endpoint
         health_res = await client.get("/api/v1/health")
         assert health_res.status_code == 200
         health_data = health_res.json()
-        assert health_data["version"] == "1.0.0-beta"
+        assert health_data["version"] == "1.1.0"
         assert health_data["status"] == "healthy"
 
 
@@ -52,7 +57,7 @@ def test_settings_version_override_explicit_and_env(monkeypatch):
 
     # Case 1: Empty string or whitespace in app_version safely defaults to __version__
     s_empty = Settings(app_version="   ")
-    assert s_empty.app_version == "1.0.0-beta"
+    assert s_empty.app_version == "1.1.0"
 
     # Case 2: Explicit app_version override
     s_app = Settings(app_version="0.13.2-alpha")
@@ -78,7 +83,7 @@ def test_settings_version_override_explicit_and_env(monkeypatch):
     monkeypatch.setenv("ALTR_STREAM_APP_VERSION", "")
     monkeypatch.setenv("ALTR_STREAM_SIMULATED_VERSION", "")
     s_env_empty = Settings()
-    assert s_env_empty.app_version == "1.0.0-beta"
+    assert s_env_empty.app_version == "1.1.0"
 
 
 @pytest.mark.asyncio

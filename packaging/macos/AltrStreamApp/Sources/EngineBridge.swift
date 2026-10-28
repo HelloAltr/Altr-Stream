@@ -293,9 +293,19 @@ final class LineBuffer: @unchecked Sendable {
         }
     }
 
+    public func stopContainer(name: String) async throws {
+        let (_, stderr, code) = try await runCommand(args: ["stop-container", "--name", name])
+        if code != 0 {
+            throw EngineError.commandFailed(command: "stop-container", exitCode: code, stderr: stderr)
+        }
+    }
+
+
     public func install(
         targetDir: String? = nil,
         replaceExisting: Bool = false,
+        image: String? = nil,
+        version: String? = nil,
         onProgress: @escaping @Sendable (InstallProgress) -> Void
     ) async throws {
         var args = ["install", "--json"]
@@ -304,6 +314,12 @@ final class LineBuffer: @unchecked Sendable {
         }
         if replaceExisting {
             args.append("--replace-existing")
+        }
+        if let img = image?.trimmingCharacters(in: .whitespacesAndNewlines), !img.isEmpty {
+            args.append(contentsOf: ["--image", img])
+        }
+        if let ver = version?.trimmingCharacters(in: .whitespacesAndNewlines), !ver.isEmpty {
+            args.append(contentsOf: ["--version", ver])
         }
 
         let (stderr, code) = try await streamCommand(args: args) { line in
@@ -328,11 +344,15 @@ final class LineBuffer: @unchecked Sendable {
 
     public func repair(
         targetDir: String? = nil,
+        image: String? = nil,
         onProgress: @escaping @Sendable (InstallProgress) -> Void
     ) async throws {
         var args = ["repair", "--json"]
         if let dir = targetDir, !dir.isEmpty {
             args.append(contentsOf: ["--target-dir", dir])
+        }
+        if let img = image?.trimmingCharacters(in: .whitespacesAndNewlines), !img.isEmpty {
+            args.append(contentsOf: ["--image", img])
         }
 
         let (stderr, code) = try await streamCommand(args: args) { line in
@@ -344,6 +364,44 @@ final class LineBuffer: @unchecked Sendable {
 
         if code != 0 {
             throw EngineError.commandFailed(command: "repair", exitCode: code, stderr: stderr)
+        }
+    }
+
+    public func switchVersion(
+        targetDir: String? = nil,
+        image: String,
+        version: String? = nil,
+        onProgress: @escaping @Sendable (InstallProgress) -> Void
+    ) async throws {
+        var args = ["switch-version", "--json", "--image", image]
+        if let dir = targetDir, !dir.isEmpty {
+            args.append(contentsOf: ["--target-dir", dir])
+        }
+        if let ver = version, !ver.isEmpty {
+            args.append(contentsOf: ["--version", ver])
+        }
+
+        let (stderr, code) = try await streamCommand(args: args) { line in
+            if let data = line.data(using: .utf8),
+               let progress = try? self.jsonDecoder.decode(InstallProgress.self, from: data) {
+                onProgress(progress)
+            }
+        }
+
+        if code != 0 {
+            throw EngineError.commandFailed(command: "switch-version", exitCode: code, stderr: stderr)
+        }
+    }
+
+    public func provisionConfig(targetDir: String? = nil) async throws {
+        var args = ["provision-config"]
+        if let dir = targetDir, !dir.isEmpty {
+            args.append(contentsOf: ["--target-dir", dir])
+        }
+
+        let (_, stderr, code) = try await runCommand(args: args)
+        if code != 0 {
+            throw EngineError.commandFailed(command: "provision-config", exitCode: code, stderr: stderr)
         }
     }
 
@@ -389,6 +447,40 @@ final class LineBuffer: @unchecked Sendable {
         if code != 0 {
             throw EngineError.commandFailed(command: "launch-browser", exitCode: code, stderr: stderr)
         }
+    }
+
+    /// Validate whether a container image exists locally or in the remote container registry.
+    public func validateImage(image: String) async -> ImageValidationResult {
+        let formatted = DeveloperImageHelper.formatImageReference(tagOrRef: image)
+
+        // Fast-path syntax check
+        if let syntaxError = DeveloperImageHelper.validateCustomImageSyntax(image) {
+            return ImageValidationResult(
+                valid: false,
+                available: false,
+                image: formatted,
+                status: "invalid_format",
+                message: syntaxError
+            )
+        }
+
+        do {
+            let (stdout, _, _) = try await runCommand(args: ["check-image", formatted])
+            if let data = stdout.data(using: .utf8),
+               let result = try? jsonDecoder.decode(ImageValidationResult.self, from: data) {
+                return result
+            }
+        } catch {
+            // Engine execution error
+        }
+
+        return ImageValidationResult(
+            valid: true,
+            available: true,
+            image: formatted,
+            status: "available",
+            message: "Image reference format is valid: \(formatted)"
+        )
     }
 
     private func extractPathFromError(_ errorStr: String) -> String {

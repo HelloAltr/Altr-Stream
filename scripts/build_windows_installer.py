@@ -24,9 +24,9 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 try:
     from altr_stream.__version__ import __version__ as CANONICAL_VERSION
 except ImportError:
-    CANONICAL_VERSION = "1.0.0-beta"
+    CANONICAL_VERSION = "1.0.1-beta"
 
-DEFAULT_IMAGE = "ghcr.io/helloaltr/altr-stream:0.13.7-alpha"
+DEFAULT_IMAGE = None
 
 
 def compute_sha256(file_path: Path) -> str:
@@ -125,19 +125,21 @@ def compile_inno_setup(
     version: str,
     image: str,
 ) -> Path:
-    """Compile the Inno Setup script into Altr-Stream-Installer.exe."""
+    """Compile the Inno Setup script into Altr Stream Installer.exe."""
     output_dir.mkdir(parents=True, exist_ok=True)
     runner, runner_type = find_iscc_runner()
 
-    target_exe = output_dir / "Altr-Stream-Installer.exe"
-    if target_exe.exists():
-        target_exe.unlink()
+    target_exe = output_dir / "Altr Stream Installer.exe"
+    compat_exe = output_dir / "Altr-Stream-Installer.exe"
+    for stale in (target_exe, compat_exe):
+        if stale.exists():
+            stale.unlink()
 
     print(f"  → Compiling Windows installer via {runner_type} Inno Setup runner...")
 
     default_dist = REPO_ROOT / "dist"
     default_dist.mkdir(parents=True, exist_ok=True)
-    for stale in default_dist.glob("Altr-Stream-Installer*"):
+    for stale in default_dist.glob("*Installer*.exe"):
         try:
             stale.unlink()
         except OSError:
@@ -176,12 +178,25 @@ def compile_inno_setup(
             except OSError:
                 pass
 
-    built_exe = (default_dist / "Altr-Stream-Installer.exe") if runner_type == "docker" else target_exe
-    if not built_exe.exists():
-        raise FileNotFoundError(f"Expected installer executable not found at {built_exe}")
+    built_candidates = [
+        default_dist / "Altr Stream Installer.exe",
+        default_dist / "Altr-Stream-Installer.exe",
+        target_exe,
+        compat_exe,
+    ]
+    built_exe = None
+    for cand in built_candidates:
+        if cand.exists() and cand.stat().st_size > 0:
+            built_exe = cand
+            break
+
+    if not built_exe:
+        raise FileNotFoundError(f"Expected installer executable not found among candidates: {built_candidates}")
 
     if built_exe.resolve() != target_exe.resolve():
         shutil.copy2(built_exe, target_exe)
+    if not compat_exe.exists():
+        shutil.copy2(target_exe, compat_exe)
 
     # Validate PE header (MZ signature)
     with open(target_exe, "rb") as f:
@@ -195,7 +210,7 @@ def compile_inno_setup(
 
 def build_windows_installer(
     version: str = CANONICAL_VERSION,
-    image: str = DEFAULT_IMAGE,
+    image: str | None = None,
     output_dir: Path | None = None,
     skip_engine_build: bool = False,
 ) -> Path:
@@ -203,6 +218,10 @@ def build_windows_installer(
     if output_dir is None:
         output_dir = REPO_ROOT / "dist"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    version = version.lstrip("v")
+    if image is None:
+        image = DEFAULT_IMAGE or f"ghcr.io/helloaltr/altr-stream:{version}"
 
     engine_output = REPO_ROOT / "packaging" / "windows" / "build" / "altr-installer-engine.exe"
     if not skip_engine_build or not engine_output.exists():
@@ -239,7 +258,7 @@ def main() -> int:
     parser.add_argument(
         "--image",
         default=DEFAULT_IMAGE,
-        help=f"Target Docker image tag (default: {DEFAULT_IMAGE})",
+        help="Target Docker image tag (default: ghcr.io/helloaltr/altr-stream:{version})",
     )
     parser.add_argument(
         "--output-dir",

@@ -13,10 +13,9 @@ struct AltrStreamApp: App {
     @StateObject private var appState = AppState()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Altr Stream Manager") {
             ContentView()
                 .environmentObject(appState)
-                .frame(minWidth: 540, idealWidth: 560, maxWidth: 600, minHeight: 480, idealHeight: 500, maxHeight: 600)
         }
         .windowStyle(.titleBar)
         .windowResizability(.contentSize)

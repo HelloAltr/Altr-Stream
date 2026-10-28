@@ -1,18 +1,174 @@
 #!/bin/bash
 # Altr Stream macOS Installer postinstall script
+# Architecture: ONE guided installation from the .pkg
+# 1. Sets up application permissions in /Applications/Altr Stream.app
+# 2. Identifies the active non-root console user context
+# 3. Prompts the user for runtime/data directory BEFORE node provisioning
+# 4. Provisions runtime directory and configuration files
+# 5. Executes complete Altr Stream node provisioning under the user's Docker context
+# 6. Leaves the system ready with the Altr Stream Node Manager.
 set -e
 
 APP_PATH="/Applications/Altr Stream.app"
+ENGINE_BIN="$APP_PATH/Contents/Resources/altr-installer-engine"
 
+# 1. Ensure correct permissions on the installed application bundle and binaries
 if [ -d "$APP_PATH" ]; then
-    # Ensure correct permissions on the installed application bundle and binaries
     chmod -R u=rwX,go=rX "$APP_PATH"
     if [ -f "$APP_PATH/Contents/MacOS/Altr Stream" ]; then
         chmod 755 "$APP_PATH/Contents/MacOS/Altr Stream"
     fi
-    if [ -f "$APP_PATH/Contents/Resources/altr-installer-engine" ]; then
-        chmod 755 "$APP_PATH/Contents/Resources/altr-installer-engine"
+    if [ -f "$ENGINE_BIN" ]; then
+        chmod 755 "$ENGINE_BIN"
     fi
+fi
+
+# 2. Identify the active logged-in console user
+TARGET_USER=""
+CONSOLE_USER=$(stat -f '%Su' /dev/console 2>/dev/null || true)
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ] && [ "$CONSOLE_USER" != "_mbsetupuser" ]; then
+    TARGET_USER="$CONSOLE_USER"
+elif [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    TARGET_USER="$SUDO_USER"
+elif [ -n "$USER" ] && [ "$USER" != "root" ]; then
+    TARGET_USER="$USER"
+fi
+
+if [ -z "$TARGET_USER" ]; then
+    echo "[postinstall] Notice: Could not detect logged-in console user. Application bundle permissions configured."
+    exit 0
+fi
+
+USER_HOME=$(eval echo "~$TARGET_USER")
+if [ ! -d "$USER_HOME" ]; then
+    USER_HOME=$(dscl . -read "/Users/$TARGET_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+fi
+
+echo "[postinstall] Active console user: $TARGET_USER (home: $USER_HOME)"
+
+# Helper for executing commands as the target user with their full environment
+run_as_target() {
+    if [ "$(id -u)" -eq 0 ]; then
+        sudo -u "$TARGET_USER" -H env PATH="$USER_HOME/.docker/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH" HOME="$USER_HOME" USER="$TARGET_USER" "$@"
+    else
+        env PATH="$USER_HOME/.docker/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH" HOME="$USER_HOME" USER="$TARGET_USER" "$@"
+    fi
+}
+
+# 3. Determine target runtime directory (prompt user BEFORE provisioning)
+CONFIG_FILE="$USER_HOME/.altr-stream-config"
+DEFAULT_DIR="$USER_HOME/.altr-stream"
+BUTTON_LABEL="Use Default (~/.altr-stream)"
+
+if [ -f "$CONFIG_FILE" ]; then
+    SAVED_DIR=$(cat "$CONFIG_FILE" | tr -d '\r\n')
+    if [ -n "$SAVED_DIR" ] && [ -d "$SAVED_DIR" ]; then
+        DEFAULT_DIR="$SAVED_DIR"
+        BUTTON_LABEL="Use Current ($DEFAULT_DIR)"
+    fi
+fi
+
+prompt_user_for_directory() {
+    # If explicitly supplied via environment, use that immediately
+    if [ -n "$ALTR_STREAM_HOME" ]; then
+        echo "$ALTR_STREAM_HOME"
+        return
+    fi
+
+    # In non-interactive or automated test contexts, use DEFAULT_DIR without blocking
+    if [ "$CI" = "true" ] || [ -n "$NONINTERACTIVE" ] || [ "$DEBIAN_FRONTEND" = "noninteractive" ]; then
+        echo "$DEFAULT_DIR"
+        return
+    fi
+
+    # Verify a GUI session is active for the console user
+    if ! pgrep -u "$TARGET_USER" -x "Finder" >/dev/null 2>&1 && ! pgrep -u "$TARGET_USER" -x "Dock" >/dev/null 2>&1; then
+        echo "$DEFAULT_DIR"
+        return
+    fi
+
+    local choice
+    choice=$(sudo -u "$TARGET_USER" osascript << APPLESCRIPT 2>/dev/null || true
+tell application "System Events"
+    activate
+    try
+        set theChoice to button returned of (display dialog "Where should Altr Stream store its persistent node data and runtime configuration?" with title "Altr Stream Installation" buttons {"Choose Custom Folder...", "$BUTTON_LABEL"} default button "$BUTTON_LABEL" with icon note giving up after 120)
+        if theChoice is "Choose Custom Folder..." then
+            set chosenFolder to choose folder with prompt "Select Altr Stream Runtime/Data Directory:" default location (path to home folder)
+            return POSIX path of chosenFolder
+        else
+            return "DEFAULT"
+        end if
+    on error
+        return "DEFAULT"
+    end try
+end tell
+APPLESCRIPT
+)
+
+    choice=$(echo "$choice" | tr -d '\r\n')
+    if [ -n "$choice" ] && [ "$choice" != "DEFAULT" ] && [ "$choice" != "gave up" ]; then
+        local cleaned="${choice%/}"
+        # Validate that choice is not a root protected system directory
+        case "$cleaned" in
+            ""|"/"|"/System"*|"/Applications"|"/Library"|"/bin"|"/usr"|"/sbin")
+                echo "$DEFAULT_DIR"
+                ;;
+            *)
+                echo "$cleaned"
+                ;;
+        esac
+    else
+        echo "$DEFAULT_DIR"
+    fi
+}
+
+TARGET_DIR=$(prompt_user_for_directory)
+echo "[postinstall] Altr Stream runtime directory: $TARGET_DIR"
+
+# 4. Prepare directory and save config file under user ownership
+run_as_target mkdir -p "$TARGET_DIR"
+echo "$TARGET_DIR" | run_as_target tee "$CONFIG_FILE" >/dev/null
+
+if [ ! -x "$ENGINE_BIN" ]; then
+    echo "[postinstall] Warning: Engine binary not executable at $ENGINE_BIN"
+    exit 0
+fi
+
+# 5. Provision configuration files (docker-compose.yml, .env) unconditionally under user context
+echo "[postinstall] Provisioning node runtime files in $TARGET_DIR..."
+run_as_target "$ENGINE_BIN" provision-config -target-dir "$TARGET_DIR" || true
+
+# 6. Check Docker state in user context
+echo "[postinstall] Checking Docker status for user $TARGET_USER..."
+DOCKER_JSON=$(run_as_target "$ENGINE_BIN" check-docker 2>/dev/null || true)
+
+# If Docker is installed but stopped, attempt to start Docker Desktop and wait a brief moment
+if echo "$DOCKER_JSON" | grep -q '"state": *"stopped"'; then
+    echo "[postinstall] Docker Desktop is installed but stopped. Attempting background start..."
+    run_as_target "$ENGINE_BIN" launch-docker 2>/dev/null || true
+    run_as_target "$ENGINE_BIN" wait-docker -timeout 15s 2>/dev/null || true
+    DOCKER_JSON=$(run_as_target "$ENGINE_BIN" check-docker 2>/dev/null || true)
+fi
+
+# If Docker is ready, proceed with complete node provisioning
+if echo "$DOCKER_JSON" | grep -q '"state": *"ready"'; then
+    echo "[postinstall] Docker daemon is ready. Checking for container/port conflicts..."
+    CONFLICT_JSON=$(run_as_target "$ENGINE_BIN" conflict -target-dir "$TARGET_DIR" 2>/dev/null || true)
+
+    # Check if a dev container conflict is detected
+    if echo "$CONFLICT_JSON" | grep -q '"is_dev_container": *true'; then
+        echo "[postinstall] Development container conflict detected on host port. Preserving dev container; node container startup deferred to Node Manager."
+    elif echo "$CONFLICT_JSON" | grep -q '"conflict_type": *"port_process"'; then
+        echo "[postinstall] Host process conflict detected on host port. Node container startup deferred to Node Manager."
+    else
+        echo "[postinstall] Performing complete Altr Stream node provisioning..."
+        run_as_target "$ENGINE_BIN" install -target-dir "$TARGET_DIR" -replace-existing || {
+            echo "[postinstall] Warning: Automated node startup did not complete during package install. Node Manager will handle startup on launch."
+        }
+    fi
+else
+    echo "[postinstall] Docker daemon not ready at install time. Runtime files provisioned; Node Manager will manage node lifecycle."
 fi
 
 exit 0

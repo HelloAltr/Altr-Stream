@@ -135,7 +135,7 @@ def test_package_release_generates_all_artifacts(tmp_path: Path) -> None:
     assert expected_names.issubset(artifact_names)
     assert "Altr-Stream_Windows_Installer.ps1" not in artifact_names
     if platform.system() == "Darwin":
-        assert "Altr-Stream-Installer.pkg" in artifact_names
+        assert "Altr Stream Installer.dmg" in artifact_names
         assert "Altr-Stream_macOS_Installer.app.zip" in artifact_names
 
 
@@ -198,7 +198,10 @@ def test_deployment_bundle_contents_and_security(tmp_path: Path) -> None:
         compose_data = yaml.safe_load(compose_member.read().decode("utf-8"))
 
         service = compose_data["services"]["altr-stream"]
-        assert service["image"] == f"ghcr.io/helloaltr/altr-stream:{test_version}"
+        assert service["image"] in (
+            f"ghcr.io/helloaltr/altr-stream:{test_version}",
+            f"${{ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:{test_version}}}",
+        )
         assert "8000:8000" in service["ports"]
 
         # Security check: Ensure Docker socket is NOT mounted
@@ -220,7 +223,7 @@ def test_sha256sums_accuracy(tmp_path: Path) -> None:
     assert len(lines) >= 5
 
     for line in lines:
-        parts = line.split()
+        parts = line.split(maxsplit=1)
         assert len(parts) == 2, f"Invalid SHA256 line format: {line}"
         expected_hash, filename = parts
         file_path = tmp_path / filename
@@ -259,7 +262,7 @@ def test_package_release_manifest_only_with_macos_pkg(tmp_path: Path) -> None:
 
     # Verify every line in SHA256SUMS matches actual computed hash
     for line in checksum_text.strip().splitlines():
-        sha, fname = line.split()
+        sha, fname = line.split(maxsplit=1)
         target_f = tmp_path / fname
         assert target_f.is_file()
         assert compute_sha256(target_f) == sha

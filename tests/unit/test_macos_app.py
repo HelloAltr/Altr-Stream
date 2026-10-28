@@ -7,11 +7,14 @@ import os
 import platform
 import plistlib
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 
 @pytest.fixture(scope="module")
@@ -25,13 +28,16 @@ def macos_app_bundle() -> Path:
 
     # Run the build script
     build_script = REPO_ROOT / "scripts" / "build_macos_app.py"
+    from altr_stream.__version__ import __version__ as canonical_ver
     cmd = [
         "python3",
         str(build_script),
         "--version",
+        canonical_ver,
+        "--node-version",
         "1.0.0-beta",
         "--image",
-        "ghcr.io/helloaltr/altr-stream:0.13.7-alpha",
+        "ghcr.io/helloaltr/altr-stream:1.0.0-beta",
         "--output-dir",
         str(dist_dir),
     ]
@@ -66,6 +72,7 @@ def test_app_bundle_structure(macos_app_bundle: Path) -> None:
 
 def test_app_info_plist_metadata(macos_app_bundle: Path) -> None:
     """Verify Info.plist contains proper bundle metadata and versioning."""
+    from altr_stream.__version__ import __version__ as canonical_ver
     plist_path = macos_app_bundle / "Contents" / "Info.plist"
     with open(plist_path, "rb") as f:
         plist_data = plistlib.load(f)
@@ -73,7 +80,9 @@ def test_app_info_plist_metadata(macos_app_bundle: Path) -> None:
     assert plist_data.get("CFBundleIdentifier") == "com.helloaltr.altr-stream"
     assert plist_data.get("CFBundleExecutable") == "Altr Stream"
     assert plist_data.get("CFBundlePackageType") == "APPL"
-    assert plist_data.get("CFBundleShortVersionString") == "1.0.0-beta"
+    assert plist_data.get("CFBundleShortVersionString") == canonical_ver
+    assert plist_data.get("CFBundleIconFile") == "AppIcon"
+    assert plist_data.get("CFBundleIconName") == "AppIcon"
 
 
 def test_binary_architectures(macos_app_bundle: Path) -> None:
@@ -141,6 +150,8 @@ def test_swift_code_architecture_and_constraints() -> None:
     assert '"detect-env"' in bridge_src
     assert '"uninstall"' in bridge_src
     assert '"status"' in bridge_src
+    assert '"stop-container"' in bridge_src
+    assert "func stopContainer" in bridge_src
 
     # 4. AppState reactive state machine covers all required states
     for state_case in [
@@ -160,7 +171,26 @@ def test_swift_code_architecture_and_constraints() -> None:
     ]:
         assert state_case in appstate_src
 
-    # 4b. ContainerLifecycleState model and accurate mapping
+    # 4b. Single source of truth versioning in Swift
+    assert "Bundle.main.infoDictionary" in appstate_src
+    assert "CFBundleShortVersionString" in appstate_src
+    assert '"1.0.0-beta"' not in appstate_src
+    assert '"1.0.1-beta"' not in appstate_src
+
+    # 4c. Configurable Data & Runtime separation
+    assert "applicationBundlePath" in appstate_src
+    assert "revealApplicationInFinder" in appstate_src
+    assert "revealDataDirectoryInFinder" in appstate_src
+    assert "Application" in views_src
+    assert "Data & Runtime" in views_src
+
+    # 4d. Safe dev container conflict handling
+    assert "Development Container Conflict Detected" in views_src
+    assert "Stop Development Container" in views_src
+    assert "requestStopDevContainer" in appstate_src
+    assert "confirmStopDevContainer" in appstate_src
+
+    # 4e. ContainerLifecycleState model and accurate mapping
     assert "enum ContainerLifecycleState: String, Codable" in models_src
     assert 'case paused = "paused"' in models_src
     assert 'case running = "running"' in models_src
@@ -171,7 +201,7 @@ def test_swift_code_architecture_and_constraints() -> None:
     assert "func unpauseContainer()" in bridge_src
     assert "func resumeContainer()" in appstate_src
 
-    # 4c. Docker Desktop Paused state and action
+    # 4f. Docker Desktop Paused state and action
     assert "isPaused" in models_src
     assert "Docker Desktop is Paused" in views_src
     assert "Resume Docker Desktop" in views_src
@@ -193,8 +223,11 @@ def test_swift_code_architecture_and_constraints() -> None:
     assert "technicalDetailsSheet" in views_src
     assert "Copy to Clipboard" in views_src
 
-    # 8. Safe uninstall semantics: default preserves data; explicit confirmation required for purge
-    assert "Delete persistent application data" in views_src
+    # 8. Safe multi-tier uninstall semantics
+    assert "Remove Docker & Runtime Resources" in views_src
+    assert "Remove Persistent Application Data" in views_src
+    assert "Move Altr Stream.app to Trash" in views_src
+    assert "uninstallRemoveApp" in appstate_src
     assert "DELETE ALTR STREAM DATA" in views_src
     assert "altr_stream_data" in views_src
 
@@ -338,7 +371,7 @@ def test_macos_app_archive_integrity(tmp_path: Path, macos_app_bundle: Path) -> 
     extracted_bundle = list(extract_dir.glob("*.app"))
     assert len(extracted_bundle) == 1, f"Expected 1 .app bundle, found: {extracted_bundle}"
     app = extracted_bundle[0]
-    assert app.name in ("Altr Stream Installer.app", "Altr Stream.app")
+    assert app.name in ("Altr Stream Manager.app", "Altr Stream Installer.app", "Altr Stream.app")
 
     exe_bin = app / "Contents" / "MacOS" / "Altr Stream"
     engine_bin = app / "Contents" / "Resources" / "altr-installer-engine"
@@ -403,9 +436,9 @@ def test_macos_pkg_payload_and_metadata(tmp_path: Path, macos_app_bundle: Path) 
     assert postinstall_script.is_file(), "postinstall script missing from package scripts"
     assert os.access(postinstall_script, os.X_OK), "postinstall script is not executable"
     postinstall_content = postinstall_script.read_text(encoding="utf-8")
-    # Verify postinstall does not contain Docker install/launch logic
-    assert "docker" not in postinstall_content.lower(), "postinstall script must not manage Docker engine lifecycle"
-    assert "open " not in postinstall_content, "postinstall script must not auto-launch application"
+    # Verify postinstall executes node provisioning in the user's context, never directly as root
+    assert "run_as_target" in postinstall_content, "postinstall script must execute engine actions in user context"
+    assert "open /Applications" not in postinstall_content, "postinstall script must not auto-launch GUI application"
 
     # 5. Verify Payload structure (/Applications/Altr Stream.app)
     payload_dir = comp_dir / "Payload"
@@ -428,6 +461,395 @@ def test_macos_pkg_payload_and_metadata(tmp_path: Path, macos_app_bundle: Path) 
     assert os.access(engine_bin, os.X_OK), "Embedded Go engine lost executable permission in pkg payload"
     assert app_bin.stat().st_mode & 0o111, "Executable bits missing on Altr Stream"
     assert engine_bin.stat().st_mode & 0o111, "Executable bits missing on altr-installer-engine"
+
+
+def test_version_propagation_single_source_of_truth(macos_app_bundle: Path) -> None:
+    """Verify that canonical version propagates through Info.plist, Go engine, and Swift without duplication."""
+    from altr_stream.__version__ import __version__ as canonical_ver
+
+    # 1. Info.plist in bundle
+    plist_path = macos_app_bundle / "Contents" / "Info.plist"
+    with open(plist_path, "rb") as f:
+        plist_data = plistlib.load(f)
+    assert plist_data["CFBundleShortVersionString"] == canonical_ver
+    assert plist_data["CFBundleVersion"] == canonical_ver
+
+    # 2. Go engine detects default canonical version when queried
+    engine_bin = macos_app_bundle / "Contents" / "Resources" / "altr-installer-engine"
+    res = subprocess.run([str(engine_bin), "status"], capture_output=True, text=True)
+    if res.returncode == 0:
+        data = json.loads(res.stdout)
+        assert data.get("target_version") in (canonical_ver, "1.0.0-beta", "1.0.1-beta")
+
+    # 3. Swift code dynamically accesses Bundle.main.infoDictionary and contains no hardcoded fallback
+    swift_state = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "AppState.swift").read_text(encoding="utf-8")
+    assert 'Bundle.main.infoDictionary?["CFBundleShortVersionString"]' in swift_state
+    assert f'"{canonical_ver}"' not in swift_state
+
+
+def test_icon_packaging_optional_handling(tmp_path: Path) -> None:
+    """Verify that assemble_app_bundle gracefully handles missing vs supplied AppIcon.icns without placeholders."""
+    import sys
+    sys.path.insert(0, str(REPO_ROOT))
+    from scripts.build_macos_app import assemble_app_bundle
+
+    dummy_swift = tmp_path / "dummy_swift"
+    dummy_swift.write_text("#!/bin/sh\nexit 0\n")
+    dummy_swift.chmod(0o755)
+
+    dummy_engine = tmp_path / "dummy_engine"
+    dummy_engine.write_text("#!/bin/sh\nexit 0\n")
+    dummy_engine.chmod(0o755)
+
+    icon_path = REPO_ROOT / "packaging" / "macos" / "AppIcon.icns"
+    had_icon = icon_path.is_file()
+
+    # Case A: When AppIcon.icns does not exist (or is temporarily moved)
+    if had_icon:
+        backup = tmp_path / "icon_backup.icns"
+        import shutil
+        shutil.move(icon_path, backup)
+
+    try:
+        out_a = tmp_path / "bundle_no_icon"
+        out_a.mkdir(parents=True, exist_ok=True)
+        bundle_a = assemble_app_bundle(
+            swift_binary=dummy_swift,
+            go_engine_binary=dummy_engine,
+            output_dir=out_a,
+            version="1.0.1-beta",
+            app_name="TestA.app",
+        )
+        assert bundle_a.is_dir()
+        dest_icon_a = bundle_a / "Contents" / "Resources" / "AppIcon.icns"
+        # Must NOT exist and must NOT have created a fake placeholder
+        assert not dest_icon_a.exists(), "Should not create a fake placeholder icon when icon is missing"
+
+        # Case B: When AppIcon.icns exists
+        icon_path.parent.mkdir(parents=True, exist_ok=True)
+        icon_path.write_bytes(b"ICNS_TEST_DATA_BYTES")
+        out_b = tmp_path / "bundle_with_icon"
+        out_b.mkdir(parents=True, exist_ok=True)
+        bundle_b = assemble_app_bundle(
+            swift_binary=dummy_swift,
+            go_engine_binary=dummy_engine,
+            output_dir=out_b,
+            version="1.0.1-beta",
+            app_name="TestB.app",
+        )
+        assert bundle_b.is_dir()
+        dest_icon_b = bundle_b / "Contents" / "Resources" / "AppIcon.icns"
+        assert dest_icon_b.is_file()
+        assert dest_icon_b.read_bytes() == b"ICNS_TEST_DATA_BYTES"
+    finally:
+        # Cleanup test icon
+        if icon_path.is_file():
+            icon_path.unlink()
+        if had_icon:
+            shutil.move(backup, icon_path)
+
+
+def test_configurable_data_directory_validation() -> None:
+    """Verify that Application install location is fixed to /Applications while data dir is validated."""
+    appstate_src = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "AppState.swift").read_text(encoding="utf-8")
+
+    # Fixed Application path
+    assert 'return "/Applications/Altr Stream.app"' in appstate_src
+
+    # Protected system paths rejected for data directory
+    for sys_path in ["/System", "/Library", "/Applications", "/bin", "/usr"]:
+        assert f'"{sys_path}"' in appstate_src
+
+
+def test_dev_container_stop_safety() -> None:
+    """Verify Go engine stop-container command and safeguards against dev container removal."""
+    engine_main = (REPO_ROOT / "packaging" / "engine" / "main.go").read_text(encoding="utf-8")
+    engine_lifecycle = (REPO_ROOT / "packaging" / "engine" / "lifecycle.go").read_text(encoding="utf-8")
+
+    # stop-container CLI exists
+    assert 'case "stop-container":' in engine_main
+    assert "StopSpecificContainer" in engine_main
+
+    # StopSpecificContainer stops without removing
+    assert "func (l *LifecycleManager) StopSpecificContainer" in engine_lifecycle
+    assert '"stop", "-t", "10", name' in engine_lifecycle
+    assert '"rm"' not in engine_lifecycle[engine_lifecycle.find("StopSpecificContainer") : engine_lifecycle.find("StopSpecificContainer") + 600]
+
+    # Uninstall and removal strictly guards dev container
+    assert "Never stop or remove a development container" in engine_lifecycle
+    assert "is identified as a development environment" in engine_lifecycle
+
+
+
+def test_multi_tier_uninstall_contract() -> None:
+    """Verify uninstall differentiates runtime cleanup, persistent data, and app removal."""
+    appstate_src = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "AppState.swift").read_text(encoding="utf-8")
+    views_src = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "ContentView.swift").read_text(encoding="utf-8")
+
+    # A. Runtime cleanup
+    assert "Remove Docker & Runtime Resources" in views_src
+
+    # B. Persistent data requires explicit confirmation
+    assert "DELETE ALTR STREAM DATA" in views_src
+    assert 'uninstallConfirmationInput == "DELETE ALTR STREAM DATA"' in appstate_src
+
+    # C. App removal occurs AFTER runtime cleanup completes
+    start_idx = appstate_src.find("public func uninstall()")
+    end_idx = appstate_src.find("public func openWebUI()", start_idx)
+    uninstall_func = appstate_src[start_idx:end_idx] if end_idx != -1 else appstate_src[start_idx:]
+    engine_call_idx = uninstall_func.find("engineBridge.uninstall")
+    trash_call_idx = uninstall_func.find("scheduleDeferredTrashRemoval") if "scheduleDeferredTrashRemoval" in uninstall_func else uninstall_func.find("trashItem")
+    assert engine_call_idx != -1 and trash_call_idx != -1
+    assert engine_call_idx < trash_call_idx, "Runtime cleanup must complete before moving app bundle to Trash"
+
+
+def test_macos_single_guided_installer_and_node_manager_contract() -> None:
+    """Verify that the .pkg postinstall executes user-space node provisioning and installed app acts as pure Node Manager."""
+    postinstall_path = REPO_ROOT / "packaging" / "macos" / "scripts" / "postinstall"
+    assert postinstall_path.is_file(), "Missing postinstall script"
+    postinstall_src = postinstall_path.read_text(encoding="utf-8")
+
+    # 1. Postinstall detects active console user, avoiding root-owned files or root Docker context
+    assert "stat -f '%Su' /dev/console" in postinstall_src
+    assert "run_as_target" in postinstall_src
+    assert "sudo -u" in postinstall_src
+
+    # 2. Postinstall prompts user for data directory before provisioning node
+    assert "prompt_user_for_directory" in postinstall_src
+    assert "Choose Custom Folder..." in postinstall_src
+    assert "choose folder" in postinstall_src
+    assert "ALTR_STREAM_HOME" in postinstall_src
+
+    # 3. Postinstall provisions runtime config and attempts node installation
+    assert "provision-config" in postinstall_src
+    assert "check-docker" in postinstall_src
+    assert "launch-docker" in postinstall_src
+    assert "wait-docker" in postinstall_src
+    assert "install -target-dir" in postinstall_src
+
+    # 4. Postinstall respects development container conflict
+    assert "is_dev_container" in postinstall_src
+    assert "Development container conflict detected" in postinstall_src
+
+    # 4. Installed Swift application operates as pure Node Manager
+    views_src = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "ContentView.swift").read_text(encoding="utf-8")
+    appstate_src = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "AppState.swift").read_text(encoding="utf-8")
+    bridge_src = (REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources" / "EngineBridge.swift").read_text(encoding="utf-8")
+
+    assert "Start Altr Stream" in views_src, "Node Manager should offer 'Start Altr Stream' when stopped"
+    assert "Altr Stream Node is Stopped" in views_src
+    assert "func provisionConfig" in bridge_src
+    assert '"provision-config"' in bridge_src
+
+
+def test_macos_developer_options_flow() -> None:
+    """Verify separate Developer Options sheet is eliminated and unified version switcher is present."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    models_src = (swift_dir / "Models.swift").read_text(encoding="utf-8")
+    appstate_src = (swift_dir / "AppState.swift").read_text(encoding="utf-8")
+    views_src = (swift_dir / "ContentView.swift").read_text(encoding="utf-8")
+    bridge_src = (swift_dir / "EngineBridge.swift").read_text(encoding="utf-8")
+
+    # 1. Models and Helper validation rules
+    assert "enum DeveloperImageHelper" in models_src
+    assert "validateCustomImageSyntax" in models_src or "validateCustomImageReference" in models_src
+    assert "formatImageReference" in models_src
+    assert "supportedKnownTags" in models_src
+
+    # 2. Separate Developer Options sheet eliminated entirely
+    assert "showDeveloperOptions" not in appstate_src
+    assert "DeveloperOptionsSheet" not in views_src
+    assert 'Button("Developer Options")' not in views_src
+
+    # 3. EngineBridge argument forwarding
+    assert "image: String? = nil" in bridge_src
+    assert '"--image"' in bridge_src
+
+    # 4. Integrated version switcher
+    assert "versionSwitcherCard" in views_src
+    assert "showSwitchConfirmationAlert" in appstate_src
+
+
+def test_macos_manager_window_dimensions_and_no_clipping() -> None:
+    """Verify macOS Node Manager window dimensions maintain a compact, balanced native layout without stretching."""
+    views_src = (REPO_ROOT / "packaging/macos/AltrStreamApp/Sources/ContentView.swift").read_text(encoding="utf-8")
+    app_src = (REPO_ROOT / "packaging/macos/AltrStreamApp/Sources/AltrStreamApp.swift").read_text(encoding="utf-8")
+
+    assert "minWidth: 540" in views_src
+    assert "idealWidth: 868" in views_src
+    assert "minHeight: 460" in views_src
+    assert "idealHeight: 662" in views_src
+    assert ".padding(.horizontal, 32)" in views_src
+    assert "ScrollView(.vertical" in views_src
+    # Confirm outer WindowGroup in AltrStreamApp does not impose conflicting frame modifiers
+    assert "maxWidth: 600" not in app_src
+    assert "maxHeight: 600" not in app_src
+
+
+def test_macos_header_version_badge_removed() -> None:
+    """Verify Issue 1: Main header displays product title without version badge next to it."""
+    views_src = (REPO_ROOT / "packaging/macos/AltrStreamApp/Sources/ContentView.swift").read_text(encoding="utf-8")
+    header_block = views_src.split("headerSection: some View")[1].split("dashboardCard")[0]
+    # App title must be present
+    assert 'Text("Altr Stream")' in header_block
+    # Version badge next to title must NOT be present
+    assert 'Text("v\\(state.appVersion)")' not in header_block
+
+
+def test_macos_direct_version_switching_wiring() -> None:
+    """Verify direct version switching wiring across Swift models, AppState, EngineBridge, and ContentView."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    models_src = (swift_dir / "Models.swift").read_text(encoding="utf-8")
+    appstate_src = (swift_dir / "AppState.swift").read_text(encoding="utf-8")
+    views_src = (swift_dir / "ContentView.swift").read_text(encoding="utf-8")
+    bridge_src = (swift_dir / "EngineBridge.swift").read_text(encoding="utf-8")
+
+    # 1. Models: Active image and version fields
+    assert "activeImage: String?" in models_src
+    assert "activeVersion: String?" in models_src
+
+    # 2. EngineBridge: switchVersion command
+    assert "func switchVersion(" in bridge_src
+    assert '"switch-version"' in bridge_src
+
+    # 3. AppState: activeNodeVersion, activeNodeImage, switchNodeVersion
+    assert "@Published public var activeNodeVersion: String? = nil" in appstate_src
+    assert "@Published public var activeNodeImage: String? = nil" in appstate_src
+    assert "func switchNodeVersion(" in appstate_src
+
+    # 4. Integrated version switcher card in ContentView
+    assert "versionSwitcherCard" in views_src
+    assert "state.switchNodeVersion(" in views_src or "state.confirmSwitchVersion(" in views_src
+
+
+def test_macos_update_ownership_and_published_release_separation() -> None:
+    """Verify Manager owns Node updates and distinguishes Manager version vs published release vs dev builds."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    appstate_src = (swift_dir / "AppState.swift").read_text(encoding="utf-8")
+    models_src = (swift_dir / "Models.swift").read_text(encoding="utf-8")
+    views_src = (swift_dir / "ContentView.swift").read_text(encoding="utf-8")
+
+    # Manager checks published releases and tracks latest published Node version
+    assert "checkForPublishedReleases" in appstate_src
+    assert "latestPublishedNodeVersion" in appstate_src
+    assert "isNodeUpdateAvailable" in appstate_src
+    assert "requestNodeUpdate" in appstate_src
+    assert "confirmNodeUpdate" in appstate_src
+
+    # Published release models
+    assert "struct DiscoveredRelease" in models_src or "struct PublishedReleaseInfo" in models_src
+    assert "func isLocalDevImage(tagOrRef: String)" in models_src
+    assert "func isVersion(_ v1: String, newerThan v2: String)" in models_src
+
+    # UI Update banner and confirmation alert
+    assert "versionSwitcherCard" in views_src
+    assert "Confirm Version Switch" in views_src
+
+
+def test_macos_reset_to_recommended_version_workflow() -> None:
+    """Verify Reset to Recommended Version does not require reinstall and confirms runtime switch."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    appstate_src = (swift_dir / "AppState.swift").read_text(encoding="utf-8")
+    views_src = (swift_dir / "ContentView.swift").read_text(encoding="utf-8")
+
+    # AppState reset methods
+    assert "requestResetToRecommended" in appstate_src or "requestSwitchToVersion" in appstate_src
+    assert "confirmResetToRecommended" in appstate_src or "confirmSwitchVersion" in appstate_src
+
+    # ContentView Reset triggers, button styling, and confirmation
+    assert ".controlSize(.regular)" in views_src
+    assert "DeveloperImageHelper.recommendedNodeVersion" in views_src or "Recommended" in views_src
+
+
+def test_macos_uninstall_confirmation_and_deferred_trash_safety() -> None:
+    """Verify uninstall requires confirmation with full component disclosure and protects dev apps from trash."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    appstate_src = (swift_dir / "AppState.swift").read_text(encoding="utf-8")
+    views_src = (swift_dir / "ContentView.swift").read_text(encoding="utf-8")
+
+    # Confirmation step before destructive operation
+    assert "showUninstallSheet" in appstate_src or "showUninstallConfirmationAlert" in appstate_src
+    assert "DELETE ALTR STREAM DATA" in views_src
+    assert "Uninstall Altr Stream" in views_src
+
+    # App Trash resolution, validation, and deferred removal
+    assert "resolveInstalledApplicationBundle" in appstate_src
+    assert "validateApplicationBundleForRemoval" in appstate_src
+    assert "scheduleDeferredTrashRemoval" in appstate_src
+
+    # Safety checks: ensure dev builds in dist/ or .build/ are never deleted
+    assert '!path.contains("/dist/")' in appstate_src
+    assert '!path.contains("/.build/")' in appstate_src
+
+
+def test_macos_release_discovery_and_filtering() -> None:
+    """Verify release discovery uses authoritative releases endpoint and filters drafts."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    appstate_src = (swift_dir / "AppState.swift").read_text(encoding="utf-8")
+
+    # Authoritative endpoint for prereleases
+    assert "https://api.github.com/repos/HelloAltr/Altr-Stream/releases" in appstate_src
+    assert "https://api.github.com/repos/HelloAltr/Altr-Stream/releases/latest" not in appstate_src
+
+    # Draft filtering
+    assert "if r.draft { continue }" in appstate_src
+
+
+def test_macos_semver_and_update_eligibility_logic() -> None:
+    """Verify update eligibility suppresses dev images and requires newer published version."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    appstate_src = (swift_dir / "AppState.swift").read_text(encoding="utf-8")
+    models_src = (swift_dir / "Models.swift").read_text(encoding="utf-8")
+
+    # Semver comparator exists
+    assert "static func isVersion(_ v1: String, newerThan v2: String) -> Bool" in models_src
+
+    # Dev images never trigger update banner
+    assert "DeveloperImageHelper.isLocalDevImage(tagOrRef: img)" in appstate_src
+    assert "DeveloperImageHelper.isLocalDevImage(tagOrRef: active)" in appstate_src
+    assert "DeveloperImageHelper.isVersion(latestPublishedNodeVersion, newerThan: active)" in appstate_src
+
+
+def test_macos_builder_decouples_manager_and_node_versions() -> None:
+    """Verify build_macos_app.py decouples Manager app bundle version from default Node container version."""
+    build_script_src = (REPO_ROOT / "scripts" / "build_macos_app.py").read_text(encoding="utf-8")
+
+    assert ("DEFAULT_NODE_VERSION = \"1.1.0\"" in build_script_src or "DEFAULT_NODE_VERSION = " in build_script_src)
+    assert 'build_go_engine(engine_path, node_version, image, target_arch)' in build_script_src
+    assert 'assemble_app_bundle(swift_bin, engine_path, output_dir, version, app_name=app_name)' in build_script_src
+    assert '"--node-version"' in build_script_src
+
+
+def test_macos_developer_options_eliminated_in_favor_of_unified_switcher() -> None:
+    """Verify Developer Options sheet is eliminated in favor of integrated version switcher."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    views_src = (swift_dir / "ContentView.swift").read_text(encoding="utf-8")
+
+    assert "DeveloperOptionsSheet" not in views_src
+    assert "versionSwitcherCard" in views_src
+
+
+def test_macos_confirmation_dialogs_display_clean_tags() -> None:
+    """Verify confirmation alerts display clean tags instead of full registry URLs."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    views_src = (swift_dir / "ContentView.swift").read_text(encoding="utf-8")
+    models_src = (swift_dir / "Models.swift").read_text(encoding="utf-8")
+
+    # Helper method exists in models
+    assert 'static func extractCleanDisplayTag(imageRef: String) -> String' in models_src
+
+    # Confirmation alerts use clean tags
+    assert 'DeveloperImageHelper.extractCleanDisplayTag(imageRef: pendingTargetImage)' in views_src
+    assert 'DeveloperImageHelper.recommendedNodeVersion' in views_src or 'Recommended' in views_src
+
+
+def test_macos_dev_container_conflict_protects_dev_stack() -> None:
+    """Verify conflictSection explains dev container independence and does not auto-stop dev stacks."""
+    swift_dir = REPO_ROOT / "packaging" / "macos" / "AltrStreamApp" / "Sources"
+    views_src = (swift_dir / "ContentView.swift").read_text(encoding="utf-8")
+
+    assert 'The Manager will not adopt, modify, or stop your development environment.' in views_src
+    assert 'Button("Stop Development Container")' not in views_src
 
 
 

@@ -1019,5 +1019,166 @@ def test_supervisor_activation_failure_rollback_and_immediate_retry(updates_dir:
     assert retry_status["current_version"] == "0.13.4-alpha"
 
 
+def test_persist_image_update_writes_env_and_compose(tmp_path: Path):
+    """Verify _persist_image_update writes ALTR_STREAM_IMAGE to .env and updates docker-compose.yml."""
+    compose_path = tmp_path / "docker-compose.yml"
+    compose_path.write_text("""services:
+  altr-stream:
+    image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:1.0.0-beta}
+    ports:
+      - "8000:8000"
+""", encoding="utf-8")
+
+    env_path = tmp_path / ".env"
+    env_path.write_text("SOME_OTHER_VAR=abc\nALTR_STREAM_IMAGE=ghcr.io/helloaltr/altr-stream:1.0.0-beta\n", encoding="utf-8")
+
+    supervisor = AltrSupervisor(
+        updates_dir=tmp_path / "updates",
+        compose_file=compose_path,
+        docker_client=MockDockerClient(),
+        health_checker=MockHealthChecker(),
+    )
+
+    supervisor._persist_image_update("ghcr.io/helloaltr/altr-stream:1.0.1-beta")
+
+    # Check .env updated
+    env_content = env_path.read_text(encoding="utf-8")
+    assert "ALTR_STREAM_IMAGE=ghcr.io/helloaltr/altr-stream:1.0.1-beta" in env_content
+    assert "SOME_OTHER_VAR=abc" in env_content
+
+    # Check compose fallback updated
+    compose_content = compose_path.read_text(encoding="utf-8")
+    assert "image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:1.0.1-beta}" in compose_content
+
+
+def test_supervisor_update_persists_image_and_rollback_restores(updates_dir: Path, compose_file: Path):
+    """Verify end-to-end update flow persists image, and rollback restores previous image."""
+    env_path = compose_file.parent / ".env"
+    env_path.write_text("ALTR_STREAM_IMAGE=ghcr.io/helloaltr/altr-stream:0.13.3-alpha\n", encoding="utf-8")
+
+    # Test 1: Successful update
+    docker_client = MockDockerClient(current_image="ghcr.io/helloaltr/altr-stream:0.13.3-alpha")
+    health_checker = MockHealthChecker(healthy=True)
+
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=docker_client,
+        health_checker=health_checker,
+    )
+
+    req_file = updates_dir / "update-request.json"
+    req_file.write_text(json.dumps({
+        "request_id": "persist-req-1",
+        "current_version": "0.13.3-alpha",
+        "target_version": "0.13.4-alpha",
+        "target_image": "ghcr.io/helloaltr/altr-stream:0.13.4-alpha",
+    }))
+
+    res = supervisor.process_pending_request()
+    assert res is not None
+    assert res["state"] == "completed"
+    assert "ALTR_STREAM_IMAGE=ghcr.io/helloaltr/altr-stream:0.13.4-alpha" in env_path.read_text(encoding="utf-8")
+
+    # Test 2: Failed update triggers rollback and restores previous image
+    docker_client.current_image = "ghcr.io/helloaltr/altr-stream:0.13.4-alpha"
+    health_checker_fail = MockHealthChecker(health_sequence=[False, True], live_version="0.13.4-alpha")
+    supervisor_rollback = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=docker_client,
+        health_checker=health_checker_fail,
+        health_timeout_sec=5,
+    )
+
+    req_file.write_text(json.dumps({
+        "request_id": "persist-req-2",
+        "current_version": "0.13.4-alpha",
+        "target_version": "1.0.0-beta",
+        "target_image": "ghcr.io/helloaltr/altr-stream:1.0.0-beta",
+    }))
+
+    res_fail = supervisor_rollback.process_pending_request()
+    assert res_fail is not None
+    assert res_fail["state"] == "rolled_back"
+    # Env must be restored to previous_image (0.13.4-alpha)
+    assert "ALTR_STREAM_IMAGE=ghcr.io/helloaltr/altr-stream:0.13.4-alpha" in env_path.read_text(encoding="utf-8")
+
+
+def test_persist_image_update_on_legacy_configuration_without_altr_stream_image(tmp_path: Path):
+    """Verify legacy configurations without ALTR_STREAM_IMAGE are migrated cleanly during update."""
+    compose_path = tmp_path / "docker-compose.yml"
+    compose_path.write_text("""services:
+  altr-stream:
+    image: ghcr.io/helloaltr/altr-stream:1.0.0-beta
+    container_name: altr-stream
+""", encoding="utf-8")
+
+    env_path = tmp_path / ".env"
+    env_path.write_text("ALTR_PORT=8000\nALTR_RUNTIME_DIR=/some/path\n", encoding="utf-8")
+
+    supervisor = AltrSupervisor(
+        updates_dir=tmp_path / "updates",
+        compose_file=compose_path,
+        docker_client=MockDockerClient(),
+        health_checker=MockHealthChecker(),
+    )
+
+    supervisor._persist_image_update("ghcr.io/helloaltr/altr-stream:1.0.1-beta")
+
+    # 1. ALTR_STREAM_IMAGE appended to .env while preserving existing vars
+    env_content = env_path.read_text(encoding="utf-8")
+    assert "ALTR_STREAM_IMAGE=ghcr.io/helloaltr/altr-stream:1.0.1-beta" in env_content
+    assert "ALTR_PORT=8000" in env_content
+    assert "ALTR_RUNTIME_DIR=/some/path" in env_content
+
+    # 2. Legacy static image line in docker-compose.yml upgraded to interpolation syntax
+    compose_content = compose_path.read_text(encoding="utf-8")
+    assert "image: ${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:1.0.1-beta}" in compose_content
+
+
+def test_supervisor_rejects_and_rolls_back_when_container_version_mismatches_target_image(
+    tmp_path: Path, updates_dir: Path, compose_file: Path
+):
+    """Regression Test: If target container boots healthy but reports stale/mismatching version,
+    supervisor must refuse completion and automatically roll back to previous image."""
+    env_path = compose_file.parent / ".env"
+    env_path.write_text("ALTR_STREAM_IMAGE=ghcr.io/helloaltr/altr-stream:1.0.0-beta\n", encoding="utf-8")
+
+    req_file = updates_dir / "update-request.json"
+    req_file.write_text(json.dumps({
+        "request_id": "divergent-version-req",
+        "current_version": "1.0.0-beta",
+        "target_version": "1.0.1-beta",
+        "target_image": "ghcr.io/helloaltr/altr-stream:1.0.1-beta",
+    }))
+
+    docker_client = MockDockerClient(current_image="ghcr.io/helloaltr/altr-stream:1.0.0-beta")
+    # Health sequence:
+    # 1. First healthcheck (target version 1.0.1-beta) returns False because container returns 1.0.0-beta
+    # 2. Second healthcheck (rollback to 1.0.0-beta) returns True
+    health_checker = MockHealthChecker(
+        health_sequence=[False, True],
+        live_version="1.0.0-beta",
+    )
+
+    supervisor = AltrSupervisor(
+        updates_dir=updates_dir,
+        compose_file=compose_file,
+        docker_client=docker_client,
+        health_checker=health_checker,
+        health_timeout_sec=5,
+    )
+
+    result = supervisor.process_pending_request()
+    assert result is not None
+    assert result["state"] == "rolled_back"
+    assert result["rollback_performed"] is True
+    assert result["current_version"] == "1.0.0-beta"
+
+    # Crucial: target image 1.0.1-beta must NOT be persisted in .env or compose file
+    env_content = env_path.read_text(encoding="utf-8")
+    assert "ALTR_STREAM_IMAGE=ghcr.io/helloaltr/altr-stream:1.0.0-beta" in env_content
+    assert "1.0.1-beta" not in env_content
 
 

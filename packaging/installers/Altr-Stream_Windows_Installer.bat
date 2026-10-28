@@ -126,8 +126,11 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-# TEMPORARY E2E TEST OVERRIDE: Pull currently published 0.13.7-alpha image while 1.0.0-beta is pending release
-$AltrImage = "ghcr.io/helloaltr/altr-stream:0.13.7-alpha"
+$AltrImage = if ($env:ALTR_STREAM_IMAGE -and $env:ALTR_STREAM_IMAGE.Trim() -ne "") {
+    $env:ALTR_STREAM_IMAGE
+} else {
+    "ghcr.io/helloaltr/altr-stream:$Version"
+}
 $DefaultDir = Join-Path $env:USERPROFILE ".altr-stream"
 $ConfigFile = if ($env:ALTR_STREAM_CONFIG_FILE -and $env:ALTR_STREAM_CONFIG_FILE.Trim() -ne "") {
     $env:ALTR_STREAM_CONFIG_FILE

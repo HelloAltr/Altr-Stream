@@ -80,6 +80,7 @@ def update_service(mock_updates_dir: Path, mock_github_releases) -> UpdateServic
     return UpdateService(
         updates_dir=mock_updates_dir,
         cache_ttl_sec=60.0,
+        current_version="1.0.0-beta",
     )
 
 
@@ -106,6 +107,7 @@ def app(mock_updates_dir: Path, mock_github_releases) -> FastAPI:
     svc = UpdateService(
         updates_dir=mock_updates_dir,
         http_client=mock_client,
+        current_version="1.0.0-beta",
     )
 
     test_app.dependency_overrides[get_update_service] = lambda: svc
