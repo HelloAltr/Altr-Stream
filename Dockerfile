@@ -45,8 +45,9 @@ RUN groupadd -g 10001 altr && \
 COPY pyproject.toml README.md ./
 COPY src/ src/
 
-# Install application and dependencies system-wide
-RUN uv pip install --system -e .
+# Install application and dependencies system-wide (using BuildKit cache mount and 300s HTTP timeout)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    UV_HTTP_TIMEOUT=300 uv pip install --system -e .
 
 # Copy compiled Flutter Web SPA assets to /app/static
 COPY --from=frontend-build /app/frontend/build/web /app/static

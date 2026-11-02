@@ -11,7 +11,7 @@ enum MockScenario {
   /// Node is fully installed, Docker is running, web interface is healthy.
   running,
 
-  /// Node is running an older version (v0.13.7-alpha) with an update available (v1.0.0-beta).
+  /// Node is running an older version (v1.0.0-beta) with an update available (v1.1.0).
   updateAvailable,
 
   /// Docker Desktop is not installed on the host.
@@ -50,8 +50,8 @@ class MockBackendService implements BackendService {
   MockScenario currentScenario;
 
   String _currentInstallDir = '/Users/mockuser/.altr-stream';
-  String _activeVersion = '1.0.0-beta';
-  final String _recommendedVersion = '1.0.0-beta';
+  String _activeVersion = '1.1.0';
+  final String _recommendedVersion = '1.1.0';
 
   MockBackendService({this.currentScenario = MockScenario.running});
 
@@ -79,21 +79,26 @@ class MockBackendService implements BackendService {
     return _buildStatusForScenario(currentScenario);
   }
 
+  List<NodeVersion>? customAvailableVersions;
+
   @override
   Future<List<NodeVersion>> getAvailableVersions() async {
+    if (customAvailableVersions != null) {
+      return customAvailableVersions!;
+    }
     return const [
       NodeVersion(
-        version: '1.0.0-beta',
+        version: '1.1.0',
         isRecommended: true,
         isCurrent: true,
       ),
       NodeVersion(
-        version: '0.13.7-alpha',
+        version: '1.0.0-beta',
         isRecommended: false,
         isCurrent: false,
       ),
       NodeVersion(
-        version: '0.13.6-alpha',
+        version: '0.13.7-alpha',
         isRecommended: false,
         isCurrent: false,
       ),
@@ -103,7 +108,7 @@ class MockBackendService implements BackendService {
   @override
   Future<String?> getInstalledVersion() async {
     if (currentScenario == MockScenario.nodeNotInstalled) return null;
-    if (currentScenario == MockScenario.updateAvailable) return '0.13.7-alpha';
+    if (currentScenario == MockScenario.updateAvailable) return '1.0.0-beta';
     return _activeVersion;
   }
 
@@ -394,9 +399,9 @@ class MockBackendService implements BackendService {
       case MockScenario.updateAvailable:
         return NodeStatus(
           installDir: _currentInstallDir,
-          targetVersion: '1.0.0-beta',
-          activeVersion: '0.13.7-alpha',
-          recommendedVersion: '1.0.0-beta',
+          targetVersion: '1.1.0',
+          activeVersion: '1.0.0-beta',
+          recommendedVersion: '1.1.0',
           nodeState: NodeState.running,
           dockerDiag: const DockerDiagnostics(
             state: DockerState.ready,

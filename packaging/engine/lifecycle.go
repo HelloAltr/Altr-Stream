@@ -122,6 +122,25 @@ func DetectDataVolume(targetDir string) string {
 			}
 		}
 	}
+
+	composePath := filepath.Join(targetDir, "docker-compose.yml")
+	if data, err := os.ReadFile(composePath); err == nil {
+		inVolumes := false
+		for _, line := range strings.Split(string(data), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "volumes:") {
+				inVolumes = true
+				continue
+			}
+			if inVolumes && strings.HasPrefix(trimmed, "name:") {
+				val := strings.TrimSpace(strings.TrimPrefix(trimmed, "name:"))
+				val = strings.Trim(val, `"'`)
+				if val != "" {
+					return val
+				}
+			}
+		}
+	}
 	return ""
 }
 

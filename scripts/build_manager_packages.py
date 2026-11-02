@@ -332,6 +332,42 @@ def verify_dmg_mount(dmg_path: Path) -> bool:
         subprocess.run(detach_cmd, capture_output=True, text=True)
 
 
+def build_pkg_package(
+    app_bundle: Path,
+    output_pkg: Path,
+    version: str,
+) -> Path:
+    """Create a macOS standard installer package (.pkg) installing Altr Stream Manager into /Applications."""
+    pkgbuild_bin = shutil.which("pkgbuild")
+    if not pkgbuild_bin:
+        raise RuntimeError("pkgbuild not found on system PATH (macOS required).")
+
+    if output_pkg.exists():
+        output_pkg.unlink()
+
+    print(f"  → Building macOS PKG installer package: {output_pkg.name}...")
+    cmd = [
+        pkgbuild_bin,
+        "--component",
+        str(app_bundle.resolve()),
+        "--install-location",
+        "/Applications",
+        "--version",
+        version,
+        str(output_pkg.resolve()),
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"pkgbuild failed (exit {res.returncode}):\n{res.stderr}")
+
+    if not output_pkg.is_file() or output_pkg.stat().st_size == 0:
+        raise RuntimeError(f"Generated PKG missing or zero size: {output_pkg}")
+
+    pkg_sha = compute_sha256(output_pkg)
+    print(f"  ✔ Created macOS PKG: {output_pkg.name} ({output_pkg.stat().st_size:,} bytes, SHA: {pkg_sha})")
+    return output_pkg
+
+
 def build_windows_portable_package(
     windows_engine: Path,
     output_dir: Path,
@@ -483,8 +519,13 @@ def main() -> None:
             build_dmg_package(app_bundle, dmg_path)
             verify_dmg_mount(dmg_path)
             artifacts.append(("macOS Drag-and-Drop DMG", dmg_path))
+
+            # 5. Build PKG installer
+            pkg_path = output_dir / "Altr-Stream-Manager.pkg"
+            build_pkg_package(app_bundle, pkg_path, version=version)
+            artifacts.append(("macOS PKG Installer", pkg_path))
         else:
-            print("\n[!] Skipping macOS DMG build: host OS is not Darwin.")
+            print("\n[!] Skipping macOS builds: host OS is not Darwin.")
 
     # -------------------------------------------------------------------------
     # Windows Packaging
@@ -497,13 +538,28 @@ def main() -> None:
         build_go_engine_windows(windows_engine, version=version, image=args.image)
         artifacts.append(("Go Engine (Windows amd64)", windows_engine))
 
-        # 2. Assemble Portable ZIP Package
+        # 2. Stage Windows Executable
+        windows_exe = output_dir / "Altr-Stream-Manager.exe"
+        shutil.copy2(windows_engine, windows_exe)
+        artifacts.append(("Windows Executable", windows_exe))
+
+        # 3. Assemble Portable ZIP Package
         portable_zip = build_windows_portable_package(windows_engine, output_dir, version=version)
         artifacts.append(("Windows Portable ZIP", portable_zip))
 
     # -------------------------------------------------------------------------
-    # Summary Report
+    # Write Checksums & Summary Report
     # -------------------------------------------------------------------------
+    sha_file = output_dir / "SHA256SUMS"
+    sha_lines = []
+    for _, path in artifacts:
+        if path.is_file():
+            sha = compute_sha256(path)
+            sha_lines.append(f"{sha}  {path.name}")
+    if sha_lines:
+        sha_file.write_text("\n".join(sha_lines) + "\n", encoding="utf-8")
+        print(f"\n✔ Updated {sha_file.name} with {len(sha_lines)} checksums.")
+
     print("\n" + "=" * 70)
     print(" Packaging Complete! Generated Artifacts:")
     print("=" * 70)

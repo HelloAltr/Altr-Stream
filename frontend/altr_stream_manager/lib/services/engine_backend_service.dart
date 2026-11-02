@@ -643,10 +643,41 @@ class EngineBackendService implements BackendService {
     );
   }
 
+  Future<bool> _isImageAvailable(String version) async {
+    try {
+      final tokenClient = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+      final tokenReq = await tokenClient.getUrl(
+        Uri.parse('https://ghcr.io/token?scope=repository:helloaltr/altr-stream:pull'),
+      );
+      final tokenResp = await tokenReq.close();
+      if (tokenResp.statusCode != 200) return true;
+      final tokenBody = await tokenResp.transform(utf8.decoder).join();
+      final tokenData = jsonDecode(tokenBody) as Map<String, dynamic>;
+      final token = tokenData['token'] as String?;
+      if (token == null || token.isEmpty) return true;
+
+      final manifestClient = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+      final manifestReq = await manifestClient.getUrl(
+        Uri.parse('https://ghcr.io/v2/helloaltr/altr-stream/manifests/$version'),
+      );
+      manifestReq.headers.set('Authorization', 'Bearer $token');
+      manifestReq.headers.set(
+        'Accept',
+        'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json',
+      );
+      final manifestResp = await manifestReq.close();
+      if (manifestResp.statusCode == 200) return true;
+      if (manifestResp.statusCode == 404) return false;
+      return true;
+    } catch (_) {
+      return true;
+    }
+  }
+
   @override
   Future<List<NodeVersion>> getAvailableVersions() async {
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
       final request = await client.getUrl(
         Uri.parse('https://api.github.com/repos/HelloAltr/Altr-Stream/releases'),
       );
@@ -655,40 +686,50 @@ class EngineBackendService implements BackendService {
       if (response.statusCode == 200) {
         final body = await response.transform(utf8.decoder).join();
         final list = jsonDecode(body) as List<dynamic>;
-        final versions = <NodeVersion>[];
+        final tags = <String>[];
         for (final item in list) {
           if (item is Map<String, dynamic>) {
             // Strictly exclude unreleased drafts
             if (item['draft'] == true) continue;
             final tag = (item['tag_name'] as String? ?? '').replaceFirst('v', '').trim();
-            if (tag.isNotEmpty) {
-              versions.add(NodeVersion(
-                version: tag,
-                isRecommended: versions.isEmpty,
-                isCurrent: versions.isEmpty,
-              ));
+            if (tag.isNotEmpty && !tags.contains(tag)) {
+              tags.add(tag);
             }
           }
         }
+
+        final availability = await Future.wait(
+          tags.map((tag) => _isImageAvailable(tag)),
+        );
+
+        final versions = <NodeVersion>[];
+        for (var i = 0; i < tags.length; i++) {
+          versions.add(NodeVersion(
+            version: tags[i],
+            isRecommended: i == 0 && availability[i],
+            isCurrent: i == 0,
+            isAvailable: availability[i],
+          ));
+        }
         if (versions.isNotEmpty) return versions;
       }
-    } catch (_) {
-      // Offline fallback
+    } catch (e) {
+      logEvent('Releases', 'GitHub releases fetch failed or timed out: $e, using cached fallback');
     }
 
     return const [
       NodeVersion(
-        version: '1.0.0-beta',
+        version: '1.1.0',
         isRecommended: true,
         isCurrent: true,
       ),
       NodeVersion(
-        version: '0.13.7-alpha',
+        version: '1.0.0-beta',
         isRecommended: false,
         isCurrent: false,
       ),
       NodeVersion(
-        version: '0.13.6-alpha',
+        version: '0.13.7-alpha',
         isRecommended: false,
         isCurrent: false,
       ),

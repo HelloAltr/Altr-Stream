@@ -3,7 +3,7 @@
 import asyncio
 import time
 from typing import Any
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from altr_stream.application.query_service import QueryService
 from altr_stream.application.registry_service import RegistryService
@@ -17,6 +17,7 @@ from altr_stream.domain.errors import (
 )
 from altr_stream.domain.mapping import EntityMapping, MappingStatus, SourceMapping
 from altr_stream.domain.query import QueryResult
+from altr_stream.infrastructure.database.models import ApiKeyModel
 from altr_stream.presentation.api.dependencies import (
     get_query_planner,
     get_query_service,
@@ -24,6 +25,7 @@ from altr_stream.presentation.api.dependencies import (
     get_schema_service,
     get_source_service,
 )
+from altr_stream.presentation.api.security import require_read_access
 from altr_stream.presentation.api.dtos import (
     AltrQLBindRequestDTO,
     AltrQLBindResponseDTO,
@@ -724,6 +726,7 @@ async def plan_altrql_query(
 async def execute_altrql_query(
     dto: AltrQLExecuteRequestDTO,
     response: Response,
+    auth_key: ApiKeyModel | None = Depends(require_read_access),
     source_service: SourceService = Depends(get_source_service),
     schema_service: SchemaService = Depends(get_schema_service),
     query_service: QueryService = Depends(get_query_service),
@@ -748,6 +751,14 @@ async def execute_altrql_query(
                 column=e.column,
             ),
         )
+
+    # Enforce write/admin scope for mutation operations
+    if ir.operation in (QueryOperation.CREATE, QueryOperation.UPDATE, QueryOperation.DELETE):
+        if auth_key is not None and not any(s in auth_key.scopes for s in ("write", "admin")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Mutation operation '{ir.operation.value}' requires 'write' or 'admin' scope.",
+            )
 
     # =========================================================================
     # Path B: Auto-Select / Federated Execution Path (source_id is omitted)
@@ -818,6 +829,7 @@ async def execute_altrql_query(
             failed_sources: list[SourceExclusionInfoDTO] = []
             physical_query_dtos = []
             sources_executed = []
+            source_names_executed = []
 
             for plan, res, exec_info, excl_info in isolated_results:
                 physical_query_dtos.append(_to_physical_query_dto(plan.physical_query))
@@ -825,10 +837,11 @@ async def execute_altrql_query(
                     successful_executions.append((plan, res))
                     included_sources.append(exec_info)
                     sources_executed.append(plan.selected_source_id)
+                    source_names_executed.append(exec_info.source_name or plan.selected_source_id)
                 elif excl_info is not None:
                     failed_sources.append(excl_info)
 
-            response.headers["X-Altr-Federated-Sources"] = ",".join(sources_executed)
+            response.headers["X-Altr-Federated-Sources"] = ", ".join(source_names_executed) if source_names_executed else ",".join(sources_executed)
 
             all_excluded_sources: list[SourceExclusionInfoDTO] = []
             for excl in federated_plan.excluded_sources:
@@ -894,6 +907,7 @@ async def execute_altrql_query(
                 rows=merged_rows,
                 execution_mode="federated",
                 sources_executed=sources_executed,
+                source_names_executed=source_names_executed,
                 metadata=QueryMetadataDTO(
                     row_count=len(merged_rows),
                     affected_rows=None,
@@ -1112,6 +1126,7 @@ async def execute_altrql_query(
             )
         ]
 
+        response.headers["X-Altr-Federated-Sources"] = source.name
         return AltrQLExecuteResponseDTO(
             success=True,
             ir=ir.to_dict(),
@@ -1123,7 +1138,9 @@ async def execute_altrql_query(
             rows=final_rows,
             execution_mode="single",
             sources_executed=[dto.source_id],  # type: ignore[list-item]
+            source_names_executed=[source.name],
             selected_source_id=dto.source_id,
+            selected_source_name=source.name,
             selected_mapping_id=dto.mapping_id,
             metadata=QueryMetadataDTO(
                 row_count=result.row_count,

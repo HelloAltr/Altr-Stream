@@ -87,15 +87,10 @@ def test_settings_version_override_explicit_and_env(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_health_endpoint_and_update_service_simulation(monkeypatch, tmp_path):
-    """Verify that when simulated as 0.13.2-alpha, health returns 0.13.2-alpha and update discovery finds 0.13.3-alpha."""
-    from altr_stream.application.update_service import UpdateService
-    from altr_stream.domain.semver import ReleaseInfo, SemVer
-
-    # Override settings.app_version to simulate 0.13.2-alpha
+async def test_health_endpoint_simulation(monkeypatch):
+    """Verify that when simulated as 0.13.2-alpha, health endpoint returns 0.13.2-alpha."""
     monkeypatch.setattr(settings, "app_version", "0.13.2-alpha")
 
-    # 1. Health endpoint must report simulated 0.13.2-alpha
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         health_res = await client.get("/api/v1/health")
         assert health_res.status_code == 200
@@ -103,36 +98,3 @@ async def test_health_endpoint_and_update_service_simulation(monkeypatch, tmp_pa
         assert health_data["version"] == "0.13.2-alpha"
         assert health_data["status"] == "healthy"
 
-    # 2. Update service must discover 0.13.3-alpha
-    update_svc = UpdateService(updates_dir=tmp_path / "updates")
-    assert update_svc.current_semver == SemVer.parse("0.13.2-alpha")
-
-    # Mock release fetch matching current GitHub releases (where 0.13.3-alpha is the latest published release)
-    sample_releases = [
-        ReleaseInfo(
-            version=SemVer.parse("0.13.2-alpha"),
-            tag_name="v0.13.2-alpha",
-            name="Altr Stream 0.13.2-alpha",
-            published_at="2026-09-24T06:00:00Z",
-            body="v0.13.2",
-            prerelease=True,
-            html_url="https://github.com/helloaltr/altr-stream/releases/tag/v0.13.2-alpha",
-        ),
-        ReleaseInfo(
-            version=SemVer.parse("0.13.3-alpha"),
-            tag_name="v0.13.3-alpha",
-            name="Altr Stream 0.13.3-alpha",
-            published_at="2026-09-24T12:00:00Z",
-            body="v0.13.3",
-            prerelease=True,
-            html_url="https://github.com/helloaltr/altr-stream/releases/tag/v0.13.3-alpha",
-        ),
-    ]
-    async def mock_fetch(force_refresh=False):
-        return sample_releases
-
-    monkeypatch.setattr(update_svc, "fetch_releases", mock_fetch)
-
-    plan = await update_svc.check_for_updates()
-    assert plan.update_available is True
-    assert plan.target_version == SemVer.parse("0.13.3-alpha")

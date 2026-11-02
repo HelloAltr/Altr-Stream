@@ -86,4 +86,32 @@ async def test_per_source_tracking():
     assert src3_m["total_writes"] == 0
 
 
+@pytest.mark.asyncio
+async def test_ops_per_minute_resolves_cleanly_to_zero():
+    usage_tracker.reset()
+
+    # When idle with no operations recorded, ops/min must be cleanly 0.0
+    metrics = await usage_tracker.get_metrics()
+    assert metrics["ops_per_minute"] == 0.0
+
+    # When operations occur, it should accurately reflect the active throughput
+    usage_tracker.record_read(3)
+    usage_tracker.record_write(1)
+    active_metrics = await usage_tracker.get_metrics()
+    assert active_metrics["ops_per_minute"] == 4.0
+
+    # When operations age past the 60-second sliding window, it resolves back to 0.0
+    import time
+    past_time = time.time() - 65.0
+    with usage_tracker._lock:
+        usage_tracker._recent_ops.clear()
+        usage_tracker._recent_ops.append((past_time, 4))
+        # Clear current minute bucket so fallback does not match
+        usage_tracker.minute_buckets.clear()
+
+    idle_metrics = await usage_tracker.get_metrics()
+    assert idle_metrics["ops_per_minute"] == 0.0
+
+
+
 

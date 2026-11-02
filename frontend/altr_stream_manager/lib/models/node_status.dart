@@ -143,6 +143,7 @@ class NodeVersion {
   final bool isRecommended;
   final bool isCurrent;
   final bool isCustom;
+  final bool isAvailable;
   final String? releaseNotesUrl;
 
   const NodeVersion({
@@ -150,6 +151,7 @@ class NodeVersion {
     this.isRecommended = false,
     this.isCurrent = false,
     this.isCustom = false,
+    this.isAvailable = true,
     this.releaseNotesUrl,
   });
 
@@ -159,6 +161,7 @@ class NodeVersion {
       isRecommended: json['is_recommended'] as bool? ?? false,
       isCurrent: json['is_current'] as bool? ?? false,
       isCustom: json['is_custom'] as bool? ?? false,
+      isAvailable: json['is_available'] as bool? ?? true,
       releaseNotesUrl: json['release_notes_url'] as String?,
     );
   }
@@ -190,6 +193,47 @@ class NodeStatus {
     this.technicalIssues = const [],
   });
 
+  /// Compares two semantic version strings (e.g. '1.1.0' vs '1.0.0-beta').
+  /// Returns > 0 if v1 > v2, < 0 if v1 < v2, and 0 if equal.
+  static int compareSemVer(String v1, String v2) {
+    final clean1 = v1.trim().replaceFirst(RegExp(r'^[vV]'), '');
+    final clean2 = v2.trim().replaceFirst(RegExp(r'^[vV]'), '');
+
+    if (clean1 == clean2) return 0;
+    if (clean1.isEmpty) return -1;
+    if (clean2.isEmpty) return 1;
+
+    final parts1 = clean1.split('-');
+    final parts2 = clean2.split('-');
+
+    final core1 = parts1[0].split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final core2 = parts2[0].split('.').map((e) => int.tryParse(e) ?? 0).toList();
+
+    while (core1.length < 3) {
+      core1.add(0);
+    }
+    while (core2.length < 3) {
+      core2.add(0);
+    }
+
+    for (var i = 0; i < 3; i++) {
+      if (core1[i] != core2[i]) {
+        return core1[i].compareTo(core2[i]);
+      }
+    }
+
+    final hasPre1 = parts1.length > 1 && parts1[1].isNotEmpty;
+    final hasPre2 = parts2.length > 1 && parts2[1].isNotEmpty;
+
+    if (!hasPre1 && hasPre2) return 1;
+    if (hasPre1 && !hasPre2) return -1;
+    if (hasPre1 && hasPre2) {
+      return parts1[1].compareTo(parts2[1]);
+    }
+
+    return 0;
+  }
+
   bool get isRunning => nodeState == NodeState.running;
   bool get isPaused => nodeState == NodeState.paused;
   bool get isInstalled => activeVersion != null && activeVersion!.isNotEmpty;
@@ -197,7 +241,7 @@ class NodeStatus {
       isInstalled &&
       recommendedVersion != null &&
       recommendedVersion!.isNotEmpty &&
-      recommendedVersion != activeVersion;
+      compareSemVer(recommendedVersion!, activeVersion!) > 0;
 
   factory NodeStatus.fromJson(Map<String, dynamic> json) {
     final diagMap = json['docker_diag'] as Map<String, dynamic>? ?? {};

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/models.dart';
+import '../../../shared/dialogs/altr_alert_dialog.dart';
 import '../widgets/command_outcome_panel.dart';
 import '../widgets/destructive_query_dialog.dart';
 import '../widgets/query_editor.dart';
@@ -132,24 +133,26 @@ class _SourcePlaygroundViewState extends State<SourcePlaygroundView> {
         ? 'MongoDB Shell'
         : 'Physical Command';
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Switch Query Mode?'),
-        content: Text(
-          'The current query uses $currentModeName syntax.\nSwitching modes will clear the query editor for $newModeName mode.',
+    final confirmed = await AltrAlert.show(
+      context,
+      icon: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+          shape: BoxShape.circle,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Switch'),
-          ),
-        ],
+        child: HugeIcon(
+          icon: HugeIcons.strokeRoundedExchange01,
+          color: Theme.of(context).colorScheme.primary,
+          size: 26,
+        ),
       ),
+      title: 'Switch Query Mode?',
+      message:
+          'The current query uses $currentModeName syntax.\nSwitching modes will clear the query editor for $newModeName mode.',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Switch',
+      isDestructive: false,
     );
 
     if (confirmed == true && mounted) {

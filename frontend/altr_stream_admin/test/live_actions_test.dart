@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hugeicons/hugeicons.dart';
 import 'package:altr_stream_admin/core/api/api_client.dart';
 import 'package:altr_stream_admin/core/api/models.dart';
-import 'package:altr_stream_admin/core/config/app_config.dart';
 import 'package:altr_stream_admin/core/updates/update_controller.dart';
 import 'package:altr_stream_admin/shared/live_actions/live_action_model.dart';
 import 'package:altr_stream_admin/shared/live_actions/live_actions_controller.dart';
@@ -450,29 +449,21 @@ void main() {
     );
 
     test(
-      'LiveActionsController formats Update Available action label with version and download icon',
+      'LiveActionsController removes update and reload chips from activeActions',
       () async {
         final mockClient = MockLiveActionsApiClient();
         final updateCtrl = UpdateController(apiClient: mockClient);
         await updateCtrl.init();
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        bool dialogOpened = false;
         final liveCtrl = LiveActionsController(
           updateController: updateCtrl,
-          onOpenFeedback: () {},
-          onOpenUpdateDialog: () => dialogOpened = true,
+          showFeedbackAction: false,
         );
 
-        final actions = liveCtrl.activeActions;
-        expect(actions.length, 2); // Update Available + Feedback
-        final updateAction = actions.firstWhere((a) => a.id == 'update');
-        expect(updateAction.label, 'Update Available · v1.1.0');
-        expect(updateAction.icon, equals(HugeIcons.strokeRoundedDownload04));
-        expect(updateAction.tooltip, contains('v1.1.0'));
-
-        updateAction.onTap?.call();
-        expect(dialogOpened, isTrue);
+        // Update actions should NOT be in activeActions
+        expect(liveCtrl.activeActions.any((a) => a.id == 'update'), isFalse);
+        expect(liveCtrl.activeActions.any((a) => a.id == 'reload'), isFalse);
 
         liveCtrl.dispose();
         updateCtrl.dispose();
@@ -480,15 +471,8 @@ void main() {
     );
 
     testWidgets(
-      'LiveActionsBar displays expanded "Update Available · v1.1.0" in spacious layout',
+      'LiveActionsBar does NOT render update chips even if update controller is present',
       (tester) async {
-        tester.view.physicalSize = const Size(1200, 800);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(() {
-          tester.view.resetPhysicalSize();
-          tester.view.resetDevicePixelRatio();
-        });
-
         final mockClient = MockLiveActionsApiClient();
         final updateCtrl = UpdateController(apiClient: mockClient);
         await updateCtrl.init();
@@ -496,7 +480,7 @@ void main() {
 
         final liveCtrl = LiveActionsController(
           updateController: updateCtrl,
-          onOpenFeedback: () {},
+          showFeedbackAction: false,
         );
 
         await tester.pumpWidget(
@@ -508,315 +492,91 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Update Available · v1.1.0'), findsOneWidget);
-        expect(find.text('Feedback'), findsOneWidget);
-
-        liveCtrl.dispose();
-        updateCtrl.dispose();
-      },
-    );
-
-    testWidgets(
-      'LiveActionsBar collapses to icon-only mode when constrained or on narrow layout',
-      (tester) async {
-        // Default tester width is 800px (< 900px breakpoint)
-        final mockClient = MockLiveActionsApiClient();
-        final updateCtrl = UpdateController(apiClient: mockClient);
-        await updateCtrl.init();
-        await tester.pumpAndSettle();
-
-        final liveCtrl = LiveActionsController(
-          updateController: updateCtrl,
-          onOpenFeedback: () {},
-        );
-        // Register a 3rd action to trigger 3 actions on narrow screen
-        liveCtrl.registerAction(
-          LiveAction(
-            id: 'custom_reload',
-            label: 'Reload',
-            icon: HugeIcons.strokeRoundedReload,
-            priority: LiveActionPriority.reload,
-            onTap: () {},
-          ),
-        );
-
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              appBar: AppBar(actions: [LiveActionsBar(controller: liveCtrl)]),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // On narrow layout (<900px) with 3 actions, collapses to icon-only mode
+        expect(find.byKey(const ValueKey('app_bar_update_chip')), findsNothing);
         expect(find.text('Update Available · v1.1.0'), findsNothing);
-        expect(find.text('Feedback'), findsNothing);
-        expect(
-          find.byKey(const ValueKey('app_bar_update_chip')),
-          findsOneWidget,
-        );
-        expect(
-          find.byKey(const ValueKey('live_action_feedback')),
-          findsOneWidget,
-        );
 
         liveCtrl.dispose();
-        updateCtrl.dispose();
-      },
-    );
-
-    test(
-      'dismissLater() marks session as dismissed without removing Live Activity',
-      () async {
-        final mockClient = MockLiveActionsApiClient();
-        final updateCtrl = UpdateController(apiClient: mockClient);
-        await updateCtrl.init();
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-
-        final liveCtrl = LiveActionsController(updateController: updateCtrl);
-
-        expect(updateCtrl.isUpdateAvailable, isTrue);
-        expect(updateCtrl.isDismissedLaterThisSession, isFalse);
-        expect(liveCtrl.activeActions.any((a) => a.id == 'update'), isTrue);
-
-        // User selects Later
-        updateCtrl.dismissLater();
-
-        expect(updateCtrl.isDismissedLaterThisSession, isTrue);
-        // Live Activity remains available
-        expect(updateCtrl.isUpdateAvailable, isTrue);
-        expect(liveCtrl.activeActions.any((a) => a.id == 'update'), isTrue);
-
-        liveCtrl.dispose();
-        updateCtrl.dispose();
-      },
-    );
-
-    test(
-      'Automatic update check resolves correctly when node is already on latest version',
-      () async {
-        final mockClient = MockLiveActionsApiClient()
-          ..updateCheckResponseToReturn = const UpdateCheckResponse(
-            currentVersion: '1.0.0-beta',
-            latestVersion: null,
-            updateAvailable: false,
-            channel: 'beta',
-            checkAvailable: true,
-          );
-        final updateCtrl = UpdateController(apiClient: mockClient);
-        await updateCtrl.init();
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-
-        expect(updateCtrl.isUpdateAvailable, isFalse);
-        expect(updateCtrl.chipState, equals(UpdateChipState.idle));
-        expect(updateCtrl.latestCheck?.checkAvailable, isTrue);
-
         updateCtrl.dispose();
       },
     );
 
     testWidgets(
-      'Real ApiClient simulation flow: 1.0.0-beta -> 1.1.0 Update Available chip appears in LiveActivities',
+      'Sudo chip onTap invokes onRequestLockSudo callback for confirmation before closing',
       (tester) async {
-        tester.view.physicalSize = const Size(1200, 800);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(() {
-          tester.view.resetPhysicalSize();
-          tester.view.resetDevicePixelRatio();
-          AppConfig.simulateUpdateAvailable = false;
-        });
-
-        AppConfig.simulateUpdateAvailable = true;
-        final realClient = ApiClient();
-        final updateCtrl = UpdateController(apiClient: realClient);
-        await updateCtrl.init();
-        // Allow simulation delay to complete
-        await tester.pump(const Duration(milliseconds: 250));
-        await tester.pumpAndSettle();
-
-        expect(updateCtrl.isUpdateAvailable, isTrue);
-        expect(updateCtrl.targetVersion, '1.1.0');
-        expect(updateCtrl.chipState, equals(UpdateChipState.updateAvailable));
-
-        bool dialogOpened = false;
+        bool confirmationRequested = false;
         final liveCtrl = LiveActionsController(
-          updateController: updateCtrl,
-          onOpenFeedback: () {},
-          onOpenUpdateDialog: () => dialogOpened = true,
+          showFeedbackAction: false,
+          onRequestLockSudo: () {
+            confirmationRequested = true;
+          },
         );
+
+        liveCtrl.activateSudo(durationSeconds: 300);
 
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              appBar: AppBar(actions: [LiveActionsBar(controller: liveCtrl)]),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // In spacious layout (1200px), Update Available · v1.1.0 renders expanded
-        expect(find.text('Update Available · v1.1.0'), findsOneWidget);
-        expect(
-          find.byKey(const ValueKey('app_bar_update_chip')),
-          findsOneWidget,
-        );
-
-        // Tapping the live activity invokes the dialog
-        await tester.tap(find.byKey(const ValueKey('app_bar_update_chip')));
-        expect(dialogOpened, isTrue);
-
-        liveCtrl.dispose();
-        updateCtrl.dispose();
-      },
-    );
-
-    testWidgets(
-      'Update cancellation: Cancel Update enabled during cancellable phase and cleans up state',
-      (tester) async {
-        final mockClient = MockLiveActionsApiClient();
-        mockClient.updateCheckResponseToReturn = const UpdateCheckResponse(
-          currentVersion: '1.0.0-beta',
-          latestVersion: '1.1.0',
-          updateAvailable: true,
-          channel: 'beta',
-          checkAvailable: true,
-        );
-
-        final updateCtrl = UpdateController(apiClient: mockClient);
-        await updateCtrl.checkForUpdates();
-        expect(updateCtrl.isUpdateAvailable, isTrue);
-
-        // Start update -> requested state (cancellable)
-        await updateCtrl.startUpdate();
-        expect(updateCtrl.isActive, isTrue);
-        expect(updateCtrl.isCancellable, isTrue);
-        expect(updateCtrl.isCritical, isFalse);
-
-        final liveCtrl = LiveActionsController(updateController: updateCtrl);
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              appBar: AppBar(actions: [LiveActionsBar(controller: liveCtrl)]),
+              appBar: AppBar(
+                actions: [LiveActionsBar(controller: liveCtrl)],
+              ),
             ),
           ),
         );
         await tester.pump();
-        // In starting/requested state, chip is rendered
-        expect(
-          find.byKey(const ValueKey('app_bar_update_chip')),
-          findsOneWidget,
-        );
 
-        // Cancel update
-        await updateCtrl.cancelUpdate();
-        expect(mockClient.cancelUpdateCallCount, equals(1));
-        expect(updateCtrl.isCancelled, isTrue);
-        expect(updateCtrl.isActive, isFalse);
-        expect(updateCtrl.isUpdateAvailable, isTrue);
-        expect(updateCtrl.chipState, equals(UpdateChipState.updateAvailable));
+        expect(find.byKey(const ValueKey('app_bar_sudo_chip')), findsOneWidget);
 
-        await tester.pumpAndSettle();
-        // Live activity returns to clean Update Available state
-        expect(find.text('Update Available · v1.1.0'), findsOneWidget);
+        // Tap sudo chip
+        await tester.tap(find.byKey(const ValueKey('app_bar_sudo_chip')));
+        await tester.pump();
+
+        expect(confirmationRequested, isTrue);
 
         liveCtrl.dispose();
-        updateCtrl.dispose();
       },
     );
 
     testWidgets(
-      'Critical phase (applying/health_check) disables Cancel Update and prevents cancellation',
+      'Sudo Mode Live Activity appears with countdown timer and disappears upon lockSudo',
       (tester) async {
-        final mockClient = MockLiveActionsApiClient();
-        mockClient.updateStatusResponseToReturn = const UpdateStatusResponse(
-          requestId: 'req-crit-1',
-          targetVersion: '1.1.0',
-          currentVersion: '1.0.0-beta',
-          state: 'applying',
-          progressPercent: 65,
-          message: 'Recreating container...',
-          updatedAt: '2026-10-07T00:00:10Z',
+        final liveCtrl = LiveActionsController(showFeedbackAction: false);
+
+        expect(liveCtrl.isSudoActive, isFalse);
+        expect(liveCtrl.activeActions.any((a) => a.id == 'sudo'), isFalse);
+
+        // Activate 5-minute sudo
+        liveCtrl.activateSudo(durationSeconds: 300);
+        expect(liveCtrl.isSudoActive, isTrue);
+        expect(liveCtrl.activeActions.any((a) => a.id == 'sudo'), isTrue);
+
+        final sudoAction = liveCtrl.activeActions.firstWhere((a) => a.id == 'sudo');
+        expect(sudoAction.label, matches(r'Sudo · 0[45]:\d\d'));
+
+        // Render in LiveActionsBar
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              appBar: AppBar(
+                actions: [LiveActionsBar(controller: liveCtrl)],
+              ),
+            ),
+          ),
         );
+        await tester.pump();
 
-        final updateCtrl = UpdateController(apiClient: mockClient);
-        await updateCtrl.fetchStatus();
+        expect(find.byKey(const ValueKey('app_bar_sudo_chip')), findsOneWidget);
 
-        expect(updateCtrl.isApplying, isTrue);
-        expect(updateCtrl.isCritical, isTrue);
-        expect(updateCtrl.isCancellable, isFalse);
+        // Lock Sudo
+        liveCtrl.lockSudo();
+        expect(liveCtrl.isSudoActive, isFalse);
+        expect(liveCtrl.activeActions.any((a) => a.id == 'sudo'), isFalse);
 
-        // Attempting cancellation during critical phase must be rejected
-        await updateCtrl.cancelUpdate();
-        expect(mockClient.cancelUpdateCallCount, equals(0));
-        expect(updateCtrl.isApplying, isTrue);
-        expect(updateCtrl.isCritical, isTrue);
+        await tester.pump();
+        expect(find.byKey(const ValueKey('app_bar_sudo_chip')), findsNothing);
 
-        updateCtrl.dispose();
-      },
-    );
-
-    testWidgets(
-      'Polling timeout in requested state transitions to failed without infinite spinning',
-      (tester) async {
-        final mockClient = MockLiveActionsApiClient();
-        mockClient.updateStatusResponseToReturn = const UpdateStatusResponse(
-          requestId: 'req-timeout',
-          targetVersion: '1.1.0',
-          currentVersion: '1.0.0-beta',
-          state: 'requested',
-          progressPercent: 10,
-          message: 'Dispatched to host supervisor.',
-          updatedAt: '2026-10-07T00:00:00Z',
-        );
-
-        final updateCtrl = UpdateController(apiClient: mockClient);
-        await updateCtrl.fetchStatus();
-        expect(updateCtrl.isRequested, isTrue);
-
-        // Fast-forward 30 poll intervals (60s)
-        for (int i = 0; i < 31; i++) {
-          await tester.pump(const Duration(seconds: 2));
-        }
-
-        expect(updateCtrl.isFailed, isTrue);
-        expect(updateCtrl.statusMessage, contains('timed out'));
-
-        updateCtrl.dispose();
-      },
-    );
-
-    testWidgets(
-      'Real ApiClient simulation flow: startUpdate, progress, and cancel during cancellable phase',
-      (tester) async {
-        addTearDown(() {
-          ApiClient.resetSimulation();
-          AppConfig.simulateUpdateAvailable = false;
-        });
-
-        ApiClient.resetSimulation();
-        AppConfig.simulateUpdateAvailable = true;
-
-        final client = ApiClient();
-        final updateCtrl = UpdateController(apiClient: client);
-
-        // Check for updates to resolve targetVersion 1.1.0
-        await updateCtrl.checkForUpdates();
-        expect(updateCtrl.isUpdateAvailable, isTrue);
-
-        // Start update in simulation
-        await updateCtrl.startUpdate();
-        expect(updateCtrl.isActive, isTrue);
-        expect(updateCtrl.isCancellable, isTrue);
-        expect(updateCtrl.progressPercent, equals(10));
-
-        // Cancel update while in requested phase
-        await updateCtrl.cancelUpdate();
-        expect(updateCtrl.isCancelled, isTrue);
-        expect(updateCtrl.isActive, isFalse);
-
-        updateCtrl.dispose();
+        liveCtrl.dispose();
       },
     );
   });
 }
+

@@ -96,6 +96,11 @@ class HealthResponseDTO(BaseModel):
     version: str
     service: str = "Altr Stream"
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    engine: str | None = None
+    uptime: str | None = None
+    uptime_seconds: float | None = None
+    memory_mb: float | None = None
+    role: str = "standalone leader"
 
 
 class QueryExecuteRequestDTO(BaseModel):
@@ -276,7 +281,9 @@ class AltrQLExecuteResponseDTO(BaseModel):
     metadata: QueryMetadataDTO | None = Field(default=None, description="Query execution performance metadata")
     execution_mode: str = Field(default="single", description="Execution mode ('single' or 'federated')")
     sources_executed: list[str] = Field(default_factory=list, description="List of source IDs executed in this request")
+    source_names_executed: list[str] = Field(default_factory=list, description="List of source names executed in this request")
     selected_source_id: str | None = Field(default=None, description="Selected physical data source ID if single source")
+    selected_source_name: str | None = Field(default=None, description="Selected physical data source name if single source")
     selected_mapping_id: str | None = Field(default=None, description="Selected SourceMapping ID if single source")
     error: AltrQLErrorDetailDTO | None = Field(default=None, description="Diagnostic error details if failed")
 

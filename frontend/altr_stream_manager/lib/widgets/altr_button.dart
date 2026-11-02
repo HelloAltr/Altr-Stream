@@ -6,6 +6,10 @@ class AltrButton extends StatelessWidget {
   final VoidCallback onPressed;
   final Icon? icon;
   final bool? isOutsideContainer;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+
+  final bool isDestructive;
 
   const AltrButton({
     super.key,
@@ -13,23 +17,37 @@ class AltrButton extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.isOutsideContainer,
+    this.isDestructive = false,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final brightness = View.of(context).platformDispatcher.platformBrightness;
+
+    final defaultBg = brightness == Brightness.light
+        ? isOutsideContainer == true
+            ? colorScheme.surfaceContainerHigh
+            : colorScheme.surfaceContainerLowest
+        : isOutsideContainer == true
+            ? colorScheme.surfaceContainerHigh
+            : colorScheme.surfaceContainer;
+
+    final effectiveBg = isDestructive
+        ? colorScheme.error
+        : (backgroundColor ?? defaultBg);
+
+    final effectiveFg = isDestructive
+        ? colorScheme.onError
+        : (foregroundColor ?? colorScheme.onSurface);
 
     return FilledButton.icon(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
-        backgroundColor: brightness == Brightness.light
-            ? isOutsideContainer == true
-                ? Theme.of(context).colorScheme.surfaceContainerHigh
-                : Theme.of(context).colorScheme.surfaceContainerLowest
-            : isOutsideContainer == true
-                ? Theme.of(context).colorScheme.surfaceContainerHigh
-                : Theme.of(context).colorScheme.surfaceContainer,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: effectiveBg,
+        foregroundColor: effectiveFg,
         fixedSize: const Size.fromHeight(36),
         padding: const EdgeInsets.symmetric(horizontal: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

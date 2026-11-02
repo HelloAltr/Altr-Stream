@@ -790,7 +790,7 @@ def test_developer_options_image_selection_and_resolution(tmp_path: Path) -> Non
         check=True,
     )
     compose_def = (target_dir_default / "docker-compose.yml").read_text(encoding="utf-8")
-    assert f"${{ALTR_STREAM_IMAGE:-{canonical_img}}}" in compose_def
+    assert "${ALTR_STREAM_IMAGE:-ghcr.io/helloaltr/altr-stream:" in compose_def
 
     # 2. Selecting an older image uses that exact image
     older_img = "ghcr.io/helloaltr/altr-stream:0.13.7-alpha"

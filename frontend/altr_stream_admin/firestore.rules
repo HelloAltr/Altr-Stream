@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: checks if request is authenticated (Google Auth or Anonymous)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // User profiles collection: users/{userId}
+    match /users/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Workspaces collection: workspaces/{workspaceId}
+    match /workspaces/{workspaceId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Fallback rule for other app metadata
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

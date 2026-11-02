@@ -1277,12 +1277,15 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen>
               color: colorScheme.error,
             ),
             const SizedBox(width: 5),
-            Text(
-              'Missing in Schema',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.error,
+            Flexible(
+              child: Text(
+                'Missing in Schema',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.error,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -1356,6 +1359,7 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen>
     required LogicalEntityModel logicalEntity,
     required bool isEditing,
     required SourceSchemaModel? schema,
+    bool isNestedUnderEntity = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -1405,13 +1409,17 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen>
               Row(
                 children: [
                   HugeIcon(
-                    icon: HugeIcons.strokeRoundedSheet,
+                    icon: isNestedUnderEntity
+                        ? HugeIcons.strokeRoundedTable
+                        : HugeIcons.strokeRoundedSheet,
                     size: 15,
                     color: colorScheme.primary,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Entity: ${logicalEntity.name}',
+                    isNestedUnderEntity
+                        ? 'Target Table:'
+                        : 'Entity: ${logicalEntity.name}',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -1515,7 +1523,9 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen>
                                 ))
                         : Text(
                             physicalTableName != null
-                                ? '${em?.physicalNamespace ?? "public"}.$physicalTableName'
+                                ? (physicalTableName.contains('.')
+                                    ? physicalTableName
+                                    : '${em?.physicalNamespace ?? "public"}.$physicalTableName')
                                 : '(Unmapped)',
                             style: TextStyle(
                               fontSize: 12.5,
@@ -2125,18 +2135,457 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen>
               color: colorScheme.outlineVariant.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 12),
-            ..._currentModel.entities.map((logicalEntity) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _buildMappingTable(
-                  context: context,
-                  mapping: mapping,
-                  logicalEntity: logicalEntity,
-                  isEditing: isEditing,
-                  schema: schema,
+            if (mapping.entityMappings.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'No entities mapped in this source connection yet.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              );
-            }),
+              )
+            else
+              ..._currentModel.entities
+                  .where((logicalEntity) => mapping.entityMappings.any(
+                        (em) =>
+                            (em.logicalEntityId == logicalEntity.id ||
+                                em.logicalEntityName == logicalEntity.name) &&
+                            em.physicalEntityName.isNotEmpty,
+                      ))
+                  .map((logicalEntity) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildMappingTable(
+                    context: context,
+                    mapping: mapping,
+                    logicalEntity: logicalEntity,
+                    isEditing: isEditing,
+                    schema: schema,
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEntitySourceCard({
+    required BuildContext context,
+    required SourceMappingModel mapping,
+    required LogicalEntityModel logicalEntity,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final source = widget.sources
+        .where((s) => s.id == mapping.sourceId)
+        .firstOrNull;
+    final isEditing = _editingMappingId == mapping.id;
+    final schema = _sourceSchemas[mapping.sourceId];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isEditing
+              ? colorScheme.primary.withValues(alpha: 0.8)
+              : colorScheme.outlineVariant.withValues(alpha: 0.35),
+          width: isEditing ? 1.5 : 1.0,
+        ),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: HugeIcon(
+                      icon: AppTheme.getSourceTypeIcon(source?.type),
+                      color: colorScheme.primary,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            source?.name ?? mapping.sourceId,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          if (isEditing) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.15,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'EDITING',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Text(
+                        '${source?.type ?? "SOURCE"} • Provenance: ${mapping.provenance} • Mapping ID: ${mapping.id.length > 8 ? "${mapping.id.substring(0, 8)}..." : mapping.id}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  StatusBadge(status: mapping.status),
+                  const SizedBox(width: 12),
+                  if (isEditing) ...[
+                    OutlinedButton.icon(
+                      onPressed: () => _autoMatchCurrentEdit(mapping),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedMagicWand01,
+                        size: 14,
+                      ),
+                      label: const Text(
+                        'Auto-Match',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: _isSavingInlineEdit ? null : _cancelInlineEdit,
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _isSavingInlineEdit
+                          ? null
+                          : () => _saveCurrentInlineEdit(mapping),
+                      icon: _isSavingInlineEdit
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const HugeIcon(
+                              icon: HugeIcons.strokeRoundedFloppyDisk,
+                              size: 14,
+                            ),
+                      label: const Text(
+                        'Save Changes',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ] else ...[
+                    OutlinedButton.icon(
+                      onPressed: () => _startInlineEdit(mapping),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedEdit02,
+                        size: 14,
+                      ),
+                      label: const Text(
+                        'Edit',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (mapping.status != 'ACTIVE') ...[
+                      OutlinedButton.icon(
+                        onPressed: () => _validateMapping(mapping),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedCheckmarkCircle02,
+                          size: 14,
+                        ),
+                        label: const Text(
+                          'Validate',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: mapping.status == 'VALIDATED'
+                            ? () => _activateMapping(mapping)
+                            : null,
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedFlash,
+                          size: 14,
+                        ),
+                        label: const Text(
+                          'Activate',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    IconButton(
+                      onPressed: () => _deleteMapping(mapping),
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedDelete02,
+                        size: 18,
+                      ),
+                      color: colorScheme.error,
+                      tooltip: 'Delete mapping',
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+          if (mapping.validationErrors.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: colorScheme.error.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedAlert02,
+                        size: 16,
+                        color: colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Validation Errors:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ...mapping.validationErrors.map(
+                    (err) => Text(
+                      '• $err',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          _buildMappingTable(
+            context: context,
+            mapping: mapping,
+            logicalEntity: logicalEntity,
+            isEditing: isEditing,
+            schema: schema,
+            isNestedUnderEntity: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogicalEntityMappingGroup(
+    BuildContext context,
+    LogicalEntityModel logicalEntity,
+    List<SourceMappingModel> matchingMappings,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedSheet,
+                        size: 18,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Entity: ${logicalEntity.name}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${logicalEntity.fields.length} logical fields • ${matchingMappings.length} ${matchingMappings.length == 1 ? "source mapped" : "sources mapped"}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                OutlinedButton.icon(
+                  onPressed: _showAddMappingDialog,
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedExchange01,
+                    size: 14,
+                  ),
+                  label: const Text(
+                    'Add Mapping',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Divider(
+              height: 1,
+              color: colorScheme.outlineVariant.withValues(alpha: 0.25),
+            ),
+            const SizedBox(height: 16),
+            if (matchingMappings.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainer.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.5,
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedLink01,
+                        size: 20,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'No physical data sources mapped to "${logicalEntity.name}" yet',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Queries directed to this logical schema will remain unmapped until mapped to a database table or collection.',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      onPressed: _showAddMappingDialog,
+                      icon: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedExchange01,
+                        size: 14,
+                      ),
+                      label: const Text(
+                        'Map Source',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...matchingMappings.map((mapping) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildEntitySourceCard(
+                    context: context,
+                    mapping: mapping,
+                    logicalEntity: logicalEntity,
+                  ),
+                );
+              }),
           ],
         ),
       ),
@@ -2208,17 +2657,97 @@ class LogicalModelDetailScreenState extends State<LogicalModelDetailScreen>
           : emptyWidget;
     }
 
+    final entities = _currentModel.entities;
+
+    final mappedMappingIds = <String>{};
+    for (final entity in entities) {
+      for (final m in _mappings) {
+        if (_editingMappingId == m.id ||
+            m.entityMappings.any((em) =>
+                (em.logicalEntityId == entity.id ||
+                    em.logicalEntityName == entity.name) &&
+                em.physicalEntityName.isNotEmpty)) {
+          mappedMappingIds.add(m.id);
+        }
+      }
+    }
+
+    final unassignedMappings = _mappings
+        .where((m) => !mappedMappingIds.contains(m.id))
+        .toList();
+
+    final List<Widget> listItems = [];
+
+    if (entities.isNotEmpty) {
+      for (final logicalEntity in entities) {
+        final matchingMappings = _mappings.where((m) {
+          if (_editingMappingId == m.id) {
+            return _editingPhysicalEntityNames.containsKey(logicalEntity.id) ||
+                m.entityMappings.any((em) =>
+                    em.logicalEntityId == logicalEntity.id ||
+                    em.logicalEntityName == logicalEntity.name);
+          }
+          return m.entityMappings.any((em) =>
+              (em.logicalEntityId == logicalEntity.id ||
+                  em.logicalEntityName == logicalEntity.name) &&
+              em.physicalEntityName.isNotEmpty);
+        }).toList();
+
+        listItems.add(
+          _buildLogicalEntityMappingGroup(
+            context,
+            logicalEntity,
+            matchingMappings,
+          ),
+        );
+      }
+    }
+
+    if (unassignedMappings.isNotEmpty) {
+      listItems.add(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 12),
+              child: Row(
+                children: [
+                  HugeIcon(
+                    icon: HugeIcons.strokeRoundedAlertCircle,
+                    size: 16,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Unassigned Connected Sources (${unassignedMappings.length})',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...unassignedMappings.map(
+              (m) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildSourceMappingCard(context, m),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final list = ListView.separated(
       shrinkWrap: !isBounded,
       physics: isBounded
           ? const AlwaysScrollableScrollPhysics()
           : const NeverScrollableScrollPhysics(),
-      itemCount: _mappings.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 16),
-      itemBuilder: (context, idx) {
-        final mapping = _mappings[idx];
-        return _buildSourceMappingCard(context, mapping);
-      },
+      itemCount: listItems.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 20),
+      itemBuilder: (context, idx) => listItems[idx],
     );
 
     return Column(

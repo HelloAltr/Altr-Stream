@@ -5,6 +5,7 @@ import 'package:material_3_expressive/material_3_expressive.dart';
 import 'package:hugeicons/hugeicons.dart';
 import '../../../core/api/models.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/dialogs/altr_alert_dialog.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../services/overview_layout_service.dart';
 import '../widgets/bento_grid_engine.dart';
@@ -719,44 +720,19 @@ class OverviewScreenState extends State<OverviewScreen> {
     });
   }
 
-  void _showClearUsageConfirmationDialog(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    M3EDialog.show<void>(
+  void _showClearUsageConfirmationDialog(BuildContext context) async {
+    final confirmed = await AltrAlert.show(
       context,
-      barrierDismissible: true,
-      dialog: M3EDialog(
-        icon: HugeIcon(
-          icon: HugeIcons.strokeRoundedAlert02,
-          color: colorScheme.error,
-          size: 28,
-        ),
-        title: 'Clear Monitored Usage Data?',
-        content: Text(
+      title: 'Clear Monitored Usage Data?',
+      message:
           'Are you sure you want to clear all monitored read/write operation logs and reset cumulative counters to 0? This action cannot be undone.',
-          style: TextStyle(
-            color: colorScheme.onSurfaceVariant,
-            fontSize: 13,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          M3EButton(
-            style: M3EButtonStyle.text,
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          M3EButton(
-            style: M3EButtonStyle.filled,
-            onPressed: () {
-              Navigator.of(context).pop();
-              widget.onClearUsageData?.call();
-            },
-            child: const Text('Clear All Monitored Data'),
-          ),
-        ],
-      ),
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Clear All Monitored Data',
+      isDestructive: true,
     );
+    if (confirmed == true && mounted) {
+      widget.onClearUsageData?.call();
+    }
   }
 
   String _formatCount(int count) {

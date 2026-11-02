@@ -1,37 +1,71 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
+import '../../core/auth/services/passcode_service.dart';
 import '../../core/updates/update_controller.dart';
 import 'live_action_model.dart';
 
-/// Coordinates contextual Live Actions in the app bar, aggregating Update, Reload,
+/// Coordinates contextual Live Actions in the app bar, aggregating Sudo,
 /// and Feedback actions according to dynamic application state and priority.
 class LiveActionsController extends ChangeNotifier {
   final UpdateController? updateController;
   final VoidCallback? onOpenFeedback;
   final VoidCallback? onOpenUpdateDialog;
   final VoidCallback? onTriggerReload;
+  final VoidCallback? onRequestLockSudo;
   final bool showFeedbackAction;
 
   final Map<String, LiveAction> _customActions = {};
+
+  DateTime? _sudoExpiresAt;
+  Timer? _sudoTimer;
+
+  bool get isSudoActive =>
+      _sudoExpiresAt != null && DateTime.now().isBefore(_sudoExpiresAt!);
+
+  int get sudoRemainingSeconds {
+    if (!isSudoActive || _sudoExpiresAt == null) return 0;
+    final diff = _sudoExpiresAt!.difference(DateTime.now()).inSeconds;
+    return diff > 0 ? diff : 0;
+  }
+
+  void activateSudo({int durationSeconds = 300}) {
+    _sudoExpiresAt = DateTime.now().add(Duration(seconds: durationSeconds));
+    _sudoTimer?.cancel();
+    _sudoTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!isSudoActive) {
+        _sudoTimer?.cancel();
+        _sudoTimer = null;
+        _sudoExpiresAt = null;
+        notifyListeners();
+      } else {
+        notifyListeners();
+      }
+    });
+    notifyListeners();
+  }
+
+  void lockSudo() {
+    _sudoTimer?.cancel();
+    _sudoTimer = null;
+    _sudoExpiresAt = null;
+    PasscodeService().lockSudo();
+    notifyListeners();
+  }
 
   LiveActionsController({
     this.updateController,
     this.onOpenFeedback,
     this.onOpenUpdateDialog,
     this.onTriggerReload,
+    this.onRequestLockSudo,
     this.showFeedbackAction = true,
-  }) {
-    updateController?.addListener(_onUpdateControllerChanged);
-  }
+  });
 
   @override
   void dispose() {
-    updateController?.removeListener(_onUpdateControllerChanged);
+    _sudoTimer?.cancel();
     super.dispose();
-  }
-
-  void _onUpdateControllerChanged() {
-    notifyListeners();
   }
 
   /// Register or override an arbitrary contextual Live Action.
@@ -51,133 +85,25 @@ class LiveActionsController extends ChangeNotifier {
   List<LiveAction> get activeActions {
     final actions = <LiveAction>[];
 
-    // 1. Evaluate Update & Reload Actions from UpdateController
-    if (updateController != null) {
-      final chipState = updateController!.chipState;
-
-      if (chipState == UpdateChipState.reloadRequired) {
-        // Priority 3 (reload-required action)
-        actions.add(
-          LiveAction(
-            id: 'reload',
-            key: const ValueKey('app_bar_update_chip'),
-            label: 'Reload required',
-            icon: HugeIcons.strokeRoundedRefresh,
-            priority: LiveActionPriority.reload,
-            tooltip:
-                'Update applied successfully. Click to reload application.',
-            onTap: onTriggerReload ?? onOpenUpdateDialog,
-          ),
-        );
-      } else if (chipState != UpdateChipState.idle) {
-        // Priority 2 (update/install action)
-        switch (chipState) {
-          case UpdateChipState.updateAvailable:
-            final targetVer = updateController!.targetVersion ?? '';
-            actions.add(
-              LiveAction(
-                id: 'update',
-                key: const ValueKey('app_bar_update_chip'),
-                label: targetVer.isNotEmpty
-                    ? 'Update Available · v$targetVer'
-                    : 'Update Available',
-                icon: HugeIcons.strokeRoundedDownload04,
-                priority: LiveActionPriority.update,
-                tooltip: targetVer.isNotEmpty
-                    ? 'Update v$targetVer is available. Click to review.'
-                    : 'An update is available. Click to review.',
-                onTap: onOpenUpdateDialog,
-              ),
-            );
-            break;
-
-          case UpdateChipState.starting:
-            actions.add(
-              LiveAction(
-                id: 'update',
-                key: const ValueKey('app_bar_update_chip'),
-                label: 'Starting update...',
-                icon: const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                priority: LiveActionPriority.update,
-                tooltip: 'Preparing update workflow...',
-                onTap: onOpenUpdateDialog,
-              ),
-            );
-            break;
-
-          case UpdateChipState.updating:
-            final pct = updateController!.progressPercent;
-            actions.add(
-              LiveAction(
-                id: 'update',
-                key: const ValueKey('app_bar_update_chip'),
-                label: 'Updating $pct%',
-                icon: SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    value: pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null,
-                  ),
-                ),
-                priority: LiveActionPriority.update,
-                tooltip: updateController!.statusMessage.isNotEmpty
-                    ? updateController!.statusMessage
-                    : 'Applying update ($pct%)...',
-                onTap: onOpenUpdateDialog,
-              ),
-            );
-            break;
-
-          case UpdateChipState.rollingBack:
-            final pct = updateController!.progressPercent;
-            actions.add(
-              LiveAction(
-                id: 'update',
-                key: const ValueKey('app_bar_update_chip'),
-                label: pct > 0 ? 'Rolling back... ($pct%)' : 'Rolling back...',
-                icon: SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    value: pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null,
-                  ),
-                ),
-                priority: LiveActionPriority.update,
-                tooltip: updateController!.statusMessage.isNotEmpty
-                    ? updateController!.statusMessage
-                    : 'Rolling back update to previous version...',
-                onTap: onOpenUpdateDialog,
-              ),
-            );
-            break;
-
-          case UpdateChipState.error:
-            actions.add(
-              LiveAction(
-                id: 'update',
-                key: const ValueKey('app_bar_update_chip'),
-                label: 'Update failed',
-                icon: HugeIcons.strokeRoundedAlertCircle,
-                priority: LiveActionPriority.update,
-                tooltip:
-                    updateController!.errorMessage ??
-                    'Update encountered an error. Click for details.',
-                onTap: onOpenUpdateDialog,
-              ),
-            );
-            break;
-
-          case UpdateChipState.idle:
-          case UpdateChipState.reloadRequired:
-            break;
-        }
-      }
+    // 0. Sudo Mode Grace Period Live Activity (Priority Critical / Top)
+    if (isSudoActive) {
+      final mins = (sudoRemainingSeconds ~/ 60).toString().padLeft(2, '0');
+      final secs = (sudoRemainingSeconds % 60).toString().padLeft(2, '0');
+      actions.add(
+        LiveAction(
+          id: 'sudo',
+          key: const ValueKey('app_bar_sudo_chip'),
+          label: 'Sudo · $mins:$secs',
+          icon: HugeIcons.strokeRoundedSecurityLock,
+          priority: LiveActionPriority.critical,
+          tooltip:
+              'Sudo mode active (expires in $mins:$secs). Click to lock elevated privileges.',
+          backgroundColor: Colors.amber.withValues(alpha: 0.15),
+          foregroundColor: Colors.amber.shade400,
+          borderColor: Colors.amber.withValues(alpha: 0.5),
+          onTap: onRequestLockSudo ?? lockSudo,
+        ),
+      );
     }
 
     // 2. Evaluate Feedback Action

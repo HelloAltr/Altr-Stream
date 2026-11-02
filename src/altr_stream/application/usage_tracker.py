@@ -1,6 +1,7 @@
 """Global real-time actual read and write tracking for the Altr Stream node."""
 
 import asyncio
+import collections
 from datetime import datetime, timedelta, timezone
 import logging
 import threading
@@ -39,6 +40,9 @@ class UsageTracker:
         self.source_totals: dict[str, dict[str, int]] = {}
         self.source_minute_buckets: dict[str, dict[str, dict[str, int]]] = {}
         self._save_scheduled: bool = False
+        # Sliding 60-second real-time operation events: deque of (timestamp: float, count: int)
+        self._recent_ops: collections.deque[tuple[float, int]] = collections.deque()
+        self._source_recent_ops: dict[str, collections.deque[tuple[float, int]]] = {}
 
     def _schedule_save(self) -> None:
         """Schedule a background async DB save if an event loop is running."""
@@ -66,11 +70,14 @@ class UsageTracker:
         """Record one or more read operations into minute bucket (sparse logging)."""
         if count <= 0:
             return
+        now_ts = time.time()
         minute_key = _current_minute_key()
         with self._lock:
             self.total_reads += count
             bucket = self.minute_buckets.setdefault(minute_key, {"reads": 0, "writes": 0})
             bucket["reads"] += count
+
+            self._recent_ops.append((now_ts, count))
 
             if source_id:
                 s_tot = self.source_totals.setdefault(source_id, {"total_reads": 0, "total_writes": 0})
@@ -79,17 +86,23 @@ class UsageTracker:
                 s_bucket = s_buckets.setdefault(minute_key, {"reads": 0, "writes": 0})
                 s_bucket["reads"] += count
 
+                s_recent = self._source_recent_ops.setdefault(source_id, collections.deque())
+                s_recent.append((now_ts, count))
+
         self._schedule_save()
 
     def record_write(self, count: int = 1, source_id: str | None = None) -> None:
         """Record one or more write operations into minute bucket (sparse logging)."""
         if count <= 0:
             return
+        now_ts = time.time()
         minute_key = _current_minute_key()
         with self._lock:
             self.total_writes += count
             bucket = self.minute_buckets.setdefault(minute_key, {"reads": 0, "writes": 0})
             bucket["writes"] += count
+
+            self._recent_ops.append((now_ts, count))
 
             if source_id:
                 s_tot = self.source_totals.setdefault(source_id, {"total_reads": 0, "total_writes": 0})
@@ -97,6 +110,9 @@ class UsageTracker:
                 s_buckets = self.source_minute_buckets.setdefault(source_id, {})
                 s_bucket = s_buckets.setdefault(minute_key, {"reads": 0, "writes": 0})
                 s_bucket["writes"] += count
+
+                s_recent = self._source_recent_ops.setdefault(source_id, collections.deque())
+                s_recent.append((now_ts, count))
 
         self._schedule_save()
 
@@ -255,6 +271,8 @@ class UsageTracker:
                 self.minute_buckets.clear()
                 self.source_totals.clear()
                 self.source_minute_buckets.clear()
+                self._recent_ops.clear()
+                self._source_recent_ops.clear()
                 self._save_scheduled = False
             logger.info("Cleared all node usage monitoring data.")
 
@@ -313,9 +331,6 @@ class UsageTracker:
                 read_pct = 0.0
                 write_pct = 0.0
 
-            elapsed_mins = max((time.time() - self.start_time) / 60.0, 0.1)
-            ops_per_min = round(total_ops / elapsed_mins, 1)
-
             # Build step series (sparse lookup: missing entries default to 0)
             for i in range(num_steps):
                 step_dt = start_step + (step_delta * i)
@@ -351,6 +366,40 @@ class UsageTracker:
 
                 raw_reads.append(r_val)
                 raw_writes.append(w_val)
+
+            # Calculate real-time throughput: operations in active 60-second sliding window
+            now_ts = time.time()
+            cutoff_60s = now_ts - 60.0
+
+            # Prune sliding window events older than 60s
+            while self._recent_ops and self._recent_ops[0][0] < cutoff_60s:
+                self._recent_ops.popleft()
+
+            if source_id:
+                s_recent = self._source_recent_ops.get(source_id)
+                if s_recent:
+                    while s_recent and s_recent[0][0] < cutoff_60s:
+                        s_recent.popleft()
+                    recent_ops = sum(cnt for _, cnt in s_recent)
+                else:
+                    recent_ops = 0
+            else:
+                recent_ops = sum(cnt for _, cnt in self._recent_ops)
+
+            # Fallback to current minute bucket if sliding deque is empty (e.g. freshly rebooted node)
+            if recent_ops == 0:
+                curr_min_key = _current_minute_key(now_utc)
+                if source_id:
+                    s_b = self.source_minute_buckets.get(source_id, {}).get(curr_min_key)
+                    if s_b:
+                        recent_ops = s_b.get("reads", 0) + s_b.get("writes", 0)
+                else:
+                    b = self.minute_buckets.get(curr_min_key)
+                    if b:
+                        recent_ops = b.get("reads", 0) + b.get("writes", 0)
+
+            # Resolve cleanly to 0.0 when idle, or real-time throughput
+            ops_per_min = round(float(recent_ops), 1) if recent_ops > 0 else 0.0
 
         # Calculate Y-axis max scale
         max_ops = max(max(raw_reads, default=0), max(raw_writes, default=0))
@@ -390,6 +439,8 @@ class UsageTracker:
             self.minute_buckets.clear()
             self.source_totals.clear()
             self.source_minute_buckets.clear()
+            self._recent_ops.clear()
+            self._source_recent_ops.clear()
             self._save_scheduled = False
 
 

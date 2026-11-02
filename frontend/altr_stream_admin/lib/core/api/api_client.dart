@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../features/overview/services/local_storage_adapter.dart';
 import '../config/app_config.dart';
 import 'models.dart';
 
@@ -20,6 +21,13 @@ class ApiClient {
   final String baseUrl;
   final http.Client _client;
 
+  static String? _activeApiKey;
+  static String? get activeApiKey => _activeApiKey ??= LocalStorageAdapter.read('altr_active_api_key');
+  static set activeApiKey(String? key) {
+    _activeApiKey = key;
+    LocalStorageAdapter.write('altr_active_api_key', key);
+  }
+
   ApiClient({String? baseUrl, http.Client? client})
     : baseUrl = baseUrl ?? AppConfig.apiBaseUrl,
       _client = client ?? http.Client();
@@ -35,10 +43,18 @@ class ApiClient {
     return Uri.parse('$baseUrl$path');
   }
 
-  Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
+  Map<String, String> get _headers {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Altr-Client': 'web-dashboard',
+    };
+    final key = activeApiKey;
+    if (key != null && key.trim().isNotEmpty) {
+      headers['X-Altr-API-Key'] = key.trim();
+    }
+    return headers;
+  }
 
   dynamic _processResponse(http.Response response) {
     final status = response.statusCode;

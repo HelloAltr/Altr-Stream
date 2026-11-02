@@ -18,6 +18,7 @@ import '../services/mock_backend_service.dart';
 import '../widgets/altr_button.dart';
 import '../widgets/table_row.dart';
 
+
 // Helper aliases to maintain exact function signatures for build helpers
 final _buildAltrNodeTitleStatusIcon = buildAltrNodeTitleStatusIcon;
 final _buildAltrNodeTitleStatusText = buildAltrNodeTitleStatusText;
@@ -39,11 +40,13 @@ class AltrStreamManagerPlaceholder extends StatefulWidget {
 class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlaceholder> {
   // Live state variables wired to backend service
   NodeTitleStatus _titleStatus = NodeTitleStatus.discovering;
-  String _altrNodeVersion = "1.0.0-beta";
+  String _altrNodeVersion = "1.1.0";
   List<String> _versionDropdownOptions = [
+    "1.1.0",
     "1.0.0-beta",
     "0.13.7-alpha",
   ];
+  List<NodeVersion> _availableNodeVersions = [];
   String _altrNodeInstallationPath = '${Platform.environment['HOME'] ?? ''}/.altr-stream';
   String _dashboardAddress = "http://localhost:8000";
   double? _progressValue;
@@ -62,6 +65,7 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
     super.initState();
     _refreshStatus();
     _fetchAvailableVersions();
+
     _statusTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!_isOperationActive && mounted) {
         _refreshStatus();
@@ -76,12 +80,14 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
     super.dispose();
   }
 
+
   Future<void> _fetchAvailableVersions() async {
     try {
       final versions = await backendService.getAvailableVersions();
       if (!mounted) return;
       if (versions.isNotEmpty) {
         setState(() {
+          _availableNodeVersions = versions;
           // Strictly populate selectable dropdown with eligible published versions
           _versionDropdownOptions = versions.map((v) => v.version).toList();
         });
@@ -215,6 +221,21 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
     final isUninstalled = _titleStatus == NodeTitleStatus.nodeNotInstalled;
     if (newVersion == _altrNodeVersion && !isUninstalled) return;
 
+    final matchingVersion = _availableNodeVersions.firstWhere(
+      (v) => v.version == newVersion,
+      orElse: () => NodeVersion(version: newVersion),
+    );
+    if (!matchingVersion.isAvailable) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Version $newVersion is currently being built and will be available soon.'),
+          ),
+        );
+      }
+      return;
+    }
+
     final dialogTitle = isUninstalled && newVersion == _altrNodeVersion
         ? 'Install Node Version'
         : 'Change Node Version';
@@ -260,6 +281,7 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Uninstall Altr Stream'),
+
         content: const SizedBox(
           width: kDialogStandardWidth,
           child: Text(
@@ -777,6 +799,25 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
     final altrNodeInstallationPath = _altrNodeInstallationPath;
     final dashboardAddress = _dashboardAddress;
 
+    final isUninstalled = nodeState == NodeState.notInstalled ||
+        nodeTitleStatus == NodeTitleStatus.nodeNotInstalled;
+
+    NodeVersion? availableUpdate;
+    if (!isUninstalled && altrNodeVersion.isNotEmpty) {
+      for (final v in _availableNodeVersions) {
+        if (v.isAvailable && NodeStatus.compareSemVer(v.version, altrNodeVersion) > 0) {
+          availableUpdate = v;
+          break;
+        }
+      }
+      if (availableUpdate == null) {
+        final rec = _currentStatus?.recommendedVersion;
+        if (rec != null && rec.isNotEmpty && NodeStatus.compareSemVer(rec, altrNodeVersion) > 0) {
+          availableUpdate = NodeVersion(version: rec, isAvailable: true, isRecommended: true);
+        }
+      }
+    }
+
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -829,6 +870,7 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
                   ],
                 ),
                 const Spacer(),
+
                 IconButton(
                   tooltip: "Refresh Status",
                   onPressed: _manualRefresh,
@@ -841,6 +883,7 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
                   icon: const Icon(HugeIconsStroke.shutDown, size: 24),
                 ),
               ],
+
             ),
             const SizedBox(height: 16),
             Container(
@@ -876,64 +919,99 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
                     rowLabel: "Altr Stream Node Version",
                     rowValueColor: _buildAltrNodeStatusColor(nodeState, context),
                     rowValue: altrNodeVersion,
-                    controls: Container(
-                      height: 36,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: brightness == Brightness.light
-                            ? Theme.of(context).colorScheme.surfaceContainerLowest
-                            : Theme.of(context).colorScheme.surfaceContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: null,
-                          hint: Text(
-                            "Change version",
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontWeight: FontWeight.normal,
+                    controls: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (availableUpdate != null) ...[
+                          AltrButton(
+                            label: "Update to v${availableUpdate.version}",
+                            icon: Icon(
+                              Icons.upgrade_rounded,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            foregroundColor: Theme.of(context).colorScheme.primary,
+                            backgroundColor: brightness == Brightness.light
+                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                                : Theme.of(context).colorScheme.primary.withValues(alpha: 0.20),
+                            onPressed: () => _onVersionSelected(availableUpdate!.version),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: brightness == Brightness.light
+                                ? Theme.of(context).colorScheme.surfaceContainerLowest
+                                : Theme.of(context).colorScheme.surfaceContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: null,
+                              hint: Text(
+                                "Change version",
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                  fontWeight: FontWeight.normal,
+                                ),
+                              ),
+                              icon: Icon(
+                                Icons.arrow_drop_down,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                              isDense: true,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                                fontWeight: FontWeight.normal,
+                              ),
+                              dropdownColor: brightness == Brightness.light
+                                  ? Theme.of(context).colorScheme.surfaceContainerLowest
+                                  : Theme.of(context).colorScheme.surfaceContainer,
+                              items: versionDropdownOptions.map((option) {
+                                final isCurrent = !isUninstalled && (option == altrNodeVersion);
+                                final matchingVersion = _availableNodeVersions.firstWhere(
+                                  (v) => v.version == option,
+                                  orElse: () => NodeVersion(version: option),
+                                );
+                                final isAvailable = matchingVersion.isAvailable;
+
+                                String labelText;
+                                if (isCurrent) {
+                                  labelText = nodeState == NodeState.running
+                                      ? "$option (Running)"
+                                      : "$option (Current)";
+                                } else if (!isAvailable) {
+                                  labelText = "$option (coming soon)";
+                                } else {
+                                  labelText = option;
+                                }
+
+                                return DropdownMenuItem<String>(
+                                  value: option,
+                                  enabled: !isCurrent && isAvailable,
+                                  child: Text(
+                                    labelText,
+                                    style: (!isAvailable || isCurrent)
+                                        ? TextStyle(
+                                            color: Theme.of(context).colorScheme.outline,
+                                            fontStyle: !isAvailable ? FontStyle.italic : FontStyle.normal,
+                                          )
+                                        : null,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  _onVersionSelected(value);
+                                }
+                              },
                             ),
                           ),
-                          icon: Icon(
-                            Icons.arrow_drop_down,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                          isDense: true,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontWeight: FontWeight.normal,
-                          ),
-                          dropdownColor: brightness == Brightness.light
-                              ? Theme.of(context).colorScheme.surfaceContainerLowest
-                              : Theme.of(context).colorScheme.surfaceContainer,
-                          items: versionDropdownOptions.map((option) {
-                            final isUninstalled = nodeState == NodeState.notInstalled ||
-                                nodeTitleStatus == NodeTitleStatus.nodeNotInstalled;
-                            final isCurrent = !isUninstalled && (option == altrNodeVersion);
-                            return DropdownMenuItem<String>(
-                              value: option,
-                              enabled: !isCurrent,
-                              child: Text(
-                                isCurrent
-                                    ? (nodeState == NodeState.running
-                                        ? "$option (Running)"
-                                        : "$option (Current)")
-                                    : option,
-                                style: isCurrent
-                                    ? TextStyle(color: Theme.of(context).colorScheme.outline)
-                                    : null,
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              _onVersionSelected(value);
-                            }
-                          },
                         ),
-                      ),
+                      ],
                     ),
                   ),
                   const TableDivider(height: 8),

@@ -21,16 +21,6 @@ class LiveActionsBar extends StatefulWidget {
 
 class _LiveActionsBarState extends State<LiveActionsBar> {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        widget.controller.updateController?.init();
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.controller,
@@ -106,30 +96,6 @@ class _LiveActionItem extends StatelessWidget {
       border = action.borderColor ?? Colors.transparent;
     } else {
       switch (action.id) {
-        case 'reload':
-          bg = colorScheme.tertiaryContainer;
-          fg = colorScheme.onTertiaryContainer;
-          border = colorScheme.tertiary.withValues(alpha: 0.4);
-          break;
-
-        case 'update':
-          if (action.label.contains('failed')) {
-            bg = colorScheme.errorContainer;
-            fg = colorScheme.onErrorContainer;
-            border = colorScheme.error.withValues(alpha: 0.4);
-          } else if (action.label.contains('Updating') ||
-              action.label.contains('Starting') ||
-              action.label.contains('Rolling')) {
-            bg = colorScheme.surfaceContainerHigh;
-            fg = colorScheme.onSurface;
-            border = colorScheme.primary.withValues(alpha: 0.4);
-          } else {
-            bg = colorScheme.primaryContainer;
-            fg = colorScheme.onPrimaryContainer;
-            border = colorScheme.primary.withValues(alpha: 0.3);
-          }
-          break;
-
         case 'feedback':
           bg = colorScheme.surfaceContainerHigh;
           fg = colorScheme.onSurfaceVariant;

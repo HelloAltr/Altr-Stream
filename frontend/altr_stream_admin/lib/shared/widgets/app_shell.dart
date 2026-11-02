@@ -8,7 +8,6 @@ import '../../core/api/models.dart';
 import '../../core/api/api_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/theme/material_theme.dart';
 import '../../core/updates/update_controller.dart';
 import '../live_actions/live_actions_controller.dart';
 import '../live_actions/live_actions_bar.dart';
@@ -37,6 +36,11 @@ class AppShell extends StatelessWidget {
   final ApiClient? apiClient;
   final UpdateController? updateController;
   final LiveActionsController? liveActionsController;
+  final VoidCallback? onPasscodeTap;
+  final VoidCallback? onApiSecurityTap;
+  final VoidCallback? onWorkspacesTap;
+  final String? activeWorkspaceName;
+  final void Function(String category)? onNavigateToSettingsCategory;
 
   const AppShell({
     super.key,
@@ -62,6 +66,11 @@ class AppShell extends StatelessWidget {
     this.apiClient,
     this.updateController,
     this.liveActionsController,
+    this.onPasscodeTap,
+    this.onApiSecurityTap,
+    this.onWorkspacesTap,
+    this.activeWorkspaceName,
+    this.onNavigateToSettingsCategory,
   });
 
   UpdateController get _effectiveUpdateController =>
@@ -203,19 +212,21 @@ class AppShell extends StatelessWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: SafeArea(
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 1600),
-                    padding: const EdgeInsets.only(
-                      left: 32,
-                      right: 32,
-                      top: 24,
-                      bottom: 28,
-                    ),
-                    child: child,
-                  ),
-                ),
+                child: activeRoute == '/settings'
+                    ? child
+                    : Align(
+                        alignment: Alignment.topLeft,
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 1600),
+                          padding: const EdgeInsets.only(
+                            left: 32,
+                            right: 32,
+                            top: 24,
+                            bottom: 28,
+                          ),
+                          child: child,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -317,70 +328,76 @@ class AppShell extends StatelessWidget {
                     height: _navItemHeight,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                      child: InkWell(
+                      child: Material(
+                        color: Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
-                        hoverColor: colorScheme.surfaceContainerHighest
-                            .withValues(alpha: 0.5),
-                        onTap: () => onNavigate(items[i].route),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                          child: Row(
-                            children: [
-                              HugeIcon(
-                                icon: items[i].icon,
-                                color: selectedIndex == i
-                                    ? colorScheme.onSecondaryContainer
-                                    : colorScheme.onSurfaceVariant,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: AnimatedDefaultTextStyle(
-                                  duration: const Duration(milliseconds: 200),
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontFamily:
-                                        theme.textTheme.bodyMedium?.fontFamily,
-                                    fontWeight: selectedIndex == i
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
-                                    color: selectedIndex == i
-                                        ? colorScheme.onSecondaryContainer
-                                        : colorScheme.onSurfaceVariant,
-                                  ),
-                                  child: Text(
-                                    items[i].label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          hoverColor: colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.6),
+                          splashColor: colorScheme.primary.withValues(alpha: 0.08),
+                          highlightColor: colorScheme.primary.withValues(alpha: 0.05),
+                          onTap: () => onNavigate(items[i].route),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                            child: Row(
+                              children: [
+                                HugeIcon(
+                                  icon: items[i].icon,
+                                  color: selectedIndex == i
+                                      ? colorScheme.onSecondaryContainer
+                                      : colorScheme.onSurfaceVariant,
+                                  size: 20,
                                 ),
-                              ),
-                              if (items[i].badgeCount != null) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: selectedIndex == i
-                                        ? colorScheme.primary
-                                        : colorScheme.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    '${items[i].badgeCount}',
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: AnimatedDefaultTextStyle(
+                                    duration: const Duration(milliseconds: 200),
                                     style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      fontFamily:
+                                          theme.textTheme.bodyMedium?.fontFamily,
+                                      fontWeight: selectedIndex == i
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
                                       color: selectedIndex == i
-                                          ? colorScheme.onPrimary
+                                          ? colorScheme.onSecondaryContainer
                                           : colorScheme.onSurfaceVariant,
+                                    ),
+                                    child: Text(
+                                      items[i].label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ),
+                                if (items[i].badgeCount != null) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: selectedIndex == i
+                                          ? colorScheme.primary
+                                          : colorScheme.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '${items[i].badgeCount}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: selectedIndex == i
+                                            ? colorScheme.onPrimary
+                                            : colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -483,7 +500,14 @@ class AppShell extends StatelessWidget {
             labelType: NavigationRailLabelType.all,
             leading: Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              child: _buildCompactLogo(context),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => onNavigate('/'),
+                  child: _buildCompactLogo(context),
+                ),
+              ),
             ),
             trailing: Expanded(
               child: Align(
@@ -663,10 +687,12 @@ class AppShell extends StatelessWidget {
             color: colorScheme.outlineVariant.withValues(alpha: 0.5),
           ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              child: child,
-            ),
+            child: activeRoute == '/settings'
+                ? child
+                : Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                    child: child,
+                  ),
           ),
         ],
       ),
@@ -691,23 +717,33 @@ class AppShell extends StatelessWidget {
         backgroundColor: colorScheme.surfaceContainer,
         elevation: 0,
         titleSpacing: 0,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildCompactLogo(context),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Altr Stream',
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.anta(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
+        title: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => onNavigate('/'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildCompactLogo(context),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Altr Stream',
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.anta(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
         actions: [
           _buildLiveActions(context, compact: true),
@@ -727,32 +763,42 @@ class AppShell extends StatelessWidget {
                   ),
                 ),
               ),
-              child: Row(
-                children: [
-                  _buildCompactLogo(context),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    onNavigate('/');
+                  },
+                  child: Row(
                     children: [
-                      Text(
-                        'Altr Stream',
-                        style: GoogleFonts.anta(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      Text(
-                        'Admin Node',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      _buildCompactLogo(context),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Altr Stream',
+                            style: GoogleFonts.anta(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            'Admin Node',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
             ListTile(
@@ -1023,12 +1069,26 @@ class AppShell extends StatelessWidget {
             width: _desktopDrawerWidth - 8,
             child: Padding(
               padding: const EdgeInsets.only(left: 8, right: 16),
-              child: Row(
-                children: [
-                  _buildCompactLogo(context),
-                  const SizedBox(width: 8),
-                  Flexible(child: _buildBrandMenuButton(context)),
-                ],
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onNavigate('/'),
+                  borderRadius: BorderRadius.circular(8),
+                  hoverColor: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.5,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildCompactLogo(context),
+                        const SizedBox(width: 8),
+                        Flexible(child: _buildBrandMenuButton(context)),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1109,113 +1169,20 @@ class AppShell extends StatelessWidget {
   Widget _buildBrandMenuButton(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final customTheme = Theme.of(context).copyWith(
-      colorScheme: colorScheme.copyWith(
-        secondaryContainer: colorScheme.surfaceContainerHigh,
-        onSecondaryContainer: colorScheme.onSurface,
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 6,
+        vertical: 4,
       ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: colorScheme.surfaceContainerHigh,
-          foregroundColor: colorScheme.onSurface,
-        ),
-      ),
-    );
-
-    final menuThemeData = M3EThemeData(
-      colorScheme: colorScheme.toM3EColorScheme().copyWith(
-        secondaryContainer: colorScheme.surfaceContainerHigh,
-        onSecondaryContainer: colorScheme.onSurface,
-        tertiaryContainer: colorScheme.surfaceContainerHighest,
-        onTertiaryContainer: colorScheme.onSurface,
-      ),
-      menuTheme: M3EMenuTheme(
-        backgroundColor: colorScheme.surfaceContainerHigh,
-      ),
-    );
-
-    return Theme(
-      data: customTheme,
-      child: M3ETheme(
-        data: menuThemeData,
-        child: M3EMenu(
-          position: M3EMenuAnchorPosition.bottomStart,
-          colorStyle: M3EMenuColorStyle.standard,
-          closeOnSelect: true,
-          onSelected: (Object? value) {
-            if (value == 'check_updates' || value == 'version_info') {
-              _showUpdateDialog(context);
-            } else if (value == 'telemetry') {
-              onNodeStatusTap?.call();
-            }
-          },
-          anchorBuilder: (BuildContext context, VoidCallback open) {
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: open,
-                borderRadius: BorderRadius.circular(8),
-                hoverColor: colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.5,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 4,
-                  ),
-                  child: Text(
-                    'Altr Stream',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.anta(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: colorScheme.onSurface,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-          children: <M3EMenuNode>[
-            M3EMenuGroup(
-              children: [
-                M3EMenuEntry(
-                  label: 'Node Telemetry',
-                  value: 'telemetry',
-                  leading: HugeIcon(
-                    icon: HugeIcons.strokeRoundedActivity01,
-                    color: colorScheme.onSurface,
-                    size: 18,
-                  ),
-                ),
-              ],
-            ),
-            M3EMenuGroup(
-              children: [
-                M3EMenuEntry(
-                  enabled: false,
-                  label: 'Version: ${AppConfig.formattedAppVersion}',
-                  value: 'version_info',
-                  leading: HugeIcon(
-                    icon: HugeIcons.strokeRoundedInformationCircle,
-                    color: colorScheme.onSurface,
-                    size: 18,
-                  ),
-                ),
-                M3EMenuEntry(
-                  label: 'Check for updates',
-                  value: 'check_updates',
-                  leading: HugeIcon(
-                    icon: HugeIcons.strokeRoundedSystemUpdate01,
-                    color: colorScheme.onSurface,
-                    size: 18,
-                  ),
-                ),
-              ],
-            ),
-          ],
+      child: Text(
+        'Altr Stream',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.anta(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: colorScheme.onSurface,
+          letterSpacing: 0.8,
         ),
       ),
     );
@@ -1269,11 +1236,65 @@ class AppShell extends StatelessWidget {
       );
     }
 
-    return _DrawerProfilePopup(
-      currentUser: currentUser!,
-      colorScheme: colorScheme,
-      onSignOut: onSignOut,
-      buildInitialsAvatar: _buildInitialsAvatar,
+    return Padding(
+      padding: const EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 16),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          hoverColor: colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.5,
+          ),
+          onTap: () {
+            if (onNavigateToSettingsCategory != null) {
+              onNavigateToSettingsCategory!('profile');
+            } else {
+              onNavigate('/settings');
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: [
+                _buildInitialsAvatar(currentUser!, colorScheme, size: 28),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        currentUser!.displayName.isNotEmpty
+                            ? currentUser!.displayName
+                            : 'Altr User',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        currentUser!.email.isNotEmpty
+                            ? currentUser!.email
+                            : 'Personal Account',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1299,24 +1320,32 @@ class AppShell extends StatelessWidget {
       );
     }
 
-    return _DrawerProfilePopup(
-      currentUser: currentUser!,
-      colorScheme: colorScheme,
-      onSignOut: onSignOut,
-      buildInitialsAvatar: _buildInitialsAvatar,
-      isCompact: true,
+    return IconButton(
+      icon: _buildInitialsAvatar(currentUser!, colorScheme, size: 28),
+      tooltip: 'Profile Settings',
+      onPressed: () {
+        if (onNavigateToSettingsCategory != null) {
+          onNavigateToSettingsCategory!('profile');
+        } else {
+          onNavigate('/settings');
+        }
+      },
     );
   }
 
-  Widget _buildInitialsAvatar(UserProfile user, ColorScheme colorScheme) {
+  Widget _buildInitialsAvatar(
+    UserProfile user,
+    ColorScheme colorScheme, {
+    double size = 24,
+  }) {
     final initial = user.displayName.isNotEmpty
         ? user.displayName.substring(0, 1).toUpperCase()
         : (user.email.isNotEmpty
               ? user.email.substring(0, 1).toUpperCase()
               : 'U');
-    return Container(
-      width: 20,
-      height: 20,
+    final fallback = Container(
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: colorScheme.primary,
         shape: BoxShape.circle,
@@ -1326,8 +1355,35 @@ class AppShell extends StatelessWidget {
         initial,
         style: TextStyle(
           color: colorScheme.onPrimary,
-          fontSize: 11,
+          fontSize: size * 0.45,
           fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+
+    final url = user.photoUrl?.trim();
+    if (url == null || url.isEmpty) {
+      return fallback;
+    }
+
+    final resolvedUrl = url.startsWith('http://')
+        ? 'https://${url.substring(7)}'
+        : url;
+
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Image.network(
+          resolvedUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => fallback,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return fallback;
+          },
         ),
       ),
     );
@@ -1405,11 +1461,10 @@ class AppShell extends StatelessWidget {
   }
 
   void _showUpdateDialog(BuildContext context) {
-    _effectiveUpdateController.init();
     M3EDialog.show<void>(
       context,
       barrierDismissible: true,
-      dialog: _VersionInfoDialog(controller: _effectiveUpdateController),
+      dialog: const _VersionInfoDialog(),
     );
   }
 
@@ -1545,585 +1600,17 @@ class AppShell extends StatelessWidget {
   }
 }
 
-class _VersionInfoDialog extends StatefulWidget {
-  final UpdateController controller;
-
-  const _VersionInfoDialog({required this.controller});
-
-  @override
-  State<_VersionInfoDialog> createState() => _VersionInfoDialogState();
-}
-
-class _VersionInfoDialogState extends State<_VersionInfoDialog> {
-  bool _updateAvailableSnackbarShown = false;
-  bool _upToDateSnackbarShown = false;
-  bool _completionSnackbarShown = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onControllerChanged);
-    // Automatically check for updates and refresh status on dialog open
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        widget.controller.checkForUpdates();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onControllerChanged);
-    super.dispose();
-  }
-
-  void _onControllerChanged() {
-    if (mounted) {
-      final c = widget.controller;
-      if (c.latestCheck != null &&
-          c.latestCheck!.updateAvailable &&
-          !_updateAvailableSnackbarShown &&
-          !c.isDismissedLaterThisSession &&
-          c.isUpdateAvailable) {
-        _updateAvailableSnackbarShown = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            M3ESnackbar.show(
-              context,
-              message: 'New update available: v${c.targetVersion}',
-              actionLabel: 'Update Now',
-              onAction: () => c.startUpdate(),
-            );
-          }
-        });
-      } else if (c.latestCheck != null &&
-          c.latestCheck!.checkAvailable &&
-          !c.latestCheck!.updateAvailable &&
-          !_upToDateSnackbarShown &&
-          !c.isChecking &&
-          c.isIdle) {
-        _upToDateSnackbarShown = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            M3ESnackbar.show(
-              context,
-              message:
-                  'Your local node is on the latest version (v${AppConfig.appVersion}).',
-            );
-          }
-        });
-      } else if (c.isCompleted && !_completionSnackbarShown) {
-        _completionSnackbarShown = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            M3ESnackbar.show(
-              context,
-              message:
-                  'Altr Stream successfully updated to v${c.targetVersion}!',
-            );
-          }
-        });
-      }
-      setState(() {});
-    }
-  }
-
-  Widget _buildStatusCard(ColorScheme colorScheme) {
-    final c = widget.controller;
-
-    if (c.isRollingBack) {
-      final pct = c.progressPercent;
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 28,
-              height: 28,
-              child: M3EProgressIndicator.circularWavy(
-                value: pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null,
-                strokeWidth: 3,
-                trackStrokeWidth: 2,
-                wavelength: 12,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Rolling Back Update ($pct%)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    c.statusMessage.isNotEmpty
-                        ? c.statusMessage
-                        : 'Health check failed. Restoring previous version...',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (c.isActive) {
-      final pct = c.progressPercent;
-      final isIndeterminate = (c.isRequested && pct == 0) || c.isStartingUpdate;
-      final double? progressVal = isIndeterminate
-          ? null
-          : (pct > 0 ? (pct / 100.0).clamp(0.0, 1.0) : null);
-      final title = isIndeterminate
-          ? 'Starting Update v${c.targetVersion ?? ""}...'
-          : 'Installing Update v${c.targetVersion ?? ""} ($pct%)';
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: M3EProgressIndicator.circularWavy(
-                    value: progressVal,
-                    strokeWidth: 3,
-                    trackStrokeWidth: 2,
-                    wavelength: 12,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        c.statusMessage.isNotEmpty
-                            ? c.statusMessage
-                            : 'Applying updates...',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                if (c.isCritical)
-                  Expanded(
-                    child: Row(
-                      children: [
-                        HugeIcon(
-                          icon: HugeIcons.strokeRoundedAlertCircle,
-                          color: Colors.amber.shade700,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Installation in progress. Cancellation is disabled to prevent corruption.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.amber.shade800,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Expanded(
-                    child: Text(
-                      'Download / preparation phase',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                M3EButton(
-                  key: const ValueKey('dialog_cancel_update_button'),
-                  size: M3EButtonSize.sm,
-                  style: M3EButtonStyle.outlined,
-                  shape: M3EButtonShape.round,
-                  onPressed: c.isCancellable && !c.isCancelling
-                      ? () => c.cancelUpdate()
-                      : null,
-                  child: Text(
-                    c.isCancelling ? 'Cancelling...' : 'Cancel Update',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (c.isCancelled) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-          ),
-        ),
-        child: Row(
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedAlertCircle,
-              color: colorScheme.onSurfaceVariant,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Update Cancelled',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'The update was cancelled before installation started. No changes were made.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            M3EButton(
-              size: M3EButtonSize.sm,
-              style: M3EButtonStyle.filled,
-              shape: M3EButtonShape.round,
-              onPressed: () => c.startUpdate(),
-              child: const Text('Update Now'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (c.isCompleted) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.5)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                HugeIcon(
-                  icon: HugeIcons.strokeRoundedCheckmarkCircle02,
-                  color: colorScheme.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Your local node has been updated to v${c.targetVersion ?? c.currentStatus?.currentVersion ?? ""}.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'A new version is ready. Reload when you\'re ready to activate it.',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                M3EButton(
-                  onPressed: () => c.reloadNow(),
-                  size: M3EButtonSize.sm,
-                  style: M3EButtonStyle.filled,
-                  shape: M3EButtonShape.round,
-                  child: const Text('Reload Now'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (c.isFailed) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colorScheme.errorContainer.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
-        ),
-        child: Row(
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedAlertCircle,
-              color: colorScheme.error,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Update Failed',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onErrorContainer,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    c.errorMessage ?? 'Update workflow failed or was rejected.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onErrorContainer,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            M3EButton(
-              style: M3EButtonStyle.text,
-              size: M3EButtonSize.sm,
-              onPressed: () => c.clearError(),
-              child: const Text('Dismiss'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (c.errorMessage != null) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colorScheme.errorContainer.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedAlertCircle,
-              color: colorScheme.error,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                c.errorMessage!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onErrorContainer,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            M3EButton(
-              style: M3EButtonStyle.text,
-              size: M3EButtonSize.sm,
-              onPressed: () => c.clearError(),
-              child: const Text('Dismiss'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (c.isUpdateAvailable) {
-      final releaseNotes =
-          (c.latestCheck?.releaseName != null &&
-              c.latestCheck!.releaseName!.isNotEmpty)
-          ? c.latestCheck!.releaseName
-          : 'Includes engine improvements and fixes';
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedSystemUpdate01,
-              color: colorScheme.primary,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Update Available (v${c.targetVersion ?? ""})',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  Text(
-                    releaseNotes ?? '',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            M3EButton(
-              onPressed: () => c.startUpdate(),
-              size: M3EButtonSize.sm,
-              style: M3EButtonStyle.filled,
-              shape: M3EButtonShape.round,
-              child: const Text('Update Now'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (!c.isCheckAvailable ||
-        (c.latestCheck != null && !c.latestCheck!.checkAvailable)) {
-      final msg =
-          c.latestCheck?.message ?? 'Unable to check for updates right now.';
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colorScheme.errorContainer.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            HugeIcon(
-              icon: HugeIcons.strokeRoundedAlertCircle,
-              color: colorScheme.error,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                msg,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onErrorContainer,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          HugeIcon(
-            icon: HugeIcons.strokeRoundedCheckmarkCircle02,
-            color: colorScheme.primary,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Your local node is running the latest version.',
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _VersionInfoDialog extends StatelessWidget {
+  const _VersionInfoDialog();
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final c = widget.controller;
 
     return M3EDialog(
       title: 'Altr Stream Version Info',
       icon: HugeIcon(
-        icon: HugeIcons.strokeRoundedSystemUpdate01,
+        icon: HugeIcons.strokeRoundedInformationCircle,
         color: colorScheme.primary,
         size: 24,
       ),
@@ -2134,9 +1621,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            c.isCompleted && c.targetVersion != null
-                ? 'Current Version: v${c.targetVersion} (Latest)'
-                : 'Current Version: ${AppConfig.formattedAppVersion}',
+            'Current Version: ${AppConfig.formattedAppVersion}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -2145,9 +1630,7 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
           ),
           const SizedBox(height: 6),
           Text(
-            c.isCompleted && c.targetVersion != null
-                ? 'AltrQL Federation Engine: v${c.targetVersion}'
-                : 'AltrQL Federation Engine: ${AppConfig.formattedAppVersion}',
+            'AltrQL Federation Engine: ${AppConfig.formattedAppVersion}',
             style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
           ),
           Text(
@@ -2155,279 +1638,45 @@ class _VersionInfoDialogState extends State<_VersionInfoDialog> {
             style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
           ),
           const SizedBox(height: 16),
-          _buildStatusCard(colorScheme),
-        ],
-      ),
-      actions: <Widget>[
-        M3EButton(
-          key: ValueKey(
-            c.isUpdateAvailable ? 'dialog_update_later' : 'dialog_update_close',
-          ),
-          style: M3EButtonStyle.text,
-          onPressed: () {
-            if (c.isUpdateAvailable) {
-              c.dismissLater();
-            }
-            Navigator.of(context).pop();
-          },
-          child: Text(c.isUpdateAvailable ? 'Later' : 'Close'),
-        ),
-        M3EButton.icon(
-          onPressed: (c.isChecking || c.isActive)
-              ? null
-              : () => c.checkForUpdates(forceRefresh: true),
-          icon: c.isChecking
-              ? SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: colorScheme.onPrimary,
-                  ),
-                )
-              : HugeIcon(
-                  icon: HugeIcons.strokeRoundedRefresh,
-                  color: colorScheme.onPrimary,
-                  size: 16,
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedInformationCircle,
+                  color: colorScheme.primary,
+                  size: 20,
                 ),
-          label: Text(c.isChecking ? 'Checking...' : 'Check for Updates'),
-        ),
-      ],
-    );
-  }
-}
-
-// --- Drawer Profile Popup (authenticated users) ---
-class _DrawerProfilePopup extends StatelessWidget {
-  final UserProfile currentUser;
-  final ColorScheme colorScheme;
-  final VoidCallback? onSignOut;
-  final Widget Function(UserProfile user, ColorScheme colorScheme)
-  buildInitialsAvatar;
-  final bool isCompact;
-
-  const _DrawerProfilePopup({
-    required this.currentUser,
-    required this.colorScheme,
-    this.onSignOut,
-    required this.buildInitialsAvatar,
-    this.isCompact = false,
-  });
-
-  Widget _buildAvatar(double size) {
-    if (currentUser.photoUrl != null &&
-        currentUser.photoUrl!.trim().isNotEmpty) {
-      return ClipOval(
-        child: Image.network(
-          currentUser.photoUrl!,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              buildInitialsAvatar(currentUser, colorScheme),
-        ),
-      );
-    }
-    return buildInitialsAvatar(currentUser, colorScheme);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = colorScheme;
-    final displayName = currentUser.displayName.isNotEmpty
-        ? currentUser.displayName
-        : 'User';
-
-    final customTheme = Theme.of(context).copyWith(
-      colorScheme: cs.copyWith(
-        secondaryContainer: cs.surfaceContainerHigh,
-        onSecondaryContainer: cs.onSurface,
-      ),
-    );
-
-    final menuThemeData = M3EThemeData(
-      colorScheme: cs.toM3EColorScheme().copyWith(
-        secondaryContainer: cs.surfaceContainerHigh,
-        onSecondaryContainer: cs.onSurface,
-        tertiaryContainer: cs.surfaceContainerHighest,
-        onTertiaryContainer: cs.onSurface,
-      ),
-      menuTheme: M3EMenuTheme(backgroundColor: cs.surfaceContainerHigh),
-    );
-
-    return Padding(
-      padding: isCompact
-          ? EdgeInsets.zero
-          : const EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 16),
-      child: Theme(
-        data: customTheme,
-        child: M3ETheme(
-          data: menuThemeData,
-          child: M3EMenu(
-            position: M3EMenuAnchorPosition.topStart,
-            colorStyle: M3EMenuColorStyle.standard,
-            closeOnSelect: true,
-            onSelected: (Object? value) {
-              if (value == 'profile') {
-                _showProfileDialog(context);
-              } else if (value == 'sign_out') {
-                onSignOut?.call();
-              } else if (value == 'delete_account') {
-                _showDeleteConfirmation(context);
-              }
-            },
-            anchorBuilder: (BuildContext context, VoidCallback open) {
-              if (isCompact) {
-                return IconButton(
-                  icon: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: _buildAvatar(22),
-                  ),
-                  tooltip: displayName,
-                  onPressed: open,
-                );
-              }
-              return InkWell(
-                borderRadius: BorderRadius.circular(12),
-                hoverColor: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-                onTap: open,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  child: Row(
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(width: 20, height: 20, child: _buildAvatar(20)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: cs.onSurface,
-                          ),
+                      Text(
+                        'Updates Managed by Stream Manager',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Node updates, binary installs, and release channels are managed via the Altr Stream Manager desktop app.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
-                  ),
-                ),
-              );
-            },
-            children: <M3EMenuNode>[
-              // Group 1 — Profile & Actions
-              M3EMenuGroup(
-                children: [
-                  M3EMenuEntry(
-                    label: 'Profile',
-                    value: 'profile',
-                    leading: HugeIcon(
-                      icon: HugeIcons.strokeRoundedUser,
-                      color: cs.onSurface,
-                      size: 18,
-                    ),
-                  ),
-                ],
-              ),
-              // Group 2 — Account actions
-              M3EMenuGroup(
-                children: [
-                  M3EMenuEntry(
-                    label: 'Log Out',
-                    value: 'sign_out',
-                    leading: HugeIcon(
-                      icon: HugeIcons.strokeRoundedLogout01,
-                      color: cs.onSurface,
-                      size: 18,
-                    ),
-                  ),
-                  M3EMenuEntry(
-                    label: 'Delete Account',
-                    value: 'delete_account',
-                    leading: HugeIcon(
-                      icon: HugeIcons.strokeRoundedDelete02,
-                      size: 18,
-                      color: cs.error,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showProfileDialog(BuildContext context) {
-    M3EDialog.show<void>(
-      context,
-      barrierDismissible: true,
-      dialog: M3EDialog(
-        icon: SizedBox(width: 56, height: 56, child: _buildAvatar(56)),
-        title: currentUser.displayName.isNotEmpty
-            ? currentUser.displayName
-            : 'User',
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildProfileRow(
-              context,
-              icon: HugeIcons.strokeRoundedMail01,
-              label: 'Email',
-              value: currentUser.email,
-            ),
-            if (currentUser.displayName.isNotEmpty)
-              _buildProfileRow(
-                context,
-                icon: HugeIcons.strokeRoundedUser,
-                label: 'Display Name',
-                value: currentUser.displayName,
-              ),
-          ],
-        ),
-        actions: <Widget>[
-          M3EButton(
-            style: M3EButtonStyle.text,
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileRow(
-    BuildContext context, {
-    required icon,
-    required String label,
-    required String value,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          HugeIcon(icon: icon, size: 18, color: cs.onSurfaceVariant),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-                ),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: cs.onSurface,
                   ),
                 ),
               ],
@@ -2435,39 +1684,14 @@ class _DrawerProfilePopup extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  void _showDeleteConfirmation(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    M3EDialog.show<void>(
-      context,
-      barrierDismissible: true,
-      dialog: M3EDialog(
-        icon: HugeIcon(
-          icon: HugeIcons.strokeRoundedAlert02,
-          color: colorScheme.error,
-          size: 24,
+      actions: <Widget>[
+        M3EButton(
+          key: const ValueKey('dialog_version_close'),
+          style: M3EButtonStyle.filled,
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
         ),
-        title: 'Delete Account',
-        content: const Text(
-          'Are you sure you want to delete your account? This action cannot be undone.',
-        ),
-        actions: <Widget>[
-          M3EButton(
-            style: M3EButtonStyle.text,
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          M3EButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // TODO: Implement account deletion
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }

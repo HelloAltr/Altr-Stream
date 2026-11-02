@@ -11,6 +11,7 @@ from altr_stream.domain.errors import (
     ReadOnlyQueryRequiredError,
     SourceNotFoundError,
 )
+from altr_stream.infrastructure.database.models import ApiKeyModel
 from altr_stream.infrastructure.database.repository import SqliteSourceRepository
 from altr_stream.infrastructure.database.session import get_session
 from altr_stream.presentation.api.dtos import (
@@ -18,6 +19,7 @@ from altr_stream.presentation.api.dtos import (
     QueryExecuteResponseDTO,
     QueryMetadataDTO,
 )
+from altr_stream.presentation.api.security import require_read_access
 
 router = APIRouter(prefix="/queries", tags=["Queries"])
 
@@ -30,9 +32,15 @@ def get_query_service(session: AsyncSession = Depends(get_session)) -> QueryServ
 @router.post("/execute", response_model=QueryExecuteResponseDTO, status_code=status.HTTP_200_OK)
 async def execute_query(
     dto: QueryExecuteRequestDTO,
+    auth_key: ApiKeyModel | None = Depends(require_read_access),
     service: QueryService = Depends(get_query_service),
 ) -> QueryExecuteResponseDTO:
     """Execute a native query against a registered physical data source."""
+    if dto.mode == "write" and auth_key is not None and not any(s in auth_key.scopes for s in ("write", "admin")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Write query execution requires 'write' or 'admin' scope.",
+        )
     try:
         result = await service.execute_query(source_id=dto.source_id, query=dto.query, mode=dto.mode)
         return QueryExecuteResponseDTO(

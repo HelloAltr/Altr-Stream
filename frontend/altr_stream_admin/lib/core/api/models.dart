@@ -1254,6 +1254,14 @@ class UserProfile {
   final String email;
   final String? photoUrl;
   final String? provider;
+  final String? defaultWorkspaceId;
+  final List<String> workspaceIds;
+  final String passcodeType; // 'pin' or 'password'
+  final String? passcodeSalt;
+  final String? passcodeVerifier;
+
+  bool get hasPasscode =>
+      passcodeVerifier != null && passcodeVerifier!.isNotEmpty;
 
   const UserProfile({
     required this.id,
@@ -1261,6 +1269,11 @@ class UserProfile {
     required this.email,
     this.photoUrl,
     this.provider = 'google.com',
+    this.defaultWorkspaceId,
+    this.workspaceIds = const [],
+    this.passcodeType = 'pin',
+    this.passcodeSalt,
+    this.passcodeVerifier,
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -1274,7 +1287,41 @@ class UserProfile {
           json['picture']?.toString() ??
           json['avatar_url']?.toString(),
       provider: json['provider']?.toString() ?? 'google.com',
+      defaultWorkspaceId: json['default_workspace_id']?.toString(),
+      workspaceIds: List<String>.from(json['workspace_ids'] ?? []),
+      passcodeType: json['passcode_type']?.toString() ?? 'pin',
+      passcodeSalt: json['passcode_salt']?.toString(),
+      passcodeVerifier: json['passcode_verifier']?.toString(),
     );
+  }
+
+  factory UserProfile.fromFirestore(String uid, Map<String, dynamic> data) {
+    return UserProfile(
+      id: uid,
+      displayName: data['display_name']?.toString() ?? 'Altr User',
+      email: data['email']?.toString() ?? '',
+      photoUrl: data['photo_url']?.toString(),
+      provider: data['provider']?.toString() ?? 'google.com',
+      defaultWorkspaceId: data['default_workspace_id']?.toString(),
+      workspaceIds: List<String>.from(data['workspace_ids'] ?? []),
+      passcodeType: data['passcode_type']?.toString() ?? 'pin',
+      passcodeSalt: data['passcode_salt']?.toString(),
+      passcodeVerifier: data['passcode_verifier']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'display_name': displayName,
+      'email': email,
+      'photo_url': photoUrl,
+      'provider': provider,
+      'default_workspace_id': defaultWorkspaceId,
+      'workspace_ids': workspaceIds,
+      'passcode_type': passcodeType,
+      'passcode_salt': passcodeSalt,
+      'passcode_verifier': passcodeVerifier,
+    };
   }
 
   Map<String, dynamic> toJson() => {
@@ -1283,7 +1330,36 @@ class UserProfile {
     'email': email,
     'photoUrl': photoUrl,
     'provider': provider,
+    'default_workspace_id': defaultWorkspaceId,
+    'workspace_ids': workspaceIds,
+    'passcode_type': passcodeType,
+    'passcode_salt': passcodeSalt,
+    'passcode_verifier': passcodeVerifier,
   };
+
+  UserProfile copyWith({
+    String? displayName,
+    String? email,
+    String? photoUrl,
+    String? defaultWorkspaceId,
+    List<String>? workspaceIds,
+    String? passcodeType,
+    String? passcodeSalt,
+    String? passcodeVerifier,
+  }) {
+    return UserProfile(
+      id: id,
+      displayName: displayName ?? this.displayName,
+      email: email ?? this.email,
+      photoUrl: photoUrl ?? this.photoUrl,
+      provider: provider,
+      defaultWorkspaceId: defaultWorkspaceId ?? this.defaultWorkspaceId,
+      workspaceIds: workspaceIds ?? this.workspaceIds,
+      passcodeType: passcodeType ?? this.passcodeType,
+      passcodeSalt: passcodeSalt ?? this.passcodeSalt,
+      passcodeVerifier: passcodeVerifier ?? this.passcodeVerifier,
+    );
+  }
 }
 
 class UsageMetricsModel {
@@ -1368,6 +1444,9 @@ class UsageMetricsModel {
   };
 
   String get formattedOpsPerMinute {
+    if (opsPerMinute <= 0.05) {
+      return '0.0 ops/m';
+    }
     if (opsPerMinute >= 1000) {
       return '${(opsPerMinute / 1000).toStringAsFixed(1)}k ops/m';
     }

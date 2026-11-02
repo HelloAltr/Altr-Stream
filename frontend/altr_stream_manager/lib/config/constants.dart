@@ -11,7 +11,7 @@ class AppConstants {
 
   static const String defaultDockerImage = 'ghcr.io/helloaltr/altr-stream:1.1.0';
   static const String containerName = 'altr-stream';
-  static const String dataVolumeName = 'altr_stream_data';
+  static const String dataVolumeName = 'altr-stream-data';
   static const double dialogStandardWidth = 360.0;
 }
 

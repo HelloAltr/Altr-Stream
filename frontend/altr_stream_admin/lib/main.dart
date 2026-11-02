@@ -20,15 +20,35 @@ import 'features/sources/widgets/add_source_wizard_dialog.dart';
 import 'shared/widgets/app_shell.dart';
 import 'shared/widgets/node_status_dialog.dart';
 import 'shared/widgets/trail_extended_fab.dart';
+import 'shared/feedback/feedback_dialog.dart';
+import 'shared/dialogs/altr_alert_dialog.dart';
+import 'shared/live_actions/live_actions_controller.dart';
+import 'core/auth/models/workspace.dart';
+import 'core/auth/services/auth_service.dart';
+import 'core/auth/services/passcode_service.dart';
+import 'core/auth/services/workspace_service.dart';
+import 'core/auth/dialogs/passcode_setup_dialog.dart';
+import 'core/auth/dialogs/api_security_dialog.dart';
+import 'core/auth/dialogs/create_workspace_dialog.dart';
+import 'core/auth/dialogs/account_workspace_setup_dialog.dart';
 
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'core/theme/material_theme.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     BrowserContextMenu.disableContextMenu();
   } catch (_) {}
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('[Main] Firebase initialization note: $e');
+  }
   runApp(const AltrStreamAdminApp());
 }
 
@@ -70,6 +90,7 @@ class _AltrStreamAdminAppState extends State<AltrStreamAdminApp> {
             ),
             menuTheme: M3EMenuTheme(
               backgroundColor: materialTheme.colorScheme.surfaceContainerHigh,
+              maxHeight: 800,
             ),
             navigationDrawerTheme: const M3ENavigationDrawerTheme(width: 320),
           ),
@@ -100,6 +121,10 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final ApiClient _apiClient = ApiClient();
+  final AuthService _authService = AuthService();
+  final PasscodeService _passcodeService = PasscodeService();
+  final WorkspaceService _workspaceService = WorkspaceService();
+  late final LiveActionsController _liveActionsController;
 
   List<SourceModel> _sources = [];
   int _modelsCount = 0;
@@ -107,6 +132,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   bool _isLoadingSources = true;
   String _activeRoute = '/';
   String? _previousRoute;
+  String? _settingsCategory;
   SourceModel? _selectedSource;
   LogicalModelModel? _selectedLogicalModel;
   String _nodeStatus = 'ACTIVE';
@@ -129,6 +155,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _authService.initialize();
+    _authService.addListener(_onAuthChanged);
+    _passcodeService.addListener(_onPasscodeChanged);
+    _workspaceService.addListener(_onWorkspaceChanged);
+
+    _liveActionsController = LiveActionsController(
+      onRequestLockSudo: _showExitSudoConfirmation,
+      onOpenFeedback: () => FeedbackDialog.show(context, apiClient: _apiClient),
+    );
+
     _logActivity(
       type: ActivityType.nodeStart,
       title: 'Altr Stream Node Initialized',
@@ -149,7 +185,35 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   void dispose() {
     _usageTimer?.cancel();
+    _authService.removeListener(_onAuthChanged);
+    _passcodeService.removeListener(_onPasscodeChanged);
+    _workspaceService.removeListener(_onWorkspaceChanged);
+    _liveActionsController.dispose();
     super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    setState(() {
+      _currentUser = _authService.currentProfile;
+    });
+  }
+
+  void _onPasscodeChanged() {
+    if (!mounted) return;
+    if (_passcodeService.isSudoActive && !_liveActionsController.isSudoActive) {
+      _liveActionsController.activateSudo(
+        durationSeconds: _passcodeService.sudoRemainingSeconds,
+      );
+    } else if (!_passcodeService.isSudoActive && _liveActionsController.isSudoActive) {
+      _liveActionsController.lockSudo();
+    }
+    setState(() {});
+  }
+
+  void _onWorkspaceChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _fetchUsageMetrics() async {
@@ -445,14 +509,67 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  void _showSignInDialog() {
+  Future<void> _showSignInDialog() async {
+    try {
+      final credential = await _authService.signInWithGoogle();
+      if (credential != null && mounted) {
+        final user = credential.user;
+        if (user != null) {
+          final existing = await _authService.checkProfileExists(user.uid);
+          if (existing != null) {
+            setState(() => _currentUser = existing);
+            _logActivity(
+              type: ActivityType.nodeStart,
+              title: 'Google Sign-In Success',
+              description: 'Signed in as ${existing.displayName} (${existing.email})',
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Welcome back, ${existing.displayName}! Signed in with Google.'),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+              ),
+            );
+          } else if (mounted) {
+            final setup = await showDialog<UserProfile>(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AccountWorkspaceSetupDialog(
+                userId: user.uid,
+                initialEmail: user.email ?? '',
+                initialDisplayName: user.displayName ?? '',
+                initialPhotoUrl: user.photoURL,
+              ),
+            );
+            if (setup != null && mounted) {
+              setState(() => _currentUser = setup);
+              _logActivity(
+                type: ActivityType.nodeStart,
+                title: 'Account & Workspace Configured',
+                description: 'Configured profile and workspace for ${setup.displayName} (${setup.email})',
+              );
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Account & Workspace configured! Welcome, ${setup.displayName}.'),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                ),
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[AdminHomeScreen] Firebase Google Sign-In note: $e');
+      if (mounted) {
+        _showManualSignInFallback();
+      }
+    }
+  }
+
+  void _showManualSignInFallback() {
     final colorScheme = Theme.of(context).colorScheme;
     final nameController = TextEditingController(text: 'Asher Developer');
-    final emailController = TextEditingController(text: 'asher@altrstream.io');
-    final photoController = TextEditingController(
-      text:
-          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
-    );
+    final emailController = TextEditingController(text: 'asher@helloaltr.com');
+    final photoController = TextEditingController();
 
     showDialog(
       context: context,
@@ -466,7 +583,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               size: 24,
             ),
             const SizedBox(width: 10),
-            const Text('Google Sign In'),
+            const Text('Altr Account Sign In'),
           ],
         ),
         content: Column(
@@ -488,7 +605,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: emailController,
-              decoration: const InputDecoration(labelText: 'Google Email *'),
+              decoration: const InputDecoration(labelText: 'Email *'),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -508,49 +625,80 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             ),
           ),
           M3EButton(
-            onPressed: () {
+            onPressed: () async {
               final name = nameController.text.trim();
               final email = emailController.text.trim();
               final photo = photoController.text.trim();
               if (name.isNotEmpty && email.isNotEmpty) {
-                final user = UserProfile(
-                  id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
-                  displayName: name,
-                  email: email,
-                  photoUrl: photo.isNotEmpty ? photo : null,
-                  provider: 'google.com',
-                );
-                setState(() {
-                  _currentUser = user;
-                });
-                _logActivity(
-                  type: ActivityType.nodeStart,
-                  title: 'User Authenticated',
-                  description:
-                      'Signed in as ${user.displayName} (${user.email})',
-                );
+                final emailSlug = email.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+                final stableId = 'usr_$emailSlug';
+
                 Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Welcome, ${user.displayName}! Signed in with Google.',
+
+                // Check if user already exists in Firestore
+                final existing = await _authService.checkProfileExists(stableId);
+                if (existing != null && mounted) {
+                  await _authService.setManualProfile(existing);
+                  setState(() {
+                    _currentUser = existing;
+                  });
+                  _logActivity(
+                    type: ActivityType.nodeStart,
+                    title: 'User Authenticated',
+                    description: 'Signed in as ${existing.displayName} (${existing.email})',
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Welcome back, ${existing.displayName}! Signed in.'),
+                      backgroundColor: colorScheme.primary,
                     ),
-                    backgroundColor: colorScheme.primary,
-                  ),
-                );
+                  );
+                } else if (mounted) {
+                  // First-time setup: prompt user to configure account & workspace details
+                  final setup = await showDialog<UserProfile>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (dCtx) => AccountWorkspaceSetupDialog(
+                      userId: stableId,
+                      initialEmail: email,
+                      initialDisplayName: name,
+                      initialPhotoUrl: photo.isNotEmpty ? photo : null,
+                    ),
+                  );
+                  if (setup != null && mounted) {
+                    setState(() {
+                      _currentUser = setup;
+                    });
+                    _logActivity(
+                      type: ActivityType.nodeStart,
+                      title: 'Account & Workspace Configured',
+                      description: 'Configured profile and workspace for ${setup.displayName} (${setup.email})',
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Account & Workspace configured! Welcome, ${setup.displayName}.'),
+                        backgroundColor: colorScheme.primary,
+                      ),
+                    );
+                  }
+                }
               }
             },
             style: M3EButtonStyle.filled,
             size: M3EButtonSize.sm,
-            child: const Text('Sign In with Google'),
+            child: const Text('Sign In'),
           ),
         ],
       ),
     );
   }
 
-  void _handleSignOut() {
-    final prevUser = _currentUser;
+  void _handleSignOut() async {
+    final prevUser = _currentUser ?? _authService.currentProfile;
+    _passcodeService.lockSudo();
+    _liveActionsController.lockSudo();
+
+    await _authService.signOut();
     setState(() {
       _currentUser = null;
     });
@@ -568,39 +716,208 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
+  Future<void> _showExitSudoConfirmation() async {
+    final confirmed = await AltrAlert.show(
+      context,
+      icon: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.18),
+          shape: BoxShape.circle,
+        ),
+        child: const HugeIcon(
+          icon: HugeIcons.strokeRoundedSecurityLock,
+          color: Colors.amber,
+          size: 26,
+        ),
+      ),
+      title: 'Exit Sudo Mode?',
+      message:
+          'Are you sure you want to exit Sudo mode? Sensitive operations will require entering your passcode again.',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Exit Sudo',
+      isDestructive: false,
+    );
+
+    if (confirmed == true) {
+      _passcodeService.lockSudo();
+      _liveActionsController.lockSudo();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sudo mode locked. Elevated privileges revoked.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _openPasscodeDialog() {
+    final effectiveUser = _currentUser ?? _authService.currentProfile ?? const UserProfile(
+      id: 'local_admin',
+      displayName: 'Local Admin',
+      email: 'admin@localhost',
+    );
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => PasscodeSetupDialog(
+        userId: effectiveUser.id,
+        userProfile: effectiveUser,
+        initialType: effectiveUser.passcodeType,
+        onConfigured: () async {
+          await _authService.refreshProfile();
+          if (mounted) {
+            setState(() {
+              _currentUser = _authService.currentProfile ?? effectiveUser.copyWith(
+                passcodeType: _passcodeService.getCredentialType(effectiveUser.id) ?? 'pin',
+                passcodeSalt: 'configured',
+                passcodeVerifier: 'configured',
+              );
+            });
+          }
+        },
+      ),
+    );
+  }
+
+  void _openApiSecurityDialog() {
+    final user = _currentUser ?? _authService.currentProfile ?? const UserProfile(
+      id: 'local_admin',
+      displayName: 'Local Admin',
+      email: 'admin@localhost',
+    );
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => ApiSecurityDialog(userProfile: user),
+    );
+  }
+
+  void _openWorkspacesDialog() {
+    final user = _currentUser ?? _authService.currentProfile;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to access workspaces.')),
+      );
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final theme = Theme.of(context);
+          final colorScheme = theme.colorScheme;
+          final workspaces = _workspaceService.workspaces;
+          final active = _workspaceService.activeWorkspace;
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                HugeIcon(icon: HugeIcons.strokeRoundedGrid, color: colorScheme.primary, size: 20),
+                const SizedBox(width: 10),
+                const Text('Altr Mesh Workspaces'),
+              ],
+            ),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Workspaces are shared across Altr Stream, Altr Chat, and other Altr Mesh products.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 16),
+                  if (workspaces.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text('No workspaces yet. Create your first workspace below.'),
+                    )
+                  else
+                    ...workspaces.map((ws) {
+                      final isSelected = active?.id == ws.id;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? colorScheme.primaryContainer.withValues(alpha: 0.5)
+                              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: ListTile(
+                          title: Text(ws.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                          subtitle: Text(
+                            'Services: ${ws.enabledServices.join(", ")} · Members: ${ws.memberUids.length}',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          trailing: isSelected
+                              ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
+                              : TextButton(
+                                  onPressed: () {
+                                    _workspaceService.setActiveWorkspace(ws);
+                                    Navigator.of(ctx).pop();
+                                  },
+                                  child: const Text('Switch'),
+                                ),
+                        ),
+                      );
+                    }),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.of(ctx).pop();
+                      await showDialog<Workspace?>(
+                        context: context,
+                        builder: (_) => CreateWorkspaceDialog(
+                          ownerUid: user.id,
+                          ownerEmail: user.email,
+                          ownerDisplayName: user.displayName,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Create New Workspace'),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _deleteSource(SourceModel source) async {
     final colorScheme = Theme.of(context).colorScheme;
-    final confirmed = await M3EDialog.show<bool>(
+    final confirmed = await AltrAlert.show(
       context,
-      barrierDismissible: true,
-      dialog: M3EDialog(
-        icon: HugeIcon(
+      icon: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.5),
+          shape: BoxShape.circle,
+        ),
+        child: HugeIcon(
           icon: HugeIcons.strokeRoundedDelete02,
-          color: colorScheme.error,
-          size: 28,
+          color: Theme.of(context).colorScheme.error,
+          size: 26,
         ),
-        title: 'Delete Data Source?',
-        content: Text(
-          'Are you sure you want to delete "${source.name}" and all associated physical schema snapshots? This action cannot be undone.',
-          style: TextStyle(
-            color: colorScheme.onSurfaceVariant,
-            fontSize: 13,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          M3EButton(
-            style: M3EButtonStyle.text,
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          M3EButton(
-            style: M3EButtonStyle.filled,
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete Source'),
-          ),
-        ],
       ),
+      title: 'Delete Data Source?',
+      message:
+          'Are you sure you want to delete "${source.name}" and all associated physical schema snapshots? This action cannot be undone.',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Delete Source',
+      isDestructive: true,
     );
 
     if (confirmed == true) {
@@ -701,6 +1018,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         onNodeStatusTap: _showNodeStatusDialog,
         themeMode: widget.themeMode,
         onThemeModeChanged: widget.onThemeModeChanged,
+        onPasscodeTap: _openPasscodeDialog,
+        onApiSecurityTap: _openApiSecurityDialog,
+        onWorkspacesTap: _openWorkspacesDialog,
+        activeWorkspaceName: _workspaceService.activeWorkspace?.name,
+        currentUser: _currentUser ?? _authService.currentProfile,
+        initialCategoryId: _settingsCategory,
       );
     }
 
@@ -859,9 +1182,22 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       pageActions: _getPageActions(),
       floatingActionButton: _getFloatingActionButton(),
       nodeStatus: _nodeStatus,
-      currentUser: _currentUser,
+      currentUser: _currentUser ?? _authService.currentProfile,
       onSignIn: _showSignInDialog,
       onSignOut: _handleSignOut,
+      onPasscodeTap: _openPasscodeDialog,
+      onApiSecurityTap: _openApiSecurityDialog,
+      onWorkspacesTap: _openWorkspacesDialog,
+      activeWorkspaceName: _workspaceService.activeWorkspace?.name,
+      onNavigateToSettingsCategory: (category) {
+        setState(() {
+          _previousRoute = _activeRoute;
+          _activeRoute = '/settings';
+          _settingsCategory = category;
+        });
+      },
+      liveActionsController: _liveActionsController,
+      apiClient: _apiClient,
       onNodeStatusTap: _showNodeStatusDialog,
       themeMode: widget.themeMode,
       onThemeModeChanged: widget.onThemeModeChanged,
@@ -872,6 +1208,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           if (route != _activeRoute) {
             _previousRoute = _activeRoute;
             _activeRoute = route;
+            if (route != '/settings') {
+              _settingsCategory = null;
+            }
           }
         });
       },

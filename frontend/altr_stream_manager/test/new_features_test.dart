@@ -208,6 +208,34 @@ void main() {
       await tester.pump();
     });
 
+    testWidgets('Unpublished/building version is rendered with (coming soon) and disabled in dropdown', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mock = MockBackendService(currentScenario: MockScenario.running);
+      mock.setActiveVersionForTesting('1.0.0-beta');
+      mock.customAvailableVersions = [
+        const NodeVersion(version: '1.2.0', isAvailable: false),
+        const NodeVersion(version: '1.0.0-beta', isAvailable: true),
+      ];
+      backendService = mock;
+
+      await tester.pumpWidget(const AltrStreamManagerApp());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      final dropdown = tester.widget<DropdownButton<String>>(find.byType(DropdownButton<String>));
+      final item120 = dropdown.items!.firstWhere((item) => item.value == '1.2.0');
+
+      expect(item120.enabled, isFalse);
+      final textWidget = item120.child as Text;
+      expect(textWidget.data, '1.2.0 (coming soon)');
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+
     testWidgets('UI resolves to Docker Desktop not Running and shows Start Docker Desktop button when stopped', (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -258,6 +286,94 @@ void main() {
 
       // Successfully transitioned to ready
       expect(find.text('Docker Desktop is ready!'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+  });
+
+  group('Semantic Versioning & Update Notification Tests', () {
+    test('NodeStatus.compareSemVer accurately compares semantic versions', () {
+      expect(NodeStatus.compareSemVer('1.1.0', '1.0.0-beta'), greaterThan(0));
+      expect(NodeStatus.compareSemVer('1.0.0', '1.0.0-beta'), greaterThan(0));
+      expect(NodeStatus.compareSemVer('1.1.0', '1.1.0'), equals(0));
+      expect(NodeStatus.compareSemVer('0.13.7-alpha', '1.0.0-beta'), lessThan(0));
+      expect(NodeStatus.compareSemVer('v1.1.0', '1.0.0'), greaterThan(0));
+      expect(NodeStatus.compareSemVer('1.1.0', 'v1.1.0'), equals(0));
+      expect(NodeStatus.compareSemVer('1.2.0', '1.1.9'), greaterThan(0));
+      expect(NodeStatus.compareSemVer('1.0.0', '1.0.0-alpha'), greaterThan(0));
+      expect(NodeStatus.compareSemVer('1.0.0-alpha', '1.0.0-beta'), lessThan(0));
+    });
+
+    test('NodeStatus.hasUpdate returns true only when recommendedVersion is strictly newer', () {
+      final updateAvail = NodeStatus(
+        installDir: '/test',
+        activeVersion: '1.0.0-beta',
+        recommendedVersion: '1.1.0',
+        nodeState: NodeState.running,
+      );
+      expect(updateAvail.hasUpdate, isTrue);
+
+      final upToDate = NodeStatus(
+        installDir: '/test',
+        activeVersion: '1.1.0',
+        recommendedVersion: '1.1.0',
+        nodeState: NodeState.running,
+      );
+      expect(upToDate.hasUpdate, isFalse);
+
+      final newerInstalled = NodeStatus(
+        installDir: '/test',
+        activeVersion: '1.2.0',
+        recommendedVersion: '1.1.0',
+        nodeState: NodeState.running,
+      );
+      expect(newerInstalled.hasUpdate, isFalse);
+    });
+
+    testWidgets('Node Manager displays Update button to the left of Change Version dropdown and triggers update dialog on tap', (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mock = MockBackendService(currentScenario: MockScenario.updateAvailable);
+      mock.customAvailableVersions = const [
+        NodeVersion(version: '1.1.0', isAvailable: true, isRecommended: true),
+        NodeVersion(version: '1.0.0-beta', isAvailable: true),
+        NodeVersion(version: '0.13.7-alpha', isAvailable: true),
+      ];
+      backendService = mock;
+
+      await tester.pumpWidget(const AltrStreamManagerApp());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      // Verify the update button and change version dropdown are rendered
+      final updateButtonFinder = find.text('Update to v1.1.0');
+      final changeVersionFinder = find.text('Change version');
+      expect(updateButtonFinder, findsOneWidget);
+      expect(changeVersionFinder, findsOneWidget);
+
+      // Verify update button is physically located to the LEFT of the Change version dropdown
+      final updateButtonTopLeft = tester.getTopLeft(updateButtonFinder);
+      final changeVersionTopLeft = tester.getTopLeft(changeVersionFinder);
+      expect(updateButtonTopLeft.dx, lessThan(changeVersionTopLeft.dx));
+
+      // Tap the update button
+      await tester.tap(updateButtonFinder);
+      await tester.pumpAndSettle();
+
+      // Confirmation dialog should be displayed
+      expect(find.text('Change Node Version'), findsOneWidget);
+      expect(
+        find.text('Are you sure you want to change the Altr Stream Node version from 1.0.0-beta to 1.1.0?'),
+        findsOneWidget,
+      );
+
+      // Cancel dialog
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
 
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
