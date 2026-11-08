@@ -396,10 +396,24 @@ class EngineBackendService implements BackendService {
         }
       } else if (Platform.isWindows) {
         final progFiles = Platform.environment['ProgramFiles'] ?? r'C:\Program Files';
-        final winPath = '$progFiles\\Docker\\Docker\\Docker Desktop.exe';
-        if (File(winPath).existsSync()) {
-          desktopFound = true;
-          desktopPathEvidence = winPath;
+        final progW64 = Platform.environment['ProgramW6432'] ?? r'C:\Program Files';
+        final progX86 = Platform.environment['ProgramFiles(x86)'] ?? r'C:\Program Files (x86)';
+        final localApp = Platform.environment['LOCALAPPDATA'] ?? '';
+        final winCandidates = [
+          '$progFiles\\Docker\\Docker\\Docker Desktop.exe',
+          '$progW64\\Docker\\Docker\\Docker Desktop.exe',
+          '$progX86\\Docker\\Docker\\Docker Desktop.exe',
+          r'C:\Program Files\Docker\Docker\Docker Desktop.exe',
+          if (localApp.isNotEmpty) '$localApp\\Programs\\Docker\\Docker\\Docker Desktop.exe',
+          if (localApp.isNotEmpty) '$localApp\\Programs\\Docker\\Docker Desktop.exe',
+          if (localApp.isNotEmpty) '$localApp\\Docker\\Docker Desktop.exe',
+        ];
+        for (final p in winCandidates) {
+          if (File(p).existsSync()) {
+            desktopFound = true;
+            desktopPathEvidence = p;
+            break;
+          }
         }
       }
     } catch (_) {}
@@ -421,14 +435,42 @@ class EngineBackendService implements BackendService {
     // Check 2: Docker CLI Discovery
     bool cliFound = false;
     String cliEvidence = '';
+    String resolvedCli = Platform.isWindows ? 'docker.exe' : 'docker';
     try {
-      final cliName = Platform.isWindows ? 'docker.exe' : 'docker';
-      final res = await _commandRunner(cliName, ['--version']).timeout(const Duration(seconds: 3));
+      final res = await _commandRunner(resolvedCli, ['--version']).timeout(const Duration(seconds: 3));
       if (res.exitCode == 0) {
         cliFound = true;
         cliEvidence = res.stdout.toString().trim();
       }
     } catch (_) {}
+
+    if (!cliFound && Platform.isWindows) {
+      final progData = Platform.environment['ProgramData'] ?? r'C:\ProgramData';
+      final progFiles = Platform.environment['ProgramFiles'] ?? r'C:\Program Files';
+      final localApp = Platform.environment['LOCALAPPDATA'] ?? '';
+      final cliCandidates = [
+        '$progData\\DockerDesktop\\version-bin\\docker.exe',
+        r'C:\ProgramData\DockerDesktop\version-bin\docker.exe',
+        '$progFiles\\Docker\\Docker\\resources\\bin\\docker.exe',
+        r'C:\Program Files\Docker\Docker\resources\bin\docker.exe',
+        '$progFiles\\Docker\\Docker\\resources\\docker.exe',
+        '$progFiles\\Docker\\Docker\\docker.exe',
+        if (localApp.isNotEmpty) '$localApp\\Programs\\Docker\\resources\\bin\\docker.exe',
+      ];
+      for (final cand in cliCandidates) {
+        if (File(cand).existsSync()) {
+          try {
+            final res = await _commandRunner(cand, ['--version']).timeout(const Duration(seconds: 3));
+            if (res.exitCode == 0) {
+              cliFound = true;
+              resolvedCli = cand;
+              cliEvidence = res.stdout.toString().trim();
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+    }
 
     checks.add(DiagnosticCheck(
       title: 'Docker CLI Discovery',
@@ -449,8 +491,7 @@ class EngineBackendService implements BackendService {
     bool daemonPaused = false;
     String daemonError = '';
     try {
-      final cliName = Platform.isWindows ? 'docker.exe' : 'docker';
-      final res = await _commandRunner(cliName, ['info']).timeout(const Duration(seconds: 3));
+      final res = await _commandRunner(resolvedCli, ['info']).timeout(const Duration(seconds: 4));
       if (res.exitCode == 0) {
         daemonReady = true;
       } else {
@@ -463,6 +504,19 @@ class EngineBackendService implements BackendService {
       }
     } catch (e) {
       daemonError = sanitizeLogMessage(e.toString());
+    }
+
+    if (!daemonReady && !daemonPaused && Platform.isWindows) {
+      for (final pipe in [r'npipe:////./pipe/docker_engine', r'npipe:////./pipe/dockerDesktopLinuxEngine']) {
+        try {
+          final fbRes = await _commandRunner(resolvedCli, ['-H', pipe, 'info']).timeout(const Duration(seconds: 4));
+          if (fbRes.exitCode == 0) {
+            daemonReady = true;
+            daemonError = '';
+            break;
+          }
+        } catch (_) {}
+      }
     }
 
     if (!desktopFound && !cliFound) {

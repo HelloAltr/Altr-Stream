@@ -51,6 +51,12 @@ func (d *DockerManager) ResolveDockerCLI() string {
 	for _, cand := range candidates {
 		if cand != "" {
 			if fi, err := d.stat(cand); err == nil && !fi.IsDir() {
+				// Inject directory into PATH for subsequent LookPath and child process executions
+				dir := filepath.Dir(cand)
+				cur := os.Getenv("PATH")
+				if !strings.Contains(strings.ToLower(cur), strings.ToLower(dir)) {
+					_ = os.Setenv("PATH", dir+string(os.PathListSeparator)+cur)
+				}
 				return cand
 			}
 		}
@@ -81,6 +87,12 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 	diag.DesktopInstalled = desktopExists
 	_ = desktopPath
 
+	// If the Docker Desktop application process is actively running, it is definitely installed
+	isProcessRunning := d.isPlatformDockerDesktopProcessRunning(ctx)
+	if isProcessRunning {
+		diag.DesktopInstalled = true
+	}
+
 	if !diag.CliInstalled && !diag.DesktopInstalled {
 		diag.State = DockerStateNotInstalled
 		diag.StatusText = "Not Installed"
@@ -95,7 +107,7 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 		infoCLI = "docker"
 	}
 
-	infoCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	infoCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
 
 	stdout, stderr, exitCode, _ := d.executor.Run(infoCtx, infoCLI, "info")
@@ -128,6 +140,27 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 		}
 	}
 
+	// If initial probe failed on Windows due to connection issues, probe fallback Windows named pipes
+	if !diag.EngineRunning && !isExplicitDaemonResponse && runtime.GOOS == "windows" {
+		if _, isReal := d.executor.(*OSCommandExecutor); isReal {
+			pipes := []string{
+				`npipe:////./pipe/docker_engine`,
+				`npipe:////./pipe/dockerDesktopLinuxEngine`,
+			}
+			for _, pipe := range pipes {
+				fbCtx, fbCancel := context.WithTimeout(ctx, 4*time.Second)
+				_, _, fbExit, _ := d.executor.Run(fbCtx, infoCLI, "-H", pipe, "info")
+				fbCancel()
+				if fbExit == 0 {
+					diag.EngineRunning = true
+					diag.TechnicalError = ""
+					_ = os.Setenv("DOCKER_HOST", pipe)
+					break
+				}
+			}
+		}
+	}
+
 	// Probe compose
 	composeCmd := d.resolveComposeCommand(ctx, infoCLI)
 	if composeCmd != "" {
@@ -154,7 +187,6 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 	tech := strings.ToLower(diag.TechnicalError)
 
 	_, isReal := d.executor.(*OSCommandExecutor)
-	isProcessRunning := d.isPlatformDockerDesktopProcessRunning(ctx)
 
 	// Check if Docker Desktop is paused/suspended
 	isPaused := strings.Contains(tech, "manually paused") ||
@@ -229,7 +261,7 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 
 func (d *DockerManager) resolveComposeCommand(ctx context.Context, dockerCLI string) string {
 	// Try `docker compose version`
-	composeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	composeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	_, _, exitCode, _ := d.executor.Run(composeCtx, dockerCLI, "compose", "version")
 	if exitCode == 0 {
@@ -238,13 +270,36 @@ func (d *DockerManager) resolveComposeCommand(ctx context.Context, dockerCLI str
 
 	// Try standalone `docker-compose`
 	if p, err := d.lookPath("docker-compose"); err == nil && p != "" {
-		standaloneCtx, standaloneCancel := context.WithTimeout(ctx, 2*time.Second)
+		standaloneCtx, standaloneCancel := context.WithTimeout(ctx, 3*time.Second)
 		defer standaloneCancel()
 		_, _, ec2, _ := d.executor.Run(standaloneCtx, p, "version")
 		if ec2 == 0 {
 			return p
 		}
 	}
+
+	// Windows fallback checks for standalone docker-compose.exe beside docker CLI or in cli-plugins
+	if runtime.GOOS == "windows" && dockerCLI != "" {
+		cliDir := filepath.Dir(dockerCLI)
+		candidates := []string{
+			filepath.Join(cliDir, "docker-compose.exe"),
+			filepath.Join(cliDir, "..", "cli-plugins", "docker-compose.exe"),
+			filepath.Join(cliDir, "cli-plugins", "docker-compose.exe"),
+			`C:\Program Files\Docker\Docker\cli-plugins\docker-compose.exe`,
+			`C:\ProgramData\DockerDesktop\cli-plugins\docker-compose.exe`,
+		}
+		for _, cand := range candidates {
+			if fi, err := d.stat(cand); err == nil && !fi.IsDir() {
+				cCtx, cCancel := context.WithTimeout(ctx, 3*time.Second)
+				_, _, ec, _ := d.executor.Run(cCtx, cand, "version")
+				cCancel()
+				if ec == 0 {
+					return cand
+				}
+			}
+		}
+	}
+
 	return ""
 }
 
