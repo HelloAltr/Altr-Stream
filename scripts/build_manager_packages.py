@@ -575,18 +575,7 @@ def main() -> None:
         if platform.system() == "Windows" and not args.skip_flutter_build:
             runner_release_dir = build_flutter_windows_release(manager_dir)
 
-        # 3. Stage Windows Executable
-        flutter_exe = runner_release_dir / "altr_stream_manager.exe"
-        if flutter_exe.is_file():
-            windows_exe = output_dir / "Altr-Stream-Manager.exe"
-            shutil.copy2(flutter_exe, windows_exe)
-            artifacts.append(("Windows Executable (Flutter UI)", windows_exe))
-        elif platform.system() == "Windows":
-            print("  ⚠ Notice: Flutter Windows runner not found at expected path.")
-        else:
-            print("  ℹ Note: Skipping standalone Altr-Stream-Manager.exe staging on non-Windows host (requires Windows host to compile Flutter UI).")
-
-        # 4. Assemble Portable ZIP Package
+        # 3. Assemble Portable ZIP Package (contains Flutter runner, DLLs, engine, and data/)
         portable_zip = build_windows_portable_package(windows_engine, output_dir, version=version)
         artifacts.append(("Windows Portable ZIP", portable_zip))
 
