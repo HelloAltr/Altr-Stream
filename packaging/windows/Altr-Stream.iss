@@ -42,7 +42,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Manager Application and Shared Engine (Windows amd64)
+#if FileExists("..\..\frontend\altr_stream_manager\build\windows\x64\runner\Release\altr_stream_manager.exe")
+Source: "..\..\frontend\altr_stream_manager\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\frontend\altr_stream_manager\build\windows\x64\runner\Release\altr_stream_manager.exe"; DestDir: "{app}"; DestName: "Altr Stream Manager.exe"; Flags: ignoreversion
+#else
 Source: "build\altr-installer-engine.exe"; DestDir: "{app}"; DestName: "Altr Stream Manager.exe"; Flags: ignoreversion
+#endif
 Source: "build\altr-installer-engine.exe"; DestDir: "{app}"; DestName: "altr-installer-engine.exe"; Flags: ignoreversion
 Source: "..\templates\INSTALLER_README.md"; DestDir: "{app}"; DestName: "README.txt"; Flags: ignoreversion
 

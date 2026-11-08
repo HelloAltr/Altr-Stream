@@ -87,17 +87,68 @@ jobs:
           python scripts\build_manager_packages.py --platform windows --version $version --skip-flutter-build
           Write-Host "✔ Distribution packages assembled."
 
-      - name: Upload Test Artifact (Ready to Run)
+      - name: Build Single-File Portable Executable (.exe)
+        shell: pwsh
+        run: |
+          $releaseDir = "frontend\altr_stream_manager\build\windows\x64\runner\Release"
+          $launcherDir = "packaging\windows\launcher"
+          $appZip = "$launcherDir\app.zip"
+          
+          # Compress release directory into app.zip for launcher embedding
+          Compress-Archive -Path "$releaseDir\*" -DestinationPath $appZip -Force
+          
+          $version = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "1.1.0"
+          }
+          
+          Push-Location $launcherDir
+          go build -ldflags="-s -w -H windowsgui -X main.AppVersion=$version" -o ..\..\..\dist\Altr-Stream-Manager-Portable.exe .
+          Pop-Location
+          
+          # Restore empty placeholder app.zip
+          python -c "import zipfile; z = zipfile.ZipFile('$appZip', 'w'); z.close()"
+          Write-Host "✔ Single-file portable executable compiled: dist\Altr-Stream-Manager-Portable.exe"
+
+      - name: Build Inno Setup Installer (.exe)
+        shell: pwsh
+        run: |
+          # Install Inno Setup 6
+          choco install innosetup --no-progress -y
+          
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          $version = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "1.1.0"
+          }
+          
+          & $iscc "/DMyAppVersion=$version" "/DMyOutputDir=..\..\dist" "packaging\windows\Altr-Stream.iss"
+          
+          if (Test-Path "dist\Altr Stream Installer.exe") {
+            Copy-Item "dist\Altr Stream Installer.exe" "dist\Altr-Stream-Manager-Setup.exe" -Force
+          }
+          Write-Host "✔ Inno Setup installer compiled: dist\Altr-Stream-Manager-Setup.exe"
+
+      - name: Upload Single-File Portable Executable (Double-Click & Run)
         uses: actions/upload-artifact@v4
         with:
-          name: Altr-Stream-Manager-Windows-x64
-          path: frontend/altr_stream_manager/build/windows/x64/runner/Release/
+          name: Altr-Stream-Manager-Portable-EXE
+          path: dist/Altr-Stream-Manager-Portable.exe
           retention-days: 7
 
-      - name: Upload Standalone Portable ZIP
+      - name: Upload Setup Installer (Standard Windows Setup Wizard)
         uses: actions/upload-artifact@v4
         with:
-          name: Altr-Stream-Manager-Portable-ZIP
-          path: dist/Altr-Stream-Manager-Portable.zip
+          name: Altr-Stream-Manager-Setup-EXE
+          path: |
+            dist/Altr-Stream-Manager-Setup.exe
+            dist/Altr Stream Installer.exe
+          retention-days: 7
+
+      - name: Upload Complete Release Folder (Manual Unzip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Altr-Stream-Manager-Folder-ZIP
+          path: frontend/altr_stream_manager/build/windows/x64/runner/Release/
           retention-days: 7
 

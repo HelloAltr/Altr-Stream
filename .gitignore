@@ -489,3 +489,6 @@ packaging/engine/altr-installer-engine.exe
 # .zip files
 Altr Mesh - Theme (1).zip
 Altr Mesh - Theme (2).zip
+
+# Git Workflow reports
+.git-workflow-logs/
