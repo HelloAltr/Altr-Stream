@@ -1,0 +1,95 @@
+name: Build Windows Manager (Test Artifact)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Manager Version"
+        required: false
+        default: "1.1.0"
+  push:
+    branches:
+      - "build-windows*"
+      - "test-windows*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows Portable Manager
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: false
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build Go Installer Engine
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          New-Item -ItemType Directory -Path packaging\windows\build -Force | Out-Null
+          Push-Location packaging\engine
+          go build -ldflags="-s -w" -o ..\windows\build\altr-installer-engine.exe .
+          Copy-Item ..\windows\build\altr-installer-engine.exe ..\..\dist\altr-installer-engine.exe -Force
+          Pop-Location
+          Write-Host "✔ Go engine compiled successfully."
+
+      - name: Build Flutter Windows Desktop
+        shell: pwsh
+        run: |
+          Push-Location frontend\altr_stream_manager
+          flutter pub get
+          flutter build windows --release
+          Pop-Location
+          Write-Host "✔ Flutter Windows release build completed."
+
+      - name: Embed Go Engine and Assemble Packages
+        shell: pwsh
+        run: |
+          $releaseDir = "frontend\altr_stream_manager\build\windows\x64\runner\Release"
+          Copy-Item "packaging\windows\build\altr-installer-engine.exe" "$releaseDir\" -Force
+          
+          # Run manager packager
+          $version = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "1.1.0"
+          }
+          python scripts\build_manager_packages.py --platform windows --version $version --skip-flutter-build
+
+          # Also create a direct ZIP of the runner release directory
+          Compress-Archive -Path "$releaseDir\*" -DestinationPath "dist\Altr-Stream-Manager-Windows-x64.zip" -Force
+          Write-Host "✔ Distribution packages assembled in dist/."
+
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Altr-Stream-Manager-Windows-x64
+          path: |
+            dist/*.zip
+            dist/*.exe
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+

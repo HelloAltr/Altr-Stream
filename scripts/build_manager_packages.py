@@ -160,6 +160,26 @@ def build_flutter_macos_release(manager_dir: Path) -> Path:
     return built_app
 
 
+def build_flutter_windows_release(manager_dir: Path) -> Path:
+    """Build the Flutter Windows release application."""
+    print("  → Building Flutter Windows release application...")
+    flutter_bin = shutil.which("flutter")
+    if not flutter_bin:
+        raise RuntimeError("Flutter SDK ('flutter') not found on system PATH.")
+
+    cmd = [flutter_bin, "build", "windows", "--release"]
+    res = subprocess.run(cmd, cwd=manager_dir, capture_output=True, text=True)
+    if res.returncode != 0:
+        raise RuntimeError(f"Flutter build windows failed (exit {res.returncode}):\n{res.stderr}\n{res.stdout}")
+
+    built_dir = manager_dir / "build" / "windows" / "x64" / "runner" / "Release"
+    if not built_dir.is_dir():
+        raise FileNotFoundError(f"Expected built Flutter Windows app not found at {built_dir}")
+
+    print(f"  ✔ Flutter Windows app built: {built_dir}")
+    return built_dir
+
+
 def assemble_macos_app_bundle(
     built_app: Path,
     go_engine: Path,
@@ -415,6 +435,10 @@ def build_windows_portable_package(
             else:
                 shutil.copy2(item, dest)
         has_native_windows_build = True
+        runner_exe = staging_dir / "altr_stream_manager.exe"
+        alias_exe = staging_dir / "Altr-Stream-Manager.exe"
+        if runner_exe.is_file() and not alias_exe.exists():
+            shutil.copy2(runner_exe, alias_exe)
     else:
         print("  ℹ Note: Native Flutter Windows runner must be compiled on a Windows host using Visual Studio.")
         print("    Staging portable template with native engine, portable manifest, and instructions.")
@@ -538,12 +562,23 @@ def main() -> None:
         build_go_engine_windows(windows_engine, version=version, image=args.image)
         artifacts.append(("Go Engine (Windows amd64)", windows_engine))
 
-        # 2. Stage Windows Executable
-        windows_exe = output_dir / "Altr-Stream-Manager.exe"
-        shutil.copy2(windows_engine, windows_exe)
-        artifacts.append(("Windows Executable", windows_exe))
+        # 2. Build Flutter Windows app if on Windows host and not skipped
+        runner_release_dir = manager_dir / "build" / "windows" / "x64" / "runner" / "Release"
+        if platform.system() == "Windows" and not args.skip_flutter_build:
+            runner_release_dir = build_flutter_windows_release(manager_dir)
 
-        # 3. Assemble Portable ZIP Package
+        # 3. Stage Windows Executable
+        flutter_exe = runner_release_dir / "altr_stream_manager.exe"
+        if flutter_exe.is_file():
+            windows_exe = output_dir / "Altr-Stream-Manager.exe"
+            shutil.copy2(flutter_exe, windows_exe)
+            artifacts.append(("Windows Executable (Flutter UI)", windows_exe))
+        elif platform.system() == "Windows":
+            print("  ⚠ Notice: Flutter Windows runner not found at expected path.")
+        else:
+            print("  ℹ Note: Skipping standalone Altr-Stream-Manager.exe staging on non-Windows host (requires Windows host to compile Flutter UI).")
+
+        # 4. Assemble Portable ZIP Package
         portable_zip = build_windows_portable_package(windows_engine, output_dir, version=version)
         artifacts.append(("Windows Portable ZIP", portable_zip))
 
