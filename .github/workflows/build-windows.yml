@@ -92,7 +92,7 @@ jobs:
         run: |
           $releaseDir = "frontend\altr_stream_manager\build\windows\x64\runner\Release"
           $launcherDir = "packaging\windows\launcher"
-          $appZip = "$launcherDir\app.zip"
+          $appZip = "packaging\windows\launcher\app.zip"
           
           # Compress release directory into app.zip for launcher embedding
           Compress-Archive -Path "$releaseDir\*" -DestinationPath $appZip -Force
@@ -106,8 +106,8 @@ jobs:
           go build -ldflags="-s -w -H windowsgui -X main.AppVersion=$version" -o ..\..\..\dist\Altr-Stream-Manager-Portable.exe .
           Pop-Location
           
-          # Restore empty placeholder app.zip
-          python -c "import zipfile; z = zipfile.ZipFile('$appZip', 'w'); z.close()"
+          # Restore clean placeholder app.zip via git
+          git checkout -- packaging/windows/launcher/app.zip
           Write-Host "✔ Single-file portable executable compiled: dist\Altr-Stream-Manager-Portable.exe"
 
       - name: Build Inno Setup Installer (.exe)
@@ -122,7 +122,8 @@ jobs:
             $version = "1.1.0"
           }
           
-          & $iscc "/DMyAppVersion=$version" "/DMyOutputDir=..\..\dist" "packaging\windows\Altr-Stream.iss"
+          $distDir = (Resolve-Path "dist").Path
+          & $iscc "/DMyAppVersion=$version" "/DMyOutputDir=$distDir" "packaging\windows\Altr-Stream.iss"
           
           if (Test-Path "dist\Altr Stream Installer.exe") {
             Copy-Item "dist\Altr Stream Installer.exe" "dist\Altr-Stream-Manager-Setup.exe" -Force
