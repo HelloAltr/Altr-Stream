@@ -18,6 +18,14 @@ import sys
 import urllib.request
 from pathlib import Path
 
+# Ensure stdout and stderr handle UTF-8 characters safely on Windows (cp1252 fix)
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REPO_NAME = "HelloAltr/Altr-Stream"
 WORKFLOW_FILE = "build-windows.yml"

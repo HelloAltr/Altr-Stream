@@ -28,6 +28,14 @@ import sys
 import zipfile
 from pathlib import Path
 
+# Ensure stdout and stderr handle UTF-8 characters safely on Windows (cp1252 fix)
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_VERSION = "1.1.0"
 DEFAULT_IMAGE = f"ghcr.io/helloaltr/altr-stream:{DEFAULT_VERSION}"
