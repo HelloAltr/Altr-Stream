@@ -26,6 +26,7 @@ type OSCommandExecutor struct{}
 
 func (o *OSCommandExecutor) Run(ctx context.Context, name string, args ...string) (string, string, int, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	setHiddenProcess(cmd)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf

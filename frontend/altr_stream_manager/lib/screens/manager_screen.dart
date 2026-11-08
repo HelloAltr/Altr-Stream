@@ -47,7 +47,8 @@ class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlacehol
     "0.13.7-alpha",
   ];
   List<NodeVersion> _availableNodeVersions = [];
-  String _altrNodeInstallationPath = '${Platform.environment['HOME'] ?? ''}/.altr-stream';
+  String _altrNodeInstallationPath =
+      '${Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? ''}/.altr-stream';
   String _dashboardAddress = "http://localhost:8000";
   double? _progressValue;
   int? _progressPercent;

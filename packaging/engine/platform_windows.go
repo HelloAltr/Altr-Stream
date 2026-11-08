@@ -18,6 +18,25 @@ func setDetachedProcess(cmd *exec.Cmd) {
 	}
 }
 
+func setHiddenProcess(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
+}
+
+func resolveSystem32Exe(name string) string {
+	sysRoot := os.Getenv("SystemRoot")
+	if sysRoot == "" {
+		sysRoot = `C:\Windows`
+	}
+	cand := filepath.Join(sysRoot, "System32", name)
+	if _, err := os.Stat(cand); err == nil {
+		return cand
+	}
+	return name
+}
+
 func getPlatformOfficialDockerURL() string {
 	return "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
 }
@@ -25,6 +44,7 @@ func getPlatformOfficialDockerURL() string {
 // queryWindowsRegistryValue retrieves a string value from the Windows registry using reg.exe.
 // If valueName is empty, it queries the default value ((Default) / /ve).
 func queryWindowsRegistryValue(key, valueName string) string {
+	regBin := resolveSystem32Exe("reg.exe")
 	for _, regFlag := range []string{"/reg:64", "/reg:32"} {
 		args := []string{"query", key}
 		if valueName == "" {
@@ -35,13 +55,14 @@ func queryWindowsRegistryValue(key, valueName string) string {
 		args = append(args, regFlag)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		cmd := exec.CommandContext(ctx, "reg.exe", args...)
+		cmd := exec.CommandContext(ctx, regBin, args...)
+		setHiddenProcess(cmd)
 		out, err := cmd.Output()
 		cancel()
 		if err == nil {
 			for _, line := range strings.Split(string(out), "\n") {
 				line = strings.TrimSpace(line)
-				for _, typeName := range []string{"REG_SZ", "REG_EXPAND_SZ"} {
+				for _, typeName := range []string{"REG_EXPAND_SZ", "REG_SZ"} {
 					if idx := strings.Index(line, typeName); idx != -1 {
 						val := strings.TrimSpace(line[idx+len(typeName):])
 						if val != "" {
@@ -317,18 +338,21 @@ func (d *DockerManager) resolvePlatformDockerDesktop() (string, bool) {
 }
 
 func (d *DockerManager) launchPlatformDockerDesktop(ctx context.Context, desktopPath string, exists bool) error {
+	cmdExe := resolveSystem32Exe("cmd.exe")
 	if exists && desktopPath != "" {
-		return d.executor.StartDetached(ctx, "cmd.exe", "/c", "start", "", desktopPath)
+		return d.executor.StartDetached(ctx, cmdExe, "/c", "start", "", desktopPath)
 	}
-	return d.executor.StartDetached(ctx, "cmd.exe", "/c", "start", "", "Docker Desktop")
+	return d.executor.StartDetached(ctx, cmdExe, "/c", "start", "", "Docker Desktop")
 }
 
 func (d *DockerManager) openPlatformDockerSettings(ctx context.Context) error {
-	return d.executor.StartDetached(ctx, "cmd.exe", "/c", "start", "", "docker-desktop://settings")
+	cmdExe := resolveSystem32Exe("cmd.exe")
+	return d.executor.StartDetached(ctx, cmdExe, "/c", "start", "", "docker-desktop://settings")
 }
 
 func launchPlatformBrowser(ctx context.Context, exec CommandExecutor, targetURL string) error {
-	return exec.StartDetached(ctx, "cmd.exe", "/c", "start", "", targetURL)
+	cmdExe := resolveSystem32Exe("cmd.exe")
+	return exec.StartDetached(ctx, cmdExe, "/c", "start", "", targetURL)
 }
 
 func (d *DockerManager) isPlatformDockerDesktopPaused(ctx context.Context) bool {
@@ -350,8 +374,25 @@ func (d *DockerManager) unpausePlatformDockerDesktop(ctx context.Context) error 
 func (d *DockerManager) isPlatformDockerDesktopProcessRunning(ctx context.Context) bool {
 	pCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	stdout, _, exitCode, _ := d.executor.Run(pCtx, "tasklist", "/FI", "IMAGENAME eq Docker Desktop.exe")
-	return exitCode == 0 && strings.Contains(strings.ToLower(stdout), "docker desktop.exe")
+	tasklistBin := resolveSystem32Exe("tasklist.exe")
+
+	// 1. Direct process name query
+	stdout, _, exitCode, _ := d.executor.Run(pCtx, tasklistBin, "/FI", "IMAGENAME eq Docker Desktop.exe")
+	if exitCode == 0 && strings.Contains(strings.ToLower(stdout), "docker desktop.exe") {
+		return true
+	}
+
+	// 2. Comprehensive tasklist sweep for any running Docker Desktop daemon processes
+	stdoutAll, _, exitCodeAll, _ := d.executor.Run(pCtx, tasklistBin)
+	if exitCodeAll == 0 {
+		lower := strings.ToLower(stdoutAll)
+		return strings.Contains(lower, "docker desktop.exe") ||
+			strings.Contains(lower, "com.docker.backend.exe") ||
+			strings.Contains(lower, "com.docker.proxy.exe") ||
+			strings.Contains(lower, "dockerd.exe")
+	}
+
+	return false
 }
 
 

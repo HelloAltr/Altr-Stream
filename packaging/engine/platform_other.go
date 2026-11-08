@@ -14,6 +14,8 @@ func setDetachedProcess(cmd *exec.Cmd) {
 	}
 }
 
+func setHiddenProcess(cmd *exec.Cmd) {}
+
 func getPlatformOfficialDockerURL() string {
 	return "https://docs.docker.com/engine/install/"
 }

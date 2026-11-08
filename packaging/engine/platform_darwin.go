@@ -24,6 +24,8 @@ func setDetachedProcess(cmd *exec.Cmd) {
 	}
 }
 
+func setHiddenProcess(cmd *exec.Cmd) {}
+
 func getPlatformOfficialDockerURL() string {
 	if runtime.GOARCH == "arm64" {
 		return "https://desktop.docker.com/mac/main/arm64/Docker.dmg"

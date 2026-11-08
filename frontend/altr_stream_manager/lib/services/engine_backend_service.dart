@@ -84,38 +84,83 @@ class EngineBackendService implements BackendService {
     List<String> arguments,
   ) {
     final env = Map<String, String>.from(Platform.environment);
-    final home = env['HOME'] ?? Platform.environment['HOME'] ?? '';
 
-    // Augment PATH so system commands, docker, and brew tools are always discoverable
-    final currentPath = env['PATH'] ?? '';
-    final additionalPaths = <String>[
-      if (home.isNotEmpty) '$home/.docker/bin',
-      '/usr/local/bin',
-      '/opt/homebrew/bin',
-      '/opt/homebrew/sbin',
-      '/usr/bin',
-      '/bin',
-      '/usr/sbin',
-      '/sbin',
-    ];
-
-    final pathSet = currentPath.split(':').where((p) => p.isNotEmpty).toList();
-    for (final p in additionalPaths) {
-      if (!pathSet.contains(p)) {
-        pathSet.add(p);
+    if (Platform.isWindows) {
+      final userProfile = env['USERPROFILE'] ?? Platform.environment['USERPROFILE'] ?? '';
+      if (userProfile.isNotEmpty) {
+        env['USERPROFILE'] = userProfile;
+        if (!env.containsKey('HOME') || (env['HOME'] ?? '').isEmpty) {
+          env['HOME'] = userProfile;
+        }
       }
-    }
-    env['PATH'] = pathSet.join(':');
 
-    if (home.isNotEmpty && !env.containsKey('HOME')) {
-      env['HOME'] = home;
-    }
+      final currentPath = env['PATH'] ?? '';
+      final pathSet = currentPath.split(';').where((p) => p.trim().isNotEmpty).toList();
 
-    // Set DOCKER_HOST fallback if macOS Docker Desktop socket exists and DOCKER_HOST not explicitly provided
-    if (!env.containsKey('DOCKER_HOST') && home.isNotEmpty) {
-      final defaultMacSocket = File('$home/.docker/run/docker.sock');
-      if (defaultMacSocket.existsSync()) {
-        env['DOCKER_HOST'] = 'unix://${defaultMacSocket.path}';
+      final progFiles = env['ProgramFiles'] ?? r'C:\Program Files';
+      final progW64 = env['ProgramW6432'] ?? r'C:\Program Files';
+      final progX86 = env['ProgramFiles(x86)'] ?? r'C:\Program Files (x86)';
+      final progData = env['ProgramData'] ?? r'C:\ProgramData';
+      final sysRoot = env['SystemRoot'] ?? r'C:\Windows';
+      final localApp = env['LOCALAPPDATA'] ?? '';
+
+      final winAdditionalPaths = <String>[
+        '$progData\\DockerDesktop\\version-bin',
+        r'C:\ProgramData\DockerDesktop\version-bin',
+        '$progFiles\\Docker\\Docker\\resources\\bin',
+        r'C:\Program Files\Docker\Docker\resources\bin',
+        '$progW64\\Docker\\Docker\\resources\\bin',
+        '$progX86\\Docker\\Docker\\resources\\bin',
+        '$progFiles\\Docker\\Docker\\resources',
+        '$progFiles\\Docker\\Docker',
+        if (localApp.isNotEmpty) '$localApp\\Programs\\Docker\\resources\\bin',
+        if (userProfile.isNotEmpty) '$userProfile\\.docker\\bin',
+        '$sysRoot\\System32',
+        sysRoot,
+        '$sysRoot\\System32\\Wbem',
+        '$sysRoot\\System32\\WindowsPowerShell\\v1.0',
+      ];
+
+      for (final p in winAdditionalPaths) {
+        if (!pathSet.contains(p)) {
+          pathSet.add(p);
+        }
+      }
+      env['PATH'] = pathSet.join(';');
+    } else {
+      final home = env['HOME'] ?? Platform.environment['HOME'] ?? '';
+
+      // Augment PATH so system commands, docker, and brew tools are always discoverable
+      final currentPath = env['PATH'] ?? '';
+      final additionalPaths = <String>[
+        if (home.isNotEmpty) '$home/.docker/bin',
+        '/usr/local/bin',
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin',
+      ];
+
+      final pathSet = currentPath.split(':').where((p) => p.isNotEmpty).toList();
+      for (final p in additionalPaths) {
+        if (!pathSet.contains(p)) {
+          pathSet.add(p);
+        }
+      }
+      env['PATH'] = pathSet.join(':');
+
+      if (home.isNotEmpty && !env.containsKey('HOME')) {
+        env['HOME'] = home;
+      }
+
+      // Set DOCKER_HOST fallback if macOS Docker Desktop socket exists and DOCKER_HOST not explicitly provided
+      if (!env.containsKey('DOCKER_HOST') && home.isNotEmpty) {
+        final defaultMacSocket = File('$home/.docker/run/docker.sock');
+        if (defaultMacSocket.existsSync()) {
+          env['DOCKER_HOST'] = 'unix://${defaultMacSocket.path}';
+        }
       }
     }
 
