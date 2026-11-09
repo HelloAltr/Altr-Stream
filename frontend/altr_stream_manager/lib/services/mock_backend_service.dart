@@ -50,8 +50,8 @@ class MockBackendService implements BackendService {
   MockScenario currentScenario;
 
   String _currentInstallDir = '/Users/mockuser/.altr-stream';
-  String _activeVersion = '1.1.0';
-  final String _recommendedVersion = '1.1.0';
+  String _activeVersion = '1.2.0';
+  final String _recommendedVersion = '1.2.0';
 
   MockBackendService({this.currentScenario = MockScenario.running});
 
@@ -88,9 +88,12 @@ class MockBackendService implements BackendService {
     }
     return const [
       NodeVersion(
-        version: '1.1.0',
+        version: '1.2.0',
         isRecommended: true,
         isCurrent: true,
+      ),
+      NodeVersion(
+        version: '1.1.0',
       ),
       NodeVersion(
         version: '1.0.0-beta',

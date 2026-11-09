@@ -30,7 +30,7 @@ sys.path.insert(0, str(REPO_ROOT))
 try:
     from altr_stream.__version__ import __version__ as CANONICAL_VERSION
 except ImportError:
-    CANONICAL_VERSION = "1.0.0-beta"
+    CANONICAL_VERSION = "1.2.0"
 
 GUM_VERSION = "2.0.2"
 GUM_PINNED_VERSION = GUM_VERSION
@@ -223,19 +223,20 @@ def package_release(
         print(f"  ✔ Created: {macos_dest.name}")
 
     # 1b. macOS Native Installer (.dmg primary, .pkg secondary, .app.zip auxiliary)
+    manager_dmg = output_dir / "Altr-Stream-Manager.dmg"
     macos_dmg = output_dir / "Altr Stream Installer.dmg"
     macos_dmg_compat = output_dir / "Altr-Stream-Installer.dmg"
     macos_pkg = output_dir / "Altr-Stream-Installer.pkg"
     macos_zip = output_dir / "Altr-Stream_macOS_Installer.app.zip"
 
-    if (not macos_dmg.is_file() and not macos_pkg.is_file() and not macos_zip.is_file()) and sys.platform == "darwin":
+    if (not manager_dmg.is_file() and not macos_dmg.is_file() and not macos_pkg.is_file() and not macos_zip.is_file()) and sys.platform == "darwin":
         try:
             from scripts.build_macos_app import build_macos_app
             build_macos_app(version=version, output_dir=output_dir)
         except Exception as e:
             print(f"  ⚠ Note: macOS GUI installer build skipped: {e}")
 
-    for macos_art in [macos_dmg, macos_dmg_compat, macos_pkg, macos_zip]:
+    for macos_art in [manager_dmg, macos_dmg, macos_dmg_compat, macos_pkg, macos_zip]:
         if macos_art.is_file() and macos_art not in generated_files:
             generated_files.append(macos_art)
             print(f"  ✔ Detected macOS installer artifact: {macos_art.name}")
@@ -262,22 +263,31 @@ def package_release(
         generated_files.append(win_bat_dest)
         print(f"  ✔ Created: {win_bat_dest.name}")
 
-    # 3d. Windows Native GUI Installer (.exe via Inno Setup 6)
-    try:
-        from scripts.build_windows_installer import build_windows_installer
-        canonical_target_image = f"ghcr.io/helloaltr/altr-stream:{version}"
-        win_exe = build_windows_installer(version=version, image=canonical_target_image, output_dir=output_dir)
-        if win_exe not in generated_files:
-            generated_files.append(win_exe)
-        compat_exe = output_dir / "Altr-Stream-Installer.exe"
-        if compat_exe.is_file() and compat_exe not in generated_files:
-            generated_files.append(compat_exe)
-    except Exception as e:
-        print(f"  ⚠ Note: Windows native installer (.exe) compilation skipped: {e}")
-        for candidate_exe in [output_dir / "Altr Stream Installer.exe", output_dir / "Altr-Stream-Installer.exe"]:
-            if candidate_exe.is_file() and candidate_exe not in generated_files:
-                generated_files.append(candidate_exe)
-                print(f"  ✔ Detected existing Windows native installer: {candidate_exe.name}")
+    # 3d. Windows Native GUI Installers (Manager Portable & Setup or legacy)
+    manager_portable = output_dir / "Altr-Stream-Manager-Portable.exe"
+    manager_setup = output_dir / "Altr-Stream-Manager-Setup.exe"
+
+    for win_mgr in [manager_portable, manager_setup]:
+        if win_mgr.is_file() and win_mgr not in generated_files:
+            generated_files.append(win_mgr)
+            print(f"  ✔ Detected Windows manager artifact: {win_mgr.name}")
+
+    if not manager_portable.is_file() and not manager_setup.is_file():
+        try:
+            from scripts.build_windows_installer import build_windows_installer
+            canonical_target_image = f"ghcr.io/helloaltr/altr-stream:{version}"
+            win_exe = build_windows_installer(version=version, image=canonical_target_image, output_dir=output_dir)
+            if win_exe not in generated_files:
+                generated_files.append(win_exe)
+            compat_exe = output_dir / "Altr-Stream-Installer.exe"
+            if compat_exe.is_file() and compat_exe not in generated_files:
+                generated_files.append(compat_exe)
+        except Exception as e:
+            print(f"  ⚠ Note: Windows native installer (.exe) compilation skipped: {e}")
+            for candidate_exe in [output_dir / "Altr Stream Installer.exe", output_dir / "Altr-Stream-Installer.exe"]:
+                if candidate_exe.is_file() and candidate_exe not in generated_files:
+                    generated_files.append(candidate_exe)
+                    print(f"  ✔ Detected existing Windows native installer: {candidate_exe.name}")
 
     # 4. Bundled Setup Packages (with pinned, verified Gum binaries)
     if bundle_gum:
@@ -427,6 +437,9 @@ def package_release(
     checksum_lines: list[str] = []
     if release_manifest_only:
         release_asset_names = {
+            "Altr-Stream-Manager.dmg",
+            "Altr-Stream-Manager-Portable.exe",
+            "Altr-Stream-Manager-Setup.exe",
             "Altr Stream Installer.dmg",
             "Altr-Stream-Installer.dmg",
             "Altr Stream Installer.exe",

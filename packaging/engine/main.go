@@ -17,8 +17,8 @@ import (
 
 // Build-time injected variables (via -ldflags)
 var (
-	DefaultVersion = "1.1.0"
-	DefaultImage   = "ghcr.io/helloaltr/altr-stream:1.1.0"
+	DefaultVersion = "1.2.0"
+	DefaultImage   = "ghcr.io/helloaltr/altr-stream:1.2.0"
 )
 
 // OSCommandExecutor runs real system processes.

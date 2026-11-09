@@ -327,6 +327,7 @@ class EngineBackendService implements BackendService {
       final localApp = Platform.environment['LOCALAPPDATA'] ?? '';
       if (localApp.isNotEmpty) {
         final installedCandidates = [
+          '$localApp\\Programs\\AltrStreamManager\\1.2.0\\$binaryName',
           '$localApp\\Programs\\AltrStreamManager\\1.1.0\\$binaryName',
           '$localApp\\Programs\\AltrStreamManager\\$binaryName',
         ];
@@ -853,9 +854,12 @@ class EngineBackendService implements BackendService {
 
     return const [
       NodeVersion(
-        version: '1.1.0',
+        version: '1.2.0',
         isRecommended: true,
         isCurrent: true,
+      ),
+      NodeVersion(
+        version: '1.1.0',
       ),
       NodeVersion(
         version: '1.0.0-beta',
