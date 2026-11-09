@@ -30,7 +30,7 @@ sys.path.insert(0, str(REPO_ROOT))
 try:
     from altr_stream.__version__ import __version__ as CANONICAL_VERSION
 except ImportError:
-    CANONICAL_VERSION = "1.2.0"
+    CANONICAL_VERSION = "1.2.1"
 
 GUM_VERSION = "2.0.2"
 GUM_PINNED_VERSION = GUM_VERSION

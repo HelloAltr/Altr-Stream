@@ -67,8 +67,23 @@ class SqliteApiKeyRepository:
         return list(result.scalars().all())
 
     async def count_active(self) -> int:
-        """Count active keys."""
+        """Count active, non-expired keys."""
+        now = datetime.now(timezone.utc)
         stmt = select(ApiKeyModel).where(ApiKeyModel.is_active == True)  # noqa: E712
+        result = await self.session.execute(stmt)
+        keys = result.scalars().all()
+        active_count = 0
+        for k in keys:
+            if k.expires_at:
+                exp = k.expires_at if k.expires_at.tzinfo is not None else k.expires_at.replace(tzinfo=timezone.utc)
+                if exp < now:
+                    continue
+            active_count += 1
+        return active_count
+
+    async def count_all(self) -> int:
+        """Count total keys registered."""
+        stmt = select(ApiKeyModel)
         result = await self.session.execute(stmt)
         return len(result.scalars().all())
 

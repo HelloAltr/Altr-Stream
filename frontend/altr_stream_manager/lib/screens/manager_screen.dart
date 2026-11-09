@@ -40,8 +40,9 @@ class AltrStreamManagerPlaceholder extends StatefulWidget {
 class _AltrStreamManagerPlaceholderState extends State<AltrStreamManagerPlaceholder> {
   // Live state variables wired to backend service
   NodeTitleStatus _titleStatus = NodeTitleStatus.discovering;
-  String _altrNodeVersion = "1.2.0";
+  String _altrNodeVersion = "1.2.1";
   List<String> _versionDropdownOptions = [
+    "1.2.1",
     "1.2.0",
     "1.1.0",
     "1.0.0-beta",

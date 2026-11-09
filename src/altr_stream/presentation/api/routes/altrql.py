@@ -384,6 +384,7 @@ async def parse_altrql_query(
 async def bind_altrql_query(
     dto: AltrQLBindRequestDTO,
     response: Response,
+    auth_key: ApiKeyModel | None = Depends(require_read_access),
     schema_service: SchemaService = Depends(get_schema_service),
     registry_service: RegistryService = Depends(get_registry_service),
     query_planner: QueryPlanner = Depends(get_query_planner),
@@ -559,6 +560,7 @@ async def bind_altrql_query(
 async def plan_altrql_query(
     dto: AltrQLBindRequestDTO,
     response: Response,
+    auth_key: ApiKeyModel | None = Depends(require_read_access),
     query_planner: QueryPlanner = Depends(get_query_planner),
     schema_service: SchemaService = Depends(get_schema_service),
     registry_service: RegistryService = Depends(get_registry_service),

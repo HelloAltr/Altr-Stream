@@ -59,6 +59,18 @@ class ApiKeyService:
         )
         return raw_key, model
 
+    async def get_active_key(self, raw_key: str) -> ApiKeyModel | None:
+        """Fetch active, non-expired key by raw key secret."""
+        if not raw_key or not isinstance(raw_key, str):
+            return None
+
+        clean_key = raw_key.strip()
+        if clean_key.lower().startswith("bearer "):
+            clean_key = clean_key[7:].strip()
+
+        key_hash = hash_api_key(clean_key)
+        return await self.repository.get_by_hash(key_hash)
+
     async def verify_key(
         self,
         raw_key: str,
@@ -68,15 +80,7 @@ class ApiKeyService:
 
         Returns ApiKeyModel if valid and authorized, None otherwise.
         """
-        if not raw_key or not isinstance(raw_key, str):
-            return None
-
-        clean_key = raw_key.strip()
-        if clean_key.startswith("Bearer "):
-            clean_key = clean_key[7:].strip()
-
-        key_hash = hash_api_key(clean_key)
-        key_model = await self.repository.get_by_hash(key_hash)
+        key_model = await self.get_active_key(raw_key)
         if not key_model:
             return None
 

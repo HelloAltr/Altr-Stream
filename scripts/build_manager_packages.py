@@ -37,7 +37,7 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_VERSION = "1.2.0"
+DEFAULT_VERSION = "1.2.1"
 DEFAULT_IMAGE = f"ghcr.io/helloaltr/altr-stream:{DEFAULT_VERSION}"
 
 

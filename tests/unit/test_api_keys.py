@@ -1,5 +1,6 @@
 """Unit tests for API key generation, hashing, verification, and management routes."""
 
+from datetime import datetime, timedelta, timezone
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -148,13 +149,14 @@ async def test_altrql_and_queries_require_api_key_when_active_keys_exist(async_t
         assert res_no_auth.status_code == 401
         assert "Missing API key" in res_no_auth.json()["detail"]
 
-        # 2. Invalid API key is rejected with 403
+        # 2. Invalid API key is rejected with 401
         res_bad_key = await client.post(
             "/api/v1/altrql/execute",
             json={"query": "GET users;", "source_id": None},
             headers={"X-Altr-API-Key": "altr_live_sec_invalid_key_123"},
         )
-        assert res_bad_key.status_code == 403
+        assert res_bad_key.status_code == 401
+        assert "Invalid, expired, or revoked API key" in res_bad_key.json()["detail"]
 
         # 3. Valid read key passes auth on read query (returns 200 with result/parsing structure)
         res_valid_read = await client.post(
@@ -179,12 +181,108 @@ async def test_altrql_and_queries_require_api_key_when_active_keys_exist(async_t
         )
         assert query_no_auth.status_code == 401
 
-        # 6. Dashboard console requests with X-Altr-Client header execute without API key
+        # 6. Planning and binding endpoints also require API key for external callers
+        plan_no_auth = await client.post(
+            "/api/v1/altrql/plan",
+            json={"query": "GET users;", "source_id": None},
+        )
+        assert plan_no_auth.status_code == 401
+
+        bind_no_auth = await client.post(
+            "/api/v1/altrql/bind",
+            json={"query": "GET users;", "source_id": None},
+        )
+        assert bind_no_auth.status_code == 401
+
+        # 7. Dashboard console requests with X-Altr-Client header execute without API key
         res_dashboard = await client.post(
             "/api/v1/altrql/execute",
             json={"query": "GET users;", "source_id": None},
             headers={"X-Altr-Client": "web-dashboard"},
         )
         assert res_dashboard.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_security_rejection_for_expired_and_revoked_keys(async_test_session: AsyncSession):
+    app = create_app()
+
+    async def override_get_session():
+        yield async_test_session
+
+    app.dependency_overrides[get_session] = override_get_session
+
+    service = ApiKeyService(async_test_session)
+    # 1. Create an already-expired key
+    past_time = datetime.now(timezone.utc) - timedelta(days=2)
+    expired_key, _ = await service.generate_key(
+        name="Expired Token",
+        scopes=["read"],
+        expires_at=past_time,
+    )
+
+    # 2. Create and immediately revoke a key
+    revoked_key, revoked_model = await service.generate_key(
+        name="Revoked Token",
+        scopes=["read"],
+    )
+    await service.revoke_key(revoked_model.id)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # A. Expired key is strictly rejected with 401
+        res_exp = await client.post(
+            "/api/v1/altrql/execute",
+            json={"query": "GET users;", "source_id": None},
+            headers={"X-Altr-API-Key": expired_key},
+        )
+        assert res_exp.status_code == 401
+        assert "Invalid, expired, or revoked API key" in res_exp.json()["detail"]
+
+        # B. Revoked key is strictly rejected with 401
+        res_rev = await client.post(
+            "/api/v1/altrql/execute",
+            json={"query": "GET users;", "source_id": None},
+            headers={"X-Altr-API-Key": revoked_key},
+        )
+        assert res_rev.status_code == 401
+        assert "Invalid, expired, or revoked API key" in res_rev.json()["detail"]
+
+        # C. External caller with NO key when only inactive/expired/revoked keys exist
+        # MUST NOT bypass authentication (prevents the vulnerability reported in v1.2.0)
+        res_no_key = await client.post(
+            "/api/v1/altrql/execute",
+            json={"query": "GET users;", "source_id": None},
+        )
+        assert res_no_key.status_code == 401
+        assert "Missing API key" in res_no_key.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_fresh_instance_external_requests_require_auth_or_dashboard(async_test_session: AsyncSession):
+    app = create_app()
+
+    async def override_get_session():
+        yield async_test_session
+
+    app.dependency_overrides[get_session] = override_get_session
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # External unauthenticated request to /altrql/execute gets 401 even when zero keys exist
+        res = await client.post(
+            "/api/v1/altrql/execute",
+            json={"query": "GET users;", "source_id": None},
+        )
+        assert res.status_code == 401
+        assert "Missing API key" in res.json()["detail"]
+
+        # Web Dashboard console request succeeds without API key
+        res_dash = await client.post(
+            "/api/v1/altrql/execute",
+            json={"query": "GET users;", "source_id": None},
+            headers={"X-Altr-Client": "web-dashboard"},
+        )
+        assert res_dash.status_code == 200
 
 

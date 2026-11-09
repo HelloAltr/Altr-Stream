@@ -59,5 +59,6 @@ async def client(test_session: AsyncSession) -> AsyncGenerator[AsyncClient, None
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
+        headers={"X-Altr-Client": "web-dashboard"},
     ) as ac:
         yield ac
