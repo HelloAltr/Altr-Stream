@@ -45,6 +45,9 @@ func (m *MockCommandExecutor) Run(ctx context.Context, name string, args ...stri
 	baseName := filepath.Base(name)
 	fullCmd := name + " " + strings.Join(args, " ")
 	baseCmd := baseName + " " + strings.Join(args, " ")
+	cleanBaseName := strings.TrimSuffix(strings.ToLower(baseName), ".exe")
+	cleanBaseCmd := cleanBaseName + " " + strings.Join(args, " ")
+	cleanFullCmd := strings.TrimSuffix(strings.ToLower(name), ".exe") + " " + strings.Join(args, " ")
 	m.CallLog = append(m.CallLog, fullCmd)
 	m.mu.Unlock()
 
@@ -55,12 +58,18 @@ func (m *MockCommandExecutor) Run(ctx context.Context, name string, args ...stri
 	if h, ok := m.Handlers[baseCmd]; ok {
 		return h(args)
 	}
+	if h, ok := m.Handlers[cleanBaseCmd]; ok {
+		return h(args)
+	}
+	if h, ok := m.Handlers[cleanFullCmd]; ok {
+		return h(args)
+	}
 
 	// 2. Pattern matching
 	for pat, h := range m.Handlers {
-		if fullCmd == pat || baseCmd == pat ||
-			strings.HasPrefix(fullCmd, pat) || strings.HasPrefix(baseCmd, pat) ||
-			strings.Contains(fullCmd, pat) || strings.Contains(baseCmd, pat) {
+		if fullCmd == pat || baseCmd == pat || cleanBaseCmd == pat || cleanFullCmd == pat ||
+			strings.HasPrefix(fullCmd, pat) || strings.HasPrefix(baseCmd, pat) || strings.HasPrefix(cleanBaseCmd, pat) || strings.HasPrefix(cleanFullCmd, pat) ||
+			strings.Contains(fullCmd, pat) || strings.Contains(baseCmd, pat) || strings.Contains(cleanBaseCmd, pat) || strings.Contains(cleanFullCmd, pat) {
 			return h(args)
 		}
 	}
@@ -70,6 +79,9 @@ func (m *MockCommandExecutor) Run(ctx context.Context, name string, args ...stri
 		return h(args)
 	}
 	if h, ok := m.Handlers[baseName]; ok {
+		return h(args)
+	}
+	if h, ok := m.Handlers[cleanBaseName]; ok {
 		return h(args)
 	}
 
@@ -1864,6 +1876,34 @@ func TestDarwinPlatform_OfficialDockerURL(t *testing.T) {
 	}
 }
 
+// 47b. Test Windows Platform Official Docker URL & CLI Candidate Resolution
+func TestWindowsPlatform_OfficialDockerURL(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("skipping Windows-specific test on non-Windows host")
+	}
+	url := getPlatformOfficialDockerURL()
+	if !strings.Contains(url, "Docker%20Desktop%20Installer.exe") {
+		t.Errorf("unexpected Windows Docker URL: %s", url)
+	}
+}
+
+func TestWindowsPlatform_CLICandidates_IncludesLocalAppData(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("skipping Windows-specific test on non-Windows host")
+	}
+	candidates := getPlatformDockerCLICandidates(`C:\Users\testuser`)
+	foundLocalAppData := false
+	for _, c := range candidates {
+		if strings.Contains(strings.ToLower(c), "dockerdesktop") {
+			foundLocalAppData = true
+			break
+		}
+	}
+	if !foundLocalAppData {
+		t.Errorf("expected candidates to include DockerDesktop LocalAppData paths, got: %v", candidates)
+	}
+}
+
 // 48. Test Docker Resolution with GUI-like restricted PATH (Finder launch)
 func TestDockerResolution_GUILikePath_UsesResolvedCLIForInstallAndVolumes(t *testing.T) {
 	if runtime.GOOS != "darwin" {
@@ -3079,6 +3119,30 @@ func TestCheckDocker_AllDockerStates(t *testing.T) {
 		{
 			name:          "Stopped",
 			infoErr:       "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?",
+			infoExit:      1,
+			cliInstalled:  true,
+			expectedState: DockerStateStopped,
+			expectedHint:  "Start Docker Desktop",
+		},
+		{
+			name:          "Stopped via Windows named pipe error",
+			infoErr:       "open //./pipe/docker_engine: The system cannot find the file specified.",
+			infoExit:      1,
+			cliInstalled:  true,
+			expectedState: DockerStateStopped,
+			expectedHint:  "Start Docker Desktop",
+		},
+		{
+			name:          "Stopped via Windows permission denied error",
+			infoErr:       "permission denied while trying to connect to the docker API at npipe:////./pipe/docker_engine",
+			infoExit:      1,
+			cliInstalled:  true,
+			expectedState: DockerStateStopped,
+			expectedHint:  "Start Docker Desktop",
+		},
+		{
+			name:          "Stopped via Windows access denied error",
+			infoErr:       "open //./pipe/docker_engine: Access is denied.",
 			infoExit:      1,
 			cliInstalled:  true,
 			expectedState: DockerStateStopped,

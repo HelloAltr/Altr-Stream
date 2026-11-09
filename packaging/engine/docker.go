@@ -146,6 +146,7 @@ func (d *DockerManager) CheckDocker(ctx context.Context) DockerDiagnostics {
 			pipes := []string{
 				`npipe:////./pipe/docker_engine`,
 				`npipe:////./pipe/dockerDesktopLinuxEngine`,
+				`npipe:////./pipe/dockerDesktopWindowsEngine`,
 			}
 			for _, pipe := range pipes {
 				fbCtx, fbCancel := context.WithTimeout(ctx, 4*time.Second)
@@ -278,16 +279,38 @@ func (d *DockerManager) resolveComposeCommand(ctx context.Context, dockerCLI str
 		}
 	}
 
-	// Windows fallback checks for standalone docker-compose.exe beside docker CLI or in cli-plugins
-	if runtime.GOOS == "windows" && dockerCLI != "" {
-		cliDir := filepath.Dir(dockerCLI)
-		candidates := []string{
-			filepath.Join(cliDir, "docker-compose.exe"),
-			filepath.Join(cliDir, "..", "cli-plugins", "docker-compose.exe"),
-			filepath.Join(cliDir, "cli-plugins", "docker-compose.exe"),
-			`C:\Program Files\Docker\Docker\cli-plugins\docker-compose.exe`,
-			`C:\ProgramData\DockerDesktop\cli-plugins\docker-compose.exe`,
+	// Windows fallback checks for standalone docker-compose.exe beside docker CLI, in cli-plugins, or in LocalAppData
+	if runtime.GOOS == "windows" {
+		var candidates []string
+		if dockerCLI != "" {
+			cliDir := filepath.Dir(dockerCLI)
+			candidates = append(candidates,
+				filepath.Join(cliDir, "docker-compose.exe"),
+				filepath.Join(cliDir, "..", "cli-plugins", "docker-compose.exe"),
+				filepath.Join(cliDir, "cli-plugins", "docker-compose.exe"),
+				filepath.Join(cliDir, "..", "..", "cli-plugins", "docker-compose.exe"),
+			)
 		}
+		localApp := os.Getenv("LOCALAPPDATA")
+		if localApp != "" {
+			candidates = append(candidates,
+				filepath.Join(localApp, "Programs", "DockerDesktop", "resources", "bin", "docker-compose.exe"),
+				filepath.Join(localApp, "Programs", "DockerDesktop", "cli-plugins", "docker-compose.exe"),
+				filepath.Join(localApp, "Programs", "DockerDesktop", "docker-compose.exe"),
+			)
+		}
+		progData := os.Getenv("ProgramData")
+		if progData != "" {
+			candidates = append(candidates,
+				filepath.Join(progData, "DockerDesktop", "cli-plugins", "docker-compose.exe"),
+				filepath.Join(progData, "DockerDesktop", "version-bin", "docker-compose.exe"),
+			)
+		}
+		candidates = append(candidates,
+			`C:\Program Files\Docker\Docker\cli-plugins\docker-compose.exe`,
+			`C:\Program Files\Docker\Docker\resources\bin\docker-compose.exe`,
+			`C:\ProgramData\DockerDesktop\cli-plugins\docker-compose.exe`,
+		)
 		for _, cand := range candidates {
 			if fi, err := d.stat(cand); err == nil && !fi.IsDir() {
 				cCtx, cCancel := context.WithTimeout(ctx, 3*time.Second)

@@ -1383,7 +1383,7 @@ func (l *LifecycleManager) ResolveActualDataVolume(ctx context.Context, targetDi
 			}
 			if err := json.Unmarshal([]byte(inspectOut), &inspectList); err == nil && len(inspectList) > 0 {
 				for _, m := range inspectList[0].Mounts {
-					if filepath.Clean(m.Destination) == "/app/data" {
+					if m.Destination == "/app/data" || filepath.ToSlash(filepath.Clean(m.Destination)) == "/app/data" {
 						if m.Type == "bind" {
 							return m.Source, true, nil
 						}

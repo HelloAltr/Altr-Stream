@@ -737,6 +737,10 @@ function Get-DockerDiagnostics {
     $dockerCmd = Get-Command "docker" -ErrorAction SilentlyContinue
     if (-not $dockerCmd) {
         $commonBins = @(
+            "$env:ProgramData\DockerDesktop\version-bin\docker.exe",
+            "$env:LOCALAPPDATA\Programs\DockerDesktop\resources\bin\docker.exe",
+            "$env:LOCALAPPDATA\Programs\DockerDesktop\version-bin\docker.exe",
+            "$env:USERPROFILE\.docker\bin\docker.exe",
             "$env:ProgramFiles\Docker\Docker\resources\bin\docker.exe",
             "${env:ProgramFiles(x86)}\Docker\Docker\resources\bin\docker.exe"
         )
@@ -756,12 +760,16 @@ function Get-DockerDiagnostics {
 
     # 2. Resolve Docker Desktop GUI application
     $desktopExes = @(
+        "$env:LOCALAPPDATA\Programs\DockerDesktop\Docker Desktop.exe",
+        "$env:LOCALAPPDATA\Programs\DockerDesktop\frontend\Docker Desktop.exe",
         "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
         "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
     )
     if ($dockerCmd -and $dockerCmd.Source) {
         try {
-            $pRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $dockerCmd.Source))
+            $p2 = Split-Path -Parent (Split-Path -Parent $dockerCmd.Source)
+            if ($p2) { $desktopExes += (Join-Path $p2 "Docker Desktop.exe") }
+            $pRoot = Split-Path -Parent $p2
             if ($pRoot) { $desktopExes += (Join-Path $pRoot "Docker Desktop.exe") }
         } catch {}
     }
@@ -774,7 +782,8 @@ function Get-DockerDiagnostics {
     if (-not $diag.DesktopInstalled) {
         $shortcuts = @(
             "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Docker Desktop.lnk",
-            "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\Docker Desktop.lnk"
+            "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\Docker Desktop.lnk",
+            "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Docker Desktop.lnk"
         )
         foreach ($lnk in $shortcuts) {
             if ($lnk -and (Test-Path $lnk)) {
@@ -873,13 +882,17 @@ function Get-DockerStatusText {
 
 function Start-DockerDesktopProcess {
     $desktopExes = @(
+        "$env:LOCALAPPDATA\Programs\DockerDesktop\Docker Desktop.exe",
+        "$env:LOCALAPPDATA\Programs\DockerDesktop\frontend\Docker Desktop.exe",
         "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
         "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
     )
     $dockerCmd = Get-Command "docker" -ErrorAction SilentlyContinue
     if ($dockerCmd -and $dockerCmd.Source) {
         try {
-            $pRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $dockerCmd.Source))
+            $p2 = Split-Path -Parent (Split-Path -Parent $dockerCmd.Source)
+            if ($p2) { $desktopExes += (Join-Path $p2 "Docker Desktop.exe") }
+            $pRoot = Split-Path -Parent $p2
             if ($pRoot) { $desktopExes += (Join-Path $pRoot "Docker Desktop.exe") }
         } catch {}
     }
@@ -894,7 +907,8 @@ function Start-DockerDesktopProcess {
     }
     $shortcuts = @(
         "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Docker Desktop.lnk",
-        "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\Docker Desktop.lnk"
+        "$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu\Programs\Docker Desktop.lnk",
+        "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Docker Desktop.lnk"
     )
     foreach ($lnk in $shortcuts) {
         if ($lnk -and (Test-Path $lnk)) {

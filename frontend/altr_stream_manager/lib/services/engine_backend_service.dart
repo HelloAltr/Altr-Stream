@@ -78,6 +78,10 @@ class EngineBackendService implements BackendService {
     );
   }
 
+  /// Safely resolves user home directory across Windows (USERPROFILE) and macOS/Linux (HOME).
+  static String get _userHome =>
+      Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? '';
+
   /// Default process runner with enhanced environment variables (PATH, HOME, DOCKER_HOST).
   static Future<ProcessResult> _defaultProcessRunner(
     String executable,
@@ -113,8 +117,12 @@ class EngineBackendService implements BackendService {
         '$progX86\\Docker\\Docker\\resources\\bin',
         '$progFiles\\Docker\\Docker\\resources',
         '$progFiles\\Docker\\Docker',
+        if (localApp.isNotEmpty) '$localApp\\Programs\\DockerDesktop\\resources\\bin',
+        if (localApp.isNotEmpty) '$localApp\\Programs\\DockerDesktop\\version-bin',
+        if (localApp.isNotEmpty) '$localApp\\Programs\\DockerDesktop',
         if (localApp.isNotEmpty) '$localApp\\Programs\\Docker\\resources\\bin',
         if (userProfile.isNotEmpty) '$userProfile\\.docker\\bin',
+        if (userProfile.isNotEmpty) '$userProfile\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin',
         '$sysRoot\\System32',
         sysRoot,
         '$sysRoot\\System32\\Wbem',
@@ -314,6 +322,24 @@ class EngineBackendService implements BackendService {
       }
     }
 
+    // Tier 2c: Installed Application Directory Discovery (Windows per-user installation)
+    if (Platform.isWindows) {
+      final localApp = Platform.environment['LOCALAPPDATA'] ?? '';
+      if (localApp.isNotEmpty) {
+        final installedCandidates = [
+          '$localApp\\Programs\\AltrStreamManager\\1.1.0\\$binaryName',
+          '$localApp\\Programs\\AltrStreamManager\\$binaryName',
+        ];
+        for (final cand in installedCandidates) {
+          if (_isExecutableFile(cand)) {
+            _cachedEnginePath = File(cand).absolute.path;
+            debugPrint('[EngineBackendService] Resolved binary from installed application location: $_cachedEnginePath');
+            return _cachedEnginePath;
+          }
+        }
+      }
+    }
+
     debugPrint('[EngineBackendService] WARNING: Could not resolve native installer engine executable on host.');
     return null;
   }
@@ -390,7 +416,7 @@ class EngineBackendService implements BackendService {
     } catch (e) {
       sw.stop();
       debugPrint('[EngineBackendService] getStatus error: $e');
-      final home = Platform.environment['HOME'] ?? '';
+      final home = _userHome;
       _lastEngineError = e.toString();
       logEvent(
         'Status',
@@ -449,6 +475,8 @@ class EngineBackendService implements BackendService {
           '$progW64\\Docker\\Docker\\Docker Desktop.exe',
           '$progX86\\Docker\\Docker\\Docker Desktop.exe',
           r'C:\Program Files\Docker\Docker\Docker Desktop.exe',
+          if (localApp.isNotEmpty) '$localApp\\Programs\\DockerDesktop\\Docker Desktop.exe',
+          if (localApp.isNotEmpty) '$localApp\\Programs\\DockerDesktop\\frontend\\Docker Desktop.exe',
           if (localApp.isNotEmpty) '$localApp\\Programs\\Docker\\Docker\\Docker Desktop.exe',
           if (localApp.isNotEmpty) '$localApp\\Programs\\Docker\\Docker Desktop.exe',
           if (localApp.isNotEmpty) '$localApp\\Docker\\Docker Desktop.exe',
@@ -496,6 +524,9 @@ class EngineBackendService implements BackendService {
       final cliCandidates = [
         '$progData\\DockerDesktop\\version-bin\\docker.exe',
         r'C:\ProgramData\DockerDesktop\version-bin\docker.exe',
+        if (localApp.isNotEmpty) '$localApp\\Programs\\DockerDesktop\\resources\\bin\\docker.exe',
+        if (localApp.isNotEmpty) '$localApp\\Programs\\DockerDesktop\\version-bin\\docker.exe',
+        if (localApp.isNotEmpty) '$localApp\\Programs\\DockerDesktop\\docker.exe',
         '$progFiles\\Docker\\Docker\\resources\\bin\\docker.exe',
         r'C:\Program Files\Docker\Docker\resources\bin\docker.exe',
         '$progFiles\\Docker\\Docker\\resources\\docker.exe',
@@ -552,7 +583,11 @@ class EngineBackendService implements BackendService {
     }
 
     if (!daemonReady && !daemonPaused && Platform.isWindows) {
-      for (final pipe in [r'npipe:////./pipe/docker_engine', r'npipe:////./pipe/dockerDesktopLinuxEngine']) {
+      for (final pipe in [
+        r'npipe:////./pipe/docker_engine',
+        r'npipe:////./pipe/dockerDesktopLinuxEngine',
+        r'npipe:////./pipe/dockerDesktopWindowsEngine',
+      ]) {
         try {
           final fbRes = await _commandRunner(resolvedCli, ['-H', pipe, 'info']).timeout(const Duration(seconds: 4));
           if (fbRes.exitCode == 0) {
@@ -599,7 +634,7 @@ class EngineBackendService implements BackendService {
     }
 
     // Check 4: Runtime Configuration & Target Directory
-    final home = Platform.environment['HOME'] ?? '';
+    final home = _userHome;
     final dir = _effectiveInstallDir.isNotEmpty ? _effectiveInstallDir : '$home/.altr-stream';
     final composeFile = File('$dir/docker-compose.yml');
     final envFile = File('$dir/.env');
@@ -1125,7 +1160,7 @@ class EngineBackendService implements BackendService {
   Future<String> changeInstallationPath(String newPath) async {
     String resolvedPath = newPath.trim();
     if (resolvedPath.startsWith('~/')) {
-      final home = Platform.environment['HOME'] ?? '';
+      final home = _userHome;
       resolvedPath = '$home/${resolvedPath.substring(2)}';
     }
     _effectiveInstallDir = resolvedPath;
@@ -1149,7 +1184,7 @@ class EngineBackendService implements BackendService {
 
   @override
   Future<void> openInstallationDirectory() async {
-    final home = Platform.environment['HOME'] ?? '';
+    final home = _userHome;
     final dir = _effectiveInstallDir.isNotEmpty ? _effectiveInstallDir : '$home/.altr-stream';
     final target = Directory(dir);
     if (!target.existsSync()) {
@@ -1213,7 +1248,7 @@ class EngineBackendService implements BackendService {
       }
     }
 
-    final home = Platform.environment['HOME'] ?? '';
+    final home = _userHome;
     final dir = _effectiveInstallDir.isNotEmpty ? _effectiveInstallDir : '$home/.altr-stream';
     final StringBuffer logBuffer = StringBuffer();
 
@@ -1314,7 +1349,7 @@ class EngineBackendService implements BackendService {
     // Set timestamp cutoff so external Docker container logs before this moment are filtered out
     _lastLogsClearedTime = DateTime.now();
 
-    final home = Platform.environment['HOME'] ?? '';
+    final home = _userHome;
     final dir = _effectiveInstallDir.isNotEmpty ? _effectiveInstallDir : '$home/.altr-stream';
     final candidates = [
       '$dir/install.log',
